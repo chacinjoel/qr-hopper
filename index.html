@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>QR Hopper Transfer V3</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+:root{--bg:#07111f;--panel:#0e1c2e;--text:#eef8ff;--muted:#91a8bd;--accent:#42e8ff;--accent2:#8b5cff;--good:#4ee59a;--warn:#ffcf5a;--bad:#ff6b7a}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(circle at 25% 0%,#143355 0,#07111f 40%,#040a12 100%);min-height:100vh}
+header{max-width:1100px;margin:auto;padding:22px 18px 10px}h1{margin:0;font-size:clamp(30px,6vw,50px);letter-spacing:-1px}.sub{color:var(--muted);line-height:1.5;margin-top:7px}
+.wrap{max-width:1100px;margin:auto;padding:12px 18px 40px}.tabs{display:flex;gap:10px;margin-bottom:14px}.tab{flex:1;padding:13px;border-radius:14px;border:1px solid #294464;background:#0b1727;color:var(--text);font-weight:800;cursor:pointer}.tab.active{background:linear-gradient(135deg,#0d3142,#25235c);border-color:var(--accent)}
+.card{background:linear-gradient(180deg,rgba(17,36,59,.95),rgba(8,22,38,.97));border:1px solid #24415f;border-radius:22px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.drop{border:2px dashed #31597d;border-radius:18px;padding:22px;text-align:center;min-height:180px;background:#081522;display:flex;flex-direction:column;align-items:center;justify-content:center}.drop input{max-width:100%}
+button{border:0;border-radius:13px;padding:12px 15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--accent),#45a7ff);color:#04111c}button.secondary{background:#142943;color:var(--text);border:1px solid #315475}button.danger{background:#401e28;color:#ffd9df;border:1px solid #7b3044}button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.meta{margin-top:12px;padding:13px;border-radius:14px;background:#091724;color:#c9d9e8;word-break:break-word;font-size:14px;line-height:1.5}.hint{margin-top:10px;padding:11px 12px;border-radius:12px;background:#0a1725;color:#adc2d4;font-size:13px;line-height:1.45}
+#qrCanvas{width:min(100%,620px);height:auto;background:#fff;border-radius:18px;image-rendering:pixelated;display:block;margin:auto}.progress{height:12px;background:#07111c;border-radius:999px;overflow:hidden;margin:12px 0}.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.tiny{font-size:12px;color:var(--muted)}.status{font-weight:800;margin-top:10px;line-height:1.45}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+label{display:block;font-weight:700;margin-top:12px;margin-bottom:5px}select{width:100%;padding:11px;border-radius:12px;border:1px solid #315475;background:#081522;color:#fff}
+video{width:100%;max-height:62vh;background:#000;border-radius:18px;object-fit:cover}.hidden{display:none!important}.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}.stat{background:#091724;border-radius:13px;padding:10px;text-align:center}.stat b{display:block;font-size:20px}
+footer{max-width:1100px;margin:auto;padding:0 18px 28px;color:#728aa1;font-size:12px}code{color:#a8f2ff}
+</style>
+</head>
+<body>
+<header><h1>QR Hopper Transfer V3</h1><div class="sub">Transferencia óptica mediante QR secuenciales con HEADER separado, CRC32 por bloque y SHA-256 global.</div></header>
+<div class="wrap">
+<div class="tabs"><button class="tab active" id="tabSend">Emisor / Codificador</button><button class="tab" id="tabRecv">Receptor / Decodificador</button></div>
+
+<section id="sendPanel" class="card">
+<div class="grid">
+<div>
+<div class="drop">
+<strong style="font-size:20px">Selecciona un archivo</strong>
+<p class="tiny">PDF, TXT, DOC/DOCX, MP4, MP3, PNG, JPG o cualquier archivo binario.</p>
+<input type="file" id="fileInput">
+</div>
+
+<label for="payloadPreset">Densidad por QR</label>
+<select id="payloadPreset">
+<option value="safe">Segura — máxima robustez</option>
+<option value="balanced" selected>Balanceada — recomendada</option>
+<option value="dense">Densa — menos QR</option>
+</select>
+
+<label for="fps">Velocidad de emisión</label>
+<select id="fps">
+<option value="750">1.3 QR/s — robusta</option>
+<option value="500" selected>2.0 QR/s — recomendada</option>
+<option value="350">2.9 QR/s — rápida</option>
+<option value="260">3.8 QR/s — experimental</option>
+</select>
+
+<div class="row">
+<button id="prepareBtn">Codificar archivo</button>
+<button id="playBtn" class="secondary" disabled>▶ Iniciar emisión</button>
+<button id="pauseBtn" class="secondary" disabled>⏸ Pausar</button>
+<button id="prevBtn" class="secondary" disabled>◀</button>
+<button id="nextBtn" class="secondary" disabled>▶</button>
+</div>
+
+<div id="sendMeta" class="meta">Aún no hay archivo preparado.</div>
+<div class="progress"><div class="bar" id="sendBar"></div></div>
+<div class="status" id="sendStatus">Frame 0 / 0</div>
+<div class="hint">La app genera un HEADER independiente y calcula automáticamente un tamaño de payload que realmente pueda renderizarse como QR.</div>
+</div>
+
+<div>
+<canvas id="qrCanvas" width="620" height="620"></canvas>
+<p class="tiny">Usa brillo alto y mantén el QR centrado frente a la cámara receptora.</p>
+</div>
+</div>
+</section>
+
+<section id="recvPanel" class="card hidden">
+<div class="grid">
+<div>
+<video id="video" playsinline muted></video>
+<canvas id="scanCanvas" class="hidden"></canvas>
+<div class="row">
+<button id="cameraBtn">Activar cámara</button>
+<button id="stopCameraBtn" class="secondary" disabled>Detener cámara</button>
+<button id="resetRecvBtn" class="danger">Reiniciar recepción</button>
+</div>
+<div class="status" id="cameraStatus">Cámara detenida.</div>
+</div>
+<div>
+<div class="statgrid">
+<div class="stat"><b id="gotCount">0</b><span class="tiny">bloques</span></div>
+<div class="stat"><b id="totalCount">0</b><span class="tiny">totales</span></div>
+<div class="stat"><b id="percent">0%</b><span class="tiny">progreso</span></div>
+</div>
+<div class="progress"><div class="bar" id="recvBar"></div></div>
+<div id="recvMeta" class="meta">Esperando HEADER.</div>
+<div class="status" id="recvStatus">Sin datos.</div>
+<div class="row"><button id="downloadBtn" disabled>Descargar archivo reconstruido</button></div>
+<div class="hint">Cada bloque se valida con CRC32. Al completar la transferencia, el archivo se reconstruye y se verifica con SHA-256.</div>
+</div>
+</div>
+</section>
+</div>
+
+<footer>Para usar cámara en iPhone/Android, abre esta web mediante <code>https://</code> o <code>localhost</code>; <code>file://</code> suele bloquear la cámara.</footer>
+
+<script>
+(() => {
+const $=id=>document.getElementById(id);
+if(typeof qrcode!=='function'){
+  document.addEventListener('DOMContentLoaded',()=> {
+    const s=document.getElementById('sendStatus');
+    if(s){s.textContent='No se pudo cargar el motor QR. Verifica la conexión a Internet.';s.className='status bad';}
+  });
+}
+
+const presets={safe:420,balanced:650,dense:850};
+let tx=null,frameIndex=0,timer=null;
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function fmt(n){if(n<1024)return n+' B';if(n<1024**2)return(n/1024).toFixed(1)+' KB';if(n<1024**3)return(n/1024**2).toFixed(1)+' MB';return(n/1024**3).toFixed(2)+' GB'}
+async function sha256(buffer){const d=await crypto.subtle.digest('SHA-256',buffer);return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+function randomId(){return [...crypto.getRandomValues(new Uint32Array(3))].map(x=>x.toString(36)).join('').slice(0,16)}
+function b64Bytes(bytes){let s='',step=0x8000;for(let i=0;i<bytes.length;i+=step)s+=String.fromCharCode(...bytes.subarray(i,i+step));return btoa(s)}
+function bytesB64(b64){const s=atob(b64),o=new Uint8Array(s.length);for(let i=0;i<s.length;i++)o[i]=s.charCodeAt(i);return o}
+function b64utf8(s){return b64Bytes(new TextEncoder().encode(s))}
+function utf8b64(s){return new TextDecoder().decode(bytesB64(s))}
+
+const crcTable=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0}return t})();
+function crc32(s){let c=0^(-1);for(let i=0;i<s.length;i++)c=(c>>>8)^crcTable[(c^s.charCodeAt(i))&255];return((c^(-1))>>>0).toString(16).padStart(8,'0')}
+
+function header(meta){return ['QH3','H',meta.sid,meta.total,meta.size,b64utf8(meta.type),b64utf8(meta.name),meta.hash].join('|')}
+function dataFrame(sid,i,payload){return ['QH3','D',sid,i,crc32(payload),payload].join('|')}
+
+function makeQR(text){
+  const qr = qrcode(0,'L');
+  qr.addData(text,'Byte');
+  qr.make();
+  return qr;
+}
+function paintQR(canvas,text,size=620){
+  const qr=makeQR(text), count=qr.getModuleCount(), margin=4;
+  const ctx=canvas.getContext('2d');
+  canvas.width=size; canvas.height=size;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,size,size);
+  const cell=Math.floor(size/(count+margin*2));
+  const drawSize=cell*(count+margin*2);
+  const offset=Math.floor((size-drawSize)/2)+margin*cell;
+  ctx.fillStyle='#000';
+  for(let r=0;r<count;r++){
+    for(let c=0;c<count;c++){
+      if(qr.isDark(r,c)) ctx.fillRect(offset+c*cell,offset+r*cell,cell,cell);
+    }
+  }
+}
+async function canRender(text){
+  try{ makeQR(text); return true }catch(e){ return false }
+}
+async function findSafePayload(b64,preset){
+ let size=presets[preset]||650;
+ while(size>=180){
+   const sample=dataFrame('sample123456',999999,b64.slice(0,size));
+   if(await canRender(sample))return size;
+   size=Math.floor(size*.8);
+ }
+ throw new Error('No se encontró un tamaño seguro para el QR.');
+}
+
+$('tabSend').onclick=()=>switchTab(true);
+$('tabRecv').onclick=()=>switchTab(false);
+function switchTab(send){
+ $('sendPanel').classList.toggle('hidden',!send);$('recvPanel').classList.toggle('hidden',send);
+ $('tabSend').classList.toggle('active',send);$('tabRecv').classList.toggle('active',!send)
+}
+
+$('prepareBtn').onclick=prepare;
+$('playBtn').onclick=startEmission;
+$('pauseBtn').onclick=stopEmission;
+$('prevBtn').onclick=()=>{stopEmission();if(!tx)return;frameIndex=(frameIndex-1+tx.frames.length)%tx.frames.length;renderFrame()};
+$('nextBtn').onclick=()=>{stopEmission();if(!tx)return;frameIndex=(frameIndex+1)%tx.frames.length;renderFrame()};
+
+async function prepare(){
+ const file=$('fileInput').files[0]; if(!file){alert('Selecciona un archivo.');return}
+ stopEmission();$('sendStatus').textContent='Analizando archivo…';$('sendStatus').className='status';
+ try{
+   const buffer=await file.arrayBuffer(),bytes=new Uint8Array(buffer),hash=await sha256(buffer),b64=b64Bytes(bytes);
+   const payloadSize=await findSafePayload(b64,$('payloadPreset').value),sid=randomId(),total=Math.ceil(b64.length/payloadSize);
+   const meta={sid,total,size:file.size,type:file.type||'application/octet-stream',name:file.name,hash,payloadSize};
+   const h=header(meta);
+   if(!(await canRender(h)))throw new Error('El HEADER no cabe. Renombra el archivo con un nombre más corto.');
+   const frames=[h];
+   for(let i=0;i<total;i++){const p=b64.slice(i*payloadSize,(i+1)*payloadSize);frames.push(dataFrame(sid,i,p))}
+   if(frames.length>1 && (!(await canRender(frames[1])) || !(await canRender(frames[frames.length-1]))))throw new Error('La validación QR falló. Usa densidad Segura.');
+   tx={meta,frames};frameIndex=0;
+   ['playBtn','pauseBtn','prevBtn','nextBtn'].forEach(id=>$(id).disabled=false);
+   $('sendMeta').innerHTML=`<b>${esc(file.name)}</b><br>${fmt(file.size)} · ${esc(meta.type)}<br>SHA-256: <span style="font-size:11px">${hash}</span><br>Payload efectivo: <b>${payloadSize}</b> caracteres/QR<br>DATA QR: <b>${total.toLocaleString()}</b> + 1 HEADER<br>Frames totales: <b>${frames.length.toLocaleString()}</b>`;
+   await renderFrame();
+ }catch(e){console.error(e);tx=null;$('sendStatus').textContent=e.message||'Error preparando la transferencia.';$('sendStatus').className='status bad'}
+}
+
+async function renderFrame(){
+ if(!tx)return;
+ try{
+   paintQR($('qrCanvas'),tx.frames[frameIndex],620);
+   $('sendBar').style.width=((frameIndex+1)/tx.frames.length*100)+'%';
+   const kind=frameIndex===0?'HEADER':`DATA ${frameIndex}/${tx.meta.total}`;
+   $('sendStatus').textContent=`Frame ${frameIndex+1} / ${tx.frames.length} · ${kind}`;
+   $('sendStatus').className='status good';
+ }catch(e){console.error(e);$('sendStatus').textContent='Un frame no pudo renderizarse. Cambia a densidad Segura y vuelve a codificar.';$('sendStatus').className='status bad';stopEmission()}
+}
+function startEmission(){if(!tx)return;stopEmission();timer=setInterval(()=>{frameIndex=(frameIndex+1)%tx.frames.length;renderFrame()},parseInt($('fps').value,10))}
+function stopEmission(){if(timer){clearInterval(timer);timer=null}}
+
+let stream=null,raf=null,recv=state();
+function state(){return{sid:null,total:0,meta:null,chunks:new Map(),blob:null,completed:false}}
+
+$('cameraBtn').onclick=startCamera;$('stopCameraBtn').onclick=stopCamera;$('resetRecvBtn').onclick=resetReceiver;$('downloadBtn').onclick=downloadFile;
+
+async function startCamera(){
+ try{
+   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+   $('video').srcObject=stream;await $('video').play();$('cameraBtn').disabled=true;$('stopCameraBtn').disabled=false;
+   $('cameraStatus').textContent='Cámara activa. Apunta al QR.';$('cameraStatus').className='status good';scanLoop()
+ }catch(e){$('cameraStatus').textContent='No se pudo abrir la cámara: '+e.message;$('cameraStatus').className='status bad'}
+}
+function stopCamera(){if(raf)cancelAnimationFrame(raf);raf=null;if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('cameraBtn').disabled=false;$('stopCameraBtn').disabled=true;$('cameraStatus').textContent='Cámara detenida.';$('cameraStatus').className='status'}
+function resetReceiver(){recv=state();$('gotCount').textContent='0';$('totalCount').textContent='0';$('percent').textContent='0%';$('recvBar').style.width='0%';$('recvMeta').textContent='Esperando HEADER.';$('recvStatus').textContent='Sin datos.';$('recvStatus').className='status';$('downloadBtn').disabled=true}
+function scanLoop(){
+ if(!stream)return;const v=$('video');
+ if(v.readyState>=2&&v.videoWidth>0){
+   const c=$('scanCanvas'),ctx=c.getContext('2d',{willReadFrequently:true}),targetW=960,scale=targetW/v.videoWidth;
+   c.width=targetW;c.height=Math.round(v.videoHeight*scale);ctx.drawImage(v,0,0,c.width,c.height);
+   const img=ctx.getImageData(0,0,c.width,c.height),code=jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
+   if(code&&code.data)handleFrame(code.data)
+ }
+ raf=requestAnimationFrame(scanLoop)
+}
+
+async function handleFrame(text){
+ if(!text.startsWith('QH3|'))return;
+ const p=text.split('|');if(p[0]!=='QH3')return;
+ if(p[1]==='H'&&p.length>=8){
+   const meta={sid:p[2],total:parseInt(p[3],10),size:parseInt(p[4],10),type:utf8b64(p[5]),name:utf8b64(p[6]),hash:p[7]};
+   if(recv.sid&&recv.sid!==meta.sid){$('recvStatus').textContent='Se detectó otra transferencia. Reinicia el receptor.';$('recvStatus').className='status warn';return}
+   recv.sid=meta.sid;recv.total=meta.total;recv.meta=meta;$('totalCount').textContent=meta.total.toLocaleString();
+   $('recvMeta').innerHTML=`<b>${esc(meta.name)}</b><br>${fmt(meta.size)} · ${esc(meta.type)}<br>SHA-256 esperado: <span style="font-size:11px">${meta.hash}</span>`;
+   updateRecv();return
+ }
+ if(p[1]==='D'&&p.length>=6){
+   const sid=p[2],index=parseInt(p[3],10),expected=p[4],payload=p.slice(5).join('|');
+   if(!recv.sid)recv.sid=sid;if(recv.sid!==sid||Number.isNaN(index))return;
+   if(crc32(payload)!==expected){$('recvStatus').textContent=`Bloque ${index} rechazado por CRC32.`;$('recvStatus').className='status warn';return}
+   if(!recv.chunks.has(index))recv.chunks.set(index,payload);
+   updateRecv();
+   if(recv.meta&&recv.total>0&&recv.chunks.size===recv.total&&!recv.completed)await finalize()
+ }
+}
+function updateRecv(){
+ const got=recv.chunks.size,total=recv.total||recv.meta?.total||0,pct=total?Math.floor(got/total*100):0;
+ $('gotCount').textContent=got.toLocaleString();$('totalCount').textContent=total.toLocaleString();$('percent').textContent=pct+'%';$('recvBar').style.width=pct+'%';
+ if(!recv.meta){$('recvStatus').textContent=got?`Datos detectados (${got} bloques). Esperando HEADER…`:'Sin datos.';$('recvStatus').className='status'}
+ else{$('recvStatus').textContent=`Recibiendo… ${got} de ${total} bloques únicos.`;$('recvStatus').className='status'}
+}
+async function finalize(){
+ try{
+   recv.completed=true;$('recvStatus').textContent='Reconstruyendo y verificando SHA-256…';$('recvStatus').className='status';
+   const ordered=new Array(recv.total);for(let i=0;i<recv.total;i++){if(!recv.chunks.has(i)){recv.completed=false;return}ordered[i]=recv.chunks.get(i)}
+   const bytes=bytesB64(ordered.join(''));
+   if(bytes.byteLength!==recv.meta.size){recv.completed=false;$('recvStatus').textContent='Tamaño reconstruido incorrecto.';$('recvStatus').className='status bad';return}
+   const actual=await sha256(bytes.buffer);
+   if(actual!==recv.meta.hash){recv.completed=false;$('recvStatus').textContent='Error de integridad: SHA-256 no coincide.';$('recvStatus').className='status bad';return}
+   recv.blob=new Blob([bytes],{type:recv.meta.type||'application/octet-stream'});
+   $('recvStatus').textContent='Archivo completo, íntegro y verificado ✓';$('recvStatus').className='status good';$('downloadBtn').disabled=false
+ }catch(e){recv.completed=false;$('recvStatus').textContent='Error reconstruyendo archivo: '+e.message;$('recvStatus').className='status bad'}
+}
+function downloadFile(){if(!recv.blob||!recv.meta)return;const u=URL.createObjectURL(recv.blob),a=document.createElement('a');a.href=u;a.download=recv.meta.name||'reconstructed.bin';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000)}
+
+const ctx=$('qrCanvas').getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,620,620);ctx.fillStyle='#091724';ctx.textAlign='center';ctx.font='bold 30px system-ui';ctx.fillText('QR Hopper V3',310,292);ctx.font='18px system-ui';ctx.fillText('Selecciona un archivo para comenzar',310,328);
+})();
+</script>
+</body>
+</html>
