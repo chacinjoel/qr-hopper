@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>QR Hopper Transfer V3</title>
+<title>QR Hopper Transfer V4</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
@@ -24,7 +24,7 @@ footer{max-width:1100px;margin:auto;padding:0 18px 28px;color:#728aa1;font-size:
 </style>
 </head>
 <body>
-<header><h1>QR Hopper Transfer V3</h1><div class="sub">Transferencia óptica mediante QR secuenciales con HEADER separado, CRC32 por bloque y SHA-256 global.</div></header>
+<header><h1>QR Hopper Transfer V4</h1><div class="sub">Transferencia óptica mediante QR secuenciales con HEADER separado, CRC32 por bloque y SHA-256 global.</div></header>
 <div class="wrap">
 <div class="tabs"><button class="tab active" id="tabSend">Emisor / Codificador</button><button class="tab" id="tabRecv">Receptor / Decodificador</button></div>
 
@@ -54,10 +54,6 @@ footer{max-width:1100px;margin:auto;padding:0 18px 28px;color:#728aa1;font-size:
 
 <div class="row">
 <button id="prepareBtn">Codificar archivo</button>
-<button id="playBtn" class="secondary" disabled>▶ Iniciar emisión</button>
-<button id="pauseBtn" class="secondary" disabled>⏸ Pausar</button>
-<button id="prevBtn" class="secondary" disabled>◀</button>
-<button id="nextBtn" class="secondary" disabled>▶</button>
 </div>
 
 <div id="sendMeta" class="meta">Aún no hay archivo preparado.</div>
@@ -68,6 +64,13 @@ footer{max-width:1100px;margin:auto;padding:0 18px 28px;color:#728aa1;font-size:
 
 <div>
 <canvas id="qrCanvas" width="620" height="620"></canvas>
+<div class="row" style="justify-content:center;margin-top:12px">
+<button id="prevBtn" class="secondary" disabled>◀</button>
+<button id="playBtn" disabled>▶ Iniciar emisión</button>
+<button id="pauseBtn" class="secondary" disabled>⏸ Pausar</button>
+<button id="nextBtn" class="secondary" disabled>▶</button>
+</div>
+<div class="tiny" id="qrQuickStatus" style="text-align:center;margin-top:8px">QR listo para preparar.</div>
 <p class="tiny">Usa brillo alto y mantén el QR centrado frente a la cámara receptora.</p>
 </div>
 </div>
@@ -114,7 +117,7 @@ if(typeof qrcode!=='function'){
 }
 
 const presets={safe:420,balanced:650,dense:850};
-let tx=null,frameIndex=0,timer=null;
+let tx=null,frameIndex=0,timer=null,headerDelayTimer=null;
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function fmt(n){if(n<1024)return n+' B';if(n<1024**2)return(n/1024).toFixed(1)+' KB';if(n<1024**3)return(n/1024**2).toFixed(1)+' MB';return(n/1024**3).toFixed(2)+' GB'}
@@ -205,10 +208,32 @@ async function renderFrame(){
    const kind=frameIndex===0?'HEADER':`DATA ${frameIndex}/${tx.meta.total}`;
    $('sendStatus').textContent=`Frame ${frameIndex+1} / ${tx.frames.length} · ${kind}`;
    $('sendStatus').className='status good';
+   if($('qrQuickStatus')) $('qrQuickStatus').textContent=`QR ${frameIndex+1} / ${tx.frames.length} · ${kind}`;
  }catch(e){console.error(e);$('sendStatus').textContent='Un frame no pudo renderizarse. Cambia a densidad Segura y vuelve a codificar.';$('sendStatus').className='status bad';stopEmission()}
 }
-function startEmission(){if(!tx)return;stopEmission();timer=setInterval(()=>{frameIndex=(frameIndex+1)%tx.frames.length;renderFrame()},parseInt($('fps').value,10))}
-function stopEmission(){if(timer){clearInterval(timer);timer=null}}
+function startEmission(){
+ if(!tx)return;
+ stopEmission();
+ const step=parseInt($('fps').value,10);
+ const beginLoop=()=>{
+   timer=setInterval(()=>{frameIndex=(frameIndex+1)%tx.frames.length;renderFrame()},step);
+ };
+ if(frameIndex===0){
+   if($('qrQuickStatus')) $('qrQuickStatus').textContent=`QR 1 / ${tx.frames.length} · HEADER · iniciando en 1.5 s…`;
+   headerDelayTimer=setTimeout(()=>{
+     headerDelayTimer=null;
+     frameIndex=(frameIndex+1)%tx.frames.length;
+     renderFrame();
+     beginLoop();
+   },1500);
+ }else{
+   beginLoop();
+ }
+}
+function stopEmission(){
+ if(timer){clearInterval(timer);timer=null}
+ if(headerDelayTimer){clearTimeout(headerDelayTimer);headerDelayTimer=null}
+}
 
 let stream=null,raf=null,recv=state();
 function state(){return{sid:null,total:0,meta:null,chunks:new Map(),blob:null,completed:false}}
@@ -274,7 +299,7 @@ async function finalize(){
 }
 function downloadFile(){if(!recv.blob||!recv.meta)return;const u=URL.createObjectURL(recv.blob),a=document.createElement('a');a.href=u;a.download=recv.meta.name||'reconstructed.bin';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000)}
 
-const ctx=$('qrCanvas').getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,620,620);ctx.fillStyle='#091724';ctx.textAlign='center';ctx.font='bold 30px system-ui';ctx.fillText('QR Hopper V3',310,292);ctx.font='18px system-ui';ctx.fillText('Selecciona un archivo para comenzar',310,328);
+const ctx=$('qrCanvas').getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,620,620);ctx.fillStyle='#091724';ctx.textAlign='center';ctx.font='bold 30px system-ui';ctx.fillText('QR Hopper V4',310,292);ctx.font='18px system-ui';ctx.fillText('Selecciona un archivo para comenzar',310,328);
 })();
 </script>
 </body>
