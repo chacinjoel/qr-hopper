@@ -9,7 +9,7 @@
 *{box-sizing:border-box}html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
 #app{height:100%;display:grid;grid-template-columns:360px 1fr}.panel{background:linear-gradient(180deg,#11182b,#0d1424);border-right:1px solid var(--line);padding:16px;overflow:auto;z-index:4}
 h1{font-size:20px;margin:0 0 6px}.sub{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 10px}.card{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#d5e3ff;margin:0 0 9px}.row{display:flex;gap:8px;flex-wrap:wrap}.btn,select{border:1px solid #3a5079;background:#18253f;color:var(--text);border-radius:10px;padding:9px 11px;font-size:12px}.btn{cursor:pointer}.btn.active{outline:2px solid var(--accent);background:#17364d}.mode{flex:1;font-weight:800}select{width:100%;font-weight:700}.note{font-size:11px;line-height:1.55;color:#c4d2eb;background:#111b2f;border:1px solid #263657;border-radius:10px;padding:10px}.compare{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:12px}.compare span:nth-child(odd){color:var(--muted)}.premium{border-color:#41634d;background:rgba(90,170,110,.08)}
-#stage{position:relative;min-width:0;background:#0a1020}.view{position:absolute;inset:0}.hidden{display:none!important}#planWrap{background:#eef2f6;display:flex;align-items:center;justify-content:center;padding:8px;overflow:auto;-webkit-overflow-scrolling:touch}#plan2d{display:block;width:auto;height:calc(100% - 16px);max-width:100%;max-height:calc(100% - 16px)}#scene3d{width:100%;height:100%;display:block;touch-action:none}.hud{position:absolute;top:12px;left:12px;right:12px;z-index:3;display:flex;justify-content:space-between;pointer-events:none}.pill{pointer-events:auto;background:rgba(8,13,25,.82);border:1px solid #31415f;color:#dbe8ff;padding:8px 11px;border-radius:999px;font-size:12px}.bottom{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;background:rgba(8,13,25,.84);border:1px solid #31415f;color:#bdc9df;padding:8px 12px;border-radius:12px;font-size:11px;text-align:center;max-width:min(960px,94%)}.mobile{display:none}
+#stage{position:relative;min-width:0;background:#0a1020}.view{position:absolute;inset:0}.hidden{display:none!important}#planWrap{background:#eef2f6;display:flex;align-items:center;justify-content:center;padding:8px;overflow:auto;-webkit-overflow-scrolling:touch}#plan2d{display:block;width:auto;height:calc(100% - 16px);max-width:100%;max-height:calc(100% - 16px)}#scene3d{width:100%;height:100%;display:block;touch-action:none}.hud{position:absolute;top:12px;left:12px;right:12px;z-index:3;display:flex;justify-content:space-between;pointer-events:none}.pill{pointer-events:auto;background:rgba(8,13,25,.82);border:1px solid #31415f;color:#dbe8ff;padding:8px 11px;border-radius:999px;font-size:12px}.bottom{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;background:rgba(8,13,25,.84);border:1px solid #31415f;color:#bdc9df;padding:8px 12px;border-radius:12px;font-size:11px;text-align:center;max-width:min(980px,94%)}.mobile{display:none}
 @media(max-width:900px){#app{grid-template-columns:1fr}.panel{position:absolute;left:0;top:0;bottom:0;width:min(370px,94vw);transform:translateX(-100%);transition:.2s;box-shadow:0 25px 80px #0008}.panel.open{transform:none}.mobile{display:block}.hud{left:55px}#planWrap{padding:5px}#plan2d{height:calc(100% - 10px);max-height:calc(100% - 10px)}}
 </style>
 </head>
@@ -17,13 +17,13 @@ h1{font-size:20px;margin:0 0 6px}.sub{font-size:12px;color:var(--muted);line-hei
 <div id="app">
 <aside class="panel" id="panel">
 <h1>Casa 8×16 · Comparador</h1>
-<p class="sub">Opción 1 conserva el diseño original. Opción 2 fue revisada con una regla simple: <b>cada espacio debe tener acceso lógico y circulación real</b>. Las cuatro habitaciones tienen puerta directa al pasillo.</p>
-<div class="card"><h2>Diseño</h2><select id="designSelect"><option value="opt1">Opción 1 · Original</option><option value="opt2">Opción 2 · Premium lógica</option></select></div>
+<p class="sub">Opción 1 y Opción 2 se conservan. La nueva <b>Opción 3</b> prioriza privacidad acústica: baños y vestidores funcionan como colchones entre dormitorios, con accesos completos y circulación lógica.</p>
+<div class="card"><h2>Diseño</h2><select id="designSelect"><option value="opt1">Opción 1 · Original</option><option value="opt2">Opción 2 · Premium lógica</option><option value="opt3">Opción 3 · Premium privacidad</option></select></div>
 <div class="card"><h2>Vista</h2><div class="row"><button class="btn mode active" id="btn3d">◈ 3D</button><button class="btn mode" id="btn2d">▦ 2D</button></div></div>
 <div class="card"><h2>Cámara 3D</h2><div class="row"><button class="btn active" data-cam="persp">Perspectiva</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div></div>
 <div class="card"><h2>Resumen</h2><div class="compare" id="summary"></div></div>
 <div class="card premium"><h2>Revisión funcional</h2><div class="note" id="optionNote"></div></div>
-<div class="note">Es una distribución conceptual. Para construcción real deben verificarse estructura, instalaciones, ventilación, iluminación, puertas, evacuación y normativa local con un profesional.</div>
+<div class="note">Es una distribución conceptual. Para construcción real deben verificarse estructura, instalaciones, ventilación, iluminación, puertas, evacuación, aislamiento acústico y normativa local con un profesional.</div>
 </aside>
 <main id="stage">
 <button class="btn mobile" id="menuBtn" style="position:absolute;left:10px;top:10px;z-index:8">☰</button>
@@ -100,7 +100,50 @@ function option2(){
  ];
  return {key:'opt2',name:'Opción 2 · Premium lógica',rooms:4,baths:3,closet:'2×4 m = 8 m²',hall:'1.2 m continuo + hall trasero',social:'Sala 16.3 m² · Comedor 8.8 m² · Cocina 8.8 m²',note:'Revisión completa de lógica: las cuatro habitaciones tienen puerta directa al pasillo central; los tres baños privados se acceden desde sus respectivas habitaciones; el cuarto 4 ya no queda aislado. El pasillo mide 1.2 m y conecta entrada, dormitorios y salida trasera. El clóset de 8 m² se abre desde el hall trasero; la lavandería/bodega tiene acceso independiente; el baño anexo conserva una sola puerta desde el interior.',spaces,walls,doors,windows:[{w:'v',x:0,z:.6,l:1.0},{w:'v',x:0,z:4.6,l:1.0},{w:'v',x:0,z:8.6,l:1.0},{w:'v',x:0,z:13.0,l:1.6},{w:'v',x:8,z:1.4,l:1.8},{w:'v',x:8,z:5.3,l:1.5},{w:'v',x:8,z:8.0,l:1.3},{w:'v',x:12,z:14.35,l:1.2}],furniture:true};
 }
-const plans={opt1:option1(),opt2:option2()};
+
+function option3(){
+ const spaces=[
+  {id:'r1',name:'HAB. 1',sub:'3.7×2.7 · suite',x:0,z:0,w:3.7,d:2.7,t:'room'},
+  {id:'b1',name:'BAÑO 1',sub:'1.85×1.5 · privado',x:0,z:2.7,w:1.85,d:1.5,t:'bath'},
+  {id:'v1',name:'VESTIDOR 1',sub:'1.85×1.5',x:1.85,z:2.7,w:1.85,d:1.5,t:'closet'},
+  {id:'r2',name:'HAB. 2',sub:'3.7×2.7 · suite',x:0,z:4.2,w:3.7,d:2.7,t:'room'},
+  {id:'b2',name:'BAÑO 2',sub:'1.85×1.5 · privado',x:0,z:6.9,w:1.85,d:1.5,t:'bath'},
+  {id:'v2',name:'VESTIDOR 2',sub:'1.85×1.5',x:1.85,z:6.9,w:1.85,d:1.5,t:'closet'},
+  {id:'r3',name:'HAB. 3',sub:'3.7×2.7 · suite',x:0,z:8.4,w:3.7,d:2.7,t:'room'},
+  {id:'b3',name:'BAÑO 3',sub:'1.85×1.5 · privado',x:0,z:11.1,w:1.85,d:1.5,t:'bath'},
+  {id:'v3',name:'VESTIDOR 3',sub:'1.85×1.5',x:1.85,z:11.1,w:1.85,d:1.5,t:'closet'},
+  {id:'r4',name:'HAB. 4',sub:'3.7×3.4 · sin baño',x:0,z:12.6,w:3.7,d:3.4,t:'room'},
+  {id:'v4',name:'VESTIDOR 4',sub:'1.1×2',x:0,z:14,w:1.1,d:2,t:'closet',overlay:true},
+  {id:'mainHall',name:'PASILLO',sub:'1.1 m · continuo',x:3.7,z:0,w:1.1,d:16,t:'hall'},
+  {id:'living',name:'SALA',sub:'3.2×4.8',x:4.8,z:0,w:3.2,d:4.8,t:'social'},
+  {id:'dining',name:'COMEDOR',sub:'3.2×2.6',x:4.8,z:4.8,w:3.2,d:2.6,t:'social'},
+  {id:'kitchen',name:'COCINA',sub:'3.2×2.8',x:4.8,z:7.4,w:3.2,d:2.8,t:'kitchen'},
+  {id:'serviceHall',name:'PASO SERVICIO',sub:'1.2×4',x:4.8,z:10.2,w:1.2,d:4,t:'hall'},
+  {id:'houseCloset',name:'CLÓSET GENERAL',sub:'2×4 = 8 m²',x:6,z:10.2,w:2,d:4,t:'closet'},
+  {id:'rearHall',name:'HALL TRASERO',sub:'3.2×1.8',x:4.8,z:14.2,w:3.2,d:1.8,t:'hall'},
+  {id:'annex',name:'BAÑO ANEXO',sub:'4×2 · acceso interior',x:8,z:14,w:4,d:2,t:'bath'}
+ ];
+ const walls=[
+  H(0,3.8,0),H(4.7,8,0),H(0,3.8,16),H(4.7,8,16),V(0,0,16),V(8,0,14.45),V(8,15.35,16),V(12,14,16),H(8,12,14),H(8,12,16),
+  V(3.7,0,.7),V(3.7,1.6,4.9),V(3.7,5.8,9.1),V(3.7,10,13.1),V(3.7,14,16),
+  H(0,.9,2.7),H(1.7,2.15,2.7),H(2.95,3.7,2.7),H(0,3.7,4.2),V(1.85,2.7,4.2),
+  H(0,.9,6.9),H(1.7,2.15,6.9),H(2.95,3.7,6.9),H(0,3.7,8.4),V(1.85,6.9,8.4),
+  H(0,.9,11.1),H(1.7,2.15,11.1),H(2.95,3.7,11.1),H(0,3.7,12.6),V(1.85,11.1,12.6),
+  H(0,1.1,14),V(1.1,14,14.45),V(1.1,15.25,16),
+  H(6,8,10.2),V(6,10.2,11),V(6,11.9,14.2),H(6,8,14.2)
+ ];
+ const doors=[
+  D('front','h',3.8,0,.9,'north','Entrada'),D('rear','h',3.8,16,.9,'south','Salida trasera'),
+  D('r1','v',3.7,.7,.9,'west','Hab.1'),D('r2','v',3.7,4.9,.9,'west','Hab.2'),D('r3','v',3.7,9.1,.9,'west','Hab.3'),D('r4','v',3.7,13.1,.9,'west','Hab.4'),
+  D('b1','h',.9,2.7,.8,'north','Baño1'),D('v1','h',2.15,2.7,.8,'north','Vestidor1'),
+  D('b2','h',.9,6.9,.8,'north','Baño2'),D('v2','h',2.15,6.9,.8,'north','Vestidor2'),
+  D('b3','h',.9,11.1,.8,'north','Baño3'),D('v3','h',2.15,11.1,.8,'north','Vestidor3'),
+  D('v4','v',1.1,14.45,.8,'west','Vestidor4'),D('houseCloset','v',6,11,.9,'east','Clóset general'),D('annex','v',8,14.45,.9,'east','Baño anexo')
+ ];
+ return {key:'opt3',name:'Opción 3 · Premium privacidad',rooms:4,baths:3,closet:'4 vestidores + clóset general 8 m²',hall:'1.1 m continuo + paso servicio 1.2 m',social:'Sala 15.4 m² · Comedor 8.3 m² · Cocina 9.0 m²',note:'Diseño orientado a privacidad: entre Hab. 1 y 2, entre Hab. 2 y 3, y entre Hab. 3 y 4 hay una franja de 1.5 m con baño + vestidor que funciona como colchón acústico. Las habitaciones 1, 2 y 3 tienen baño privado y vestidor propio; la habitación 4 tiene vestidor propio y utiliza el baño anexo. Todas las habitaciones tienen puerta directa al pasillo continuo de 1.1 m. Se conserva un clóset general de 2×4 m, el acceso interior al baño anexo y la salida trasera alineada con el corredor.',spaces,walls,doors,windows:[{w:'v',x:0,z:.55,l:1.2},{w:'v',x:0,z:3.0,l:.8},{w:'v',x:0,z:4.75,l:1.2},{w:'v',x:0,z:7.2,l:.8},{w:'v',x:0,z:8.95,l:1.2},{w:'v',x:0,z:11.4,l:.8},{w:'v',x:0,z:13.0,l:1.0},{w:'v',x:8,z:1.2,l:1.8},{w:'v',x:8,z:5.25,l:1.4},{w:'v',x:8,z:8.0,l:1.4},{w:'v',x:12,z:14.35,l:1.2}],furniture:true};
+}
+
+const plans={opt1:option1(),opt2:option2(),opt3:option3()};
 
 const svg=document.getElementById('plan2d');
 function render2D(p){
@@ -118,9 +161,11 @@ function render2D(p){
  s+=p.walls.map(wall).join('');
  function door(d){const r=d.len*S,px=X(d.x),py=Y(d.z);if(d.wall==='h'){if(d.open==='north')return `<path d="M${px} ${py} L${px+r} ${py} M${px} ${py} A${r} ${r} 0 0 0 ${px} ${py-r}" class="door"/>`;return `<path d="M${px} ${py} L${px+r} ${py} M${px} ${py} A${r} ${r} 0 0 1 ${px} ${py+r}" class="door"/>`}else{if(d.open==='west')return `<path d="M${px} ${py} L${px} ${py-r} M${px} ${py} A${r} ${r} 0 0 1 ${px-r} ${py}" class="door"/>`;return `<path d="M${px} ${py} L${px} ${py-r} M${px} ${py} A${r} ${r} 0 0 0 ${px+r} ${py}" class="door"/>`}}
  s+=p.doors.map(door).join('');
- for(const sp of p.spaces){const cx=sp.x+sp.w/2,cz=sp.z+sp.d/2;if(sp.overlay){s+=tx(cx,cz+.05,sp.name,'sm')+tx(cx,cz-.22,sp.sub,'sm')}else{s+=tx(cx,cz+.12,sp.name)+tx(cx,cz-.18,sp.sub,'sm')}}
+ for(const sp of p.spaces){const cx=sp.x+sp.w/2,cz=sp.z+sp.d/2;if(sp.overlay||sp.d<=1.6||sp.w<=1.2){s+=tx(cx,cz+.04,sp.name,'sm')+tx(cx,cz-.20,sp.sub,'sm')}else{s+=tx(cx,cz+.12,sp.name)+tx(cx,cz-.18,sp.sub,'sm')}}
  s+=rect(0,-4,8,4,'#eadfc9','#8b7355',3)+tx(4,-2.0,'PORCHE FRONTAL')+tx(4,-2.35,'8×4','sm');
- if(p.key==='opt2'){s+=tx(4.0,8,'PASILLO 1.2 m','tiny');s+=`<text x="80" y="120" class="sm" style="text-anchor:start">← Dormitorios / baños</text><text x="700" y="120" class="sm" style="text-anchor:start">Área social / servicios →</text>`}else{s+=`<text x="80" y="120" class="sm" style="text-anchor:start">← IZQUIERDA: dormitorios</text><text x="650" y="120" class="sm" style="text-anchor:start">DERECHA: sala / comedor / cocina →</text>`}
+ if(p.key==='opt2'){s+=tx(4.0,8,'PASILLO 1.2 m','tiny');s+=`<text x="80" y="120" class="sm" style="text-anchor:start">← Dormitorios / baños</text><text x="700" y="120" class="sm" style="text-anchor:start">Área social / servicios →</text>`}
+ else if(p.key==='opt3'){s+=tx(4.25,8,'PASILLO 1.1 m','tiny');s+=`<text x="80" y="120" class="sm" style="text-anchor:start">← Suites + barreras acústicas</text><text x="690" y="120" class="sm" style="text-anchor:start">Área social + clóset general →</text>`}
+ else{s+=`<text x="80" y="120" class="sm" style="text-anchor:start">← IZQUIERDA: dormitorios</text><text x="650" y="120" class="sm" style="text-anchor:start">DERECHA: sala / comedor / cocina →</text>`}
  svg.innerHTML=s;
 }
 
@@ -128,13 +173,14 @@ const canvas=document.getElementById('scene3d');const scene=new THREE.Scene();sc
 const mats={wall:new THREE.MeshStandardMaterial({color:0xf3efe7}),floor:new THREE.MeshStandardMaterial({color:0xc9d4df}),porch:new THREE.MeshStandardMaterial({color:0xb8aa92}),annex:new THREE.MeshStandardMaterial({color:0xd6dee8}),wood:new THREE.MeshStandardMaterial({color:0x9d6d4d}),dark:new THREE.MeshStandardMaterial({color:0x273248}),acc:new THREE.MeshStandardMaterial({color:0x77a3ba}),glass:new THREE.MeshStandardMaterial({color:0x7fbad6,transparent:true,opacity:.5}),white:new THREE.MeshStandardMaterial({color:0xf8fafc}),closet:new THREE.MeshStandardMaterial({color:0xc9b6db}),utility:new THREE.MeshStandardMaterial({color:0xd8c3ad})};
 function clearRoot(){while(root.children.length)root.remove(root.children[0])}function box(x,z,w,d,h,mat,y=h/2,g=root){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x+w/2,y,-(z+d/2));m.castShadow=true;m.receiveShadow=true;g.add(m);return m}function wall3(w){if(w.o==='h'&&w.x2>w.x1)box(w.x1,w.z-.06,w.x2-w.x1,.12,2.8,mats.wall,1.4);if(w.o==='v'&&w.z2>w.z1)box(w.x-.06,w.z1,.12,w.z2-w.z1,2.8,mats.wall,1.4)}
 function label(t,x,z,col='#f7fbff'){const c=document.createElement('canvas'),ctx=c.getContext('2d');c.width=512;c.height=128;ctx.fillStyle='rgba(8,14,28,.78)';ctx.fillRect(10,20,492,88);ctx.font='600 27px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=col;ctx.fillText(t,256,64);const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sp.position.set(x,.18,-z);sp.scale.set(3.1,.78,1);root.add(sp)}
-function addFurniture(p){for(const r of p.spaces.filter(s=>s.t==='room')){const g=new THREE.Group();box(-.78,-.9,1.56,1.8,.22,mats.white,.16,g);box(-.8,-.94,1.6,.12,.72,mats.wood,.36,g);g.position.set(r.x+r.w/2,0,-(r.z+r.d/2));root.add(g)}if(p.key==='opt1'){box(5.25,1.3,2.2,.8,.7,mats.acc,.35);box(5.4,6.7,1.9,.9,.76,mats.wood,.38);box(5.15,9.2,2.45,.62,.9,mats.white,.45)}else{box(5.0,1.05,2.35,.75,.7,mats.acc,.35);box(5.1,5.2,2.15,.8,.76,mats.wood,.38);box(4.9,7.7,2.8,.58,.9,mats.white,.45);box(6.15,10.15,1.7,3.7,1.9,mats.closet,.95);box(4.72,10.15,1.15,3.7,1.6,mats.utility,.8)}}
+function addBed(r,scale=.92){const g=new THREE.Group();box(-.78*scale,-.9*scale,1.56*scale,1.8*scale,.22,mats.white,.16,g);box(-.8*scale,-.94*scale,1.6*scale,.12,.72,mats.wood,.36,g);g.position.set(r.x+r.w/2,0,-(r.z+r.d/2));root.add(g)}
+function addFurniture(p){for(const r of p.spaces.filter(s=>s.t==='room'))addBed(r,p.key==='opt3'?.82:1);if(p.key==='opt1'){box(5.25,1.3,2.2,.8,.7,mats.acc,.35);box(5.4,6.7,1.9,.9,.76,mats.wood,.38);box(5.15,9.2,2.45,.62,.9,mats.white,.45)}else if(p.key==='opt2'){box(5.0,1.05,2.35,.75,.7,mats.acc,.35);box(5.1,5.2,2.15,.8,.76,mats.wood,.38);box(4.9,7.7,2.8,.58,.9,mats.white,.45);box(6.15,10.15,1.7,3.7,1.9,mats.closet,.95);box(4.72,10.15,1.15,3.7,1.6,mats.utility,.8)}else{box(5.05,1.0,2.35,.75,.7,mats.acc,.35);box(5.0,5.25,2.1,.78,.76,mats.wood,.38);box(4.95,7.75,2.75,.58,.9,mats.white,.45);box(6.12,10.32,1.76,3.72,1.9,mats.closet,.95);for(const v of p.spaces.filter(s=>s.t==='closet'&&s.id!=='houseCloset'))box(v.x+.10,v.z+.10,Math.max(.25,v.w-.20),Math.max(.25,v.d-.20),1.45,mats.closet,.73)}}
 function rebuild3D(p){clearRoot();box(0,0,8,16,.08,mats.floor,.04);box(0,-4,8,4,.08,mats.porch,.04);box(0,16,8,2,.08,mats.porch,.04);box(8,14,4,2,.08,mats.annex,.04);for(const w of p.walls)wall3(w);for(const win of p.windows){if(win.w==='v')box(win.x-.03,win.z,.06,win.l,1.1,mats.glass,1.35);else box(win.x,win.z-.03,win.l,.06,1.1,mats.glass,1.35)}addFurniture(p);for(const sp of p.spaces.filter(s=>!s.overlay)){let col='#f7fbff';if(sp.t==='bath')col='#c9ebff';if(sp.t==='closet')col='#eadcff';if(sp.t==='utility')col='#ffe5cc';if(sp.t==='hall')col='#c9f7d7';label(sp.name,sp.x+sp.w/2,sp.z+sp.d/2,col)}label('PORCHE FRONTAL',4,-2,'#ffe6aa');label('PORCHE TRASERO',4,17,'#ffe6aa');const grid=new THREE.GridHelper(34,34,0x4b6a93,0x243654);grid.position.set(4,.01,-8);root.add(grid)}
 
 const views={persp:{pos:[4,14,18],t:[4,0,-8],name:'Vista 3D'},front:{pos:[4,7,26],t:[4,1.2,-8],name:'Frente'},rear:{pos:[4,7,-40],t:[4,1.2,-8],name:'Fondo'},left:{pos:[-24,7,-8],t:[4,1.2,-8],name:'Izquierda'},right:{pos:[32,7,-8],t:[4,1.2,-8],name:'Derecha'}};
 let current='opt1',mode='3d',cam='persp';
 function setCam(k){cam=k;const v=views[k];camera.position.set(...v.pos);controls.target.set(...v.t);controls.update();document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',b.dataset.cam===k));document.getElementById('modePill').textContent=mode==='2d'?'Vista 2D':v.name}
-function updateInfo(){const p=plans[current];document.getElementById('summary').innerHTML=`<span>Habitaciones</span><b>${p.rooms}</b><span>Baños interiores</span><b>${p.baths}</b><span>Clóset</span><b>${p.closet}</b><span>Circulación</span><b>${p.hall}</b><span>Área social</span><b style="text-align:right">${p.social}</b><span>Baño anexo</span><b>4×2 m</b>`;document.getElementById('optionNote').innerHTML=p.note;document.getElementById('helpPill').textContent=p.name;document.getElementById('bottomText').textContent=current==='opt1'?'Opción 1: máxima amplitud en dormitorios.':'Opción 2: 4 habitaciones con puertas directas al pasillo · 3 baños privados · clóset 8 m² · circulación continua.'}
+function updateInfo(){const p=plans[current];document.getElementById('summary').innerHTML=`<span>Habitaciones</span><b>${p.rooms}</b><span>Baños interiores</span><b>${p.baths}</b><span>Almacenamiento</span><b style="text-align:right">${p.closet}</b><span>Circulación</span><b style="text-align:right">${p.hall}</b><span>Área social</span><b style="text-align:right">${p.social}</b><span>Baño anexo</span><b>4×2 m</b>`;document.getElementById('optionNote').innerHTML=p.note;document.getElementById('helpPill').textContent=p.name;if(current==='opt1')document.getElementById('bottomText').textContent='Opción 1: máxima amplitud en dormitorios.';else if(current==='opt2')document.getElementById('bottomText').textContent='Opción 2: 4 habitaciones · 3 baños privados · clóset 8 m² · circulación continua.';else document.getElementById('bottomText').textContent='Opción 3: 4 habitaciones · 3 baños privados · 4 vestidores · clóset general 8 m² · baños y vestidores separan acústicamente los dormitorios.'}
 function applyPlan(){const p=plans[current];render2D(p);rebuild3D(p);updateInfo();if(mode==='3d')setCam(cam)}
 function setMode(m){mode=m;const is2d=m==='2d';document.getElementById('planWrap').classList.toggle('hidden',!is2d);canvas.classList.toggle('hidden',is2d);document.getElementById('btn2d').classList.toggle('active',is2d);document.getElementById('btn3d').classList.toggle('active',!is2d);document.getElementById('modePill').textContent=is2d?'Vista 2D':views[cam].name;if(!is2d){resize();setCam(cam)}}
 document.getElementById('designSelect').onchange=e=>{current=e.target.value;applyPlan()};document.getElementById('btn2d').onclick=()=>setMode('2d');document.getElementById('btn3d').onclick=()=>setMode('3d');document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>{setMode('3d');setCam(b.dataset.cam)});document.getElementById('menuBtn').onclick=()=>document.getElementById('panel').classList.toggle('open');function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener('resize',resize);resize();applyPlan();setCam('persp');renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera)});
