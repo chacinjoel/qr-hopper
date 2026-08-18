@@ -17,7 +17,7 @@ h1{font-size:20px;margin:0 0 6px}.sub{font-size:12px;color:var(--muted);line-hei
 <div id="app">
 <aside class="panel" id="panel">
 <h1>Casa 8×16 · Comparador</h1>
-<p class="sub">Opción 1 y Opción 2 se conservan. <b>Opción 3</b> ahora mueve el clóset general a la fila privada y traslada una suite al lado derecho. Los cuatro dormitorios quedan del mismo tamaño útil: <b>12 m² cada uno</b>.</p>
+<p class="sub">Opción 1 y Opción 2 se conservan. En <b>Opción 3</b>, las habitaciones 1, 2 y 3 quedan como suites completas con baño + vestidor; la habitación 4 mantiene el mismo dormitorio de 12 m², tiene vestidor propio y utiliza el baño anexo. Los cuatro dormitorios siguen siendo iguales en área útil.</p>
 <div class="card"><h2>Diseño</h2><select id="designSelect"><option value="opt1">Opción 1 · Original</option><option value="opt2">Opción 2 · Premium lógica</option><option value="opt3">Opción 3 · Suites iguales</option></select></div>
 <div class="card"><h2>Vista</h2><div class="row"><button class="btn mode active" id="btn3d">◈ 3D</button><button class="btn mode" id="btn2d">▦ 2D</button></div></div>
 <div class="card"><h2>Cámara 3D</h2><div class="row"><button class="btn active" data-cam="persp">Perspectiva</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div></div>
@@ -103,15 +103,14 @@ function option3(){
   {id:'r2',name:'HAB. 2',sub:'4×3 = 12 m²',x:0,z:zC,w:4,d:3,t:'room'},
   {id:'b2',name:'BAÑO 2',sub:'2.3×1.67 = 3.8 m²',x:0,z:z2s,w:2.3,d:1.6667,t:'bath'},
   {id:'v2',name:'VESTIDOR 2',sub:'1.7×1.67 = 2.8 m²',x:2.3,z:z2s,w:1.7,d:1.6667,t:'closet'},
-  {id:'r3',name:'HAB. 3',sub:'4×3 = 12 m² · usa anexo',x:0,z:z2e,w:4,d:3,t:'room'},
-  {id:'v3',name:'VESTIDOR 3',sub:'1.7×1.67 = 2.8 m²',x:0,z:z3e,w:1.7,d:1.6666,t:'closet'},
-  {id:'linen',name:'BLANCOS / ACÚSTICO',sub:'2.3×1.67',x:1.7,z:z3e,w:2.3,d:1.6666,t:'utility'},
+  {id:'r3',name:'HAB. 3',sub:'4×3 = 12 m²',x:0,z:z2e,w:4,d:3,t:'room'},
+  {id:'b3',name:'BAÑO 3',sub:'2.3×1.67 = 3.8 m²',x:0,z:z3e,w:2.3,d:1.6666,t:'bath'},
+  {id:'v3',name:'VESTIDOR 3',sub:'1.7×1.67 = 2.8 m²',x:2.3,z:z3e,w:1.7,d:1.6666,t:'closet'},
   {id:'hall',name:'PASILLO',sub:'1.0 m · continuo',x:4,z:0,w:1,d:16,t:'hall'},
   {id:'living',name:'SALA',sub:'3×3.8 = 11.4 m²',x:5,z:0,w:3,d:3.8,t:'social'},
   {id:'dining',name:'COMEDOR',sub:'3×2.2 = 6.6 m²',x:5,z:3.8,w:3,d:2.2,t:'social'},
   {id:'kitchen',name:'COCINA',sub:'3×2.7 = 8.1 m²',x:5,z:6,w:3,d:2.7,t:'kitchen'},
-  {id:'v4',name:'VESTIDOR 4',sub:'1.3×2.2 = 2.9 m²',x:5,z:8.7,w:1.3,d:2.2,t:'closet'},
-  {id:'b4',name:'BAÑO 4',sub:'1.7×2.2 = 3.7 m²',x:6.3,z:8.7,w:1.7,d:2.2,t:'bath'},
+  {id:'v4',name:'VESTIDOR 4',sub:'3×2.2 = 6.6 m²',x:5,z:8.7,w:3,d:2.2,t:'closet'},
   {id:'r4',name:'HAB. 4',sub:'3×4 = 12 m²',x:5,z:10.9,w:3,d:4,t:'room'},
   {id:'rearHall',name:'HALL TRASERO',sub:'3×1.1',x:5,z:14.9,w:3,d:1.1,t:'hall'},
   {id:'annex',name:'BAÑO ANEXO',sub:'4×2 · acceso interior',x:8,z:14,w:4,d:2,t:'bath'}
@@ -124,23 +123,23 @@ function option3(){
   H(0,4,4.6667),H(0,4,6.6667),
   H(0,.45,9.6667),H(1.25,2.7,9.6667),H(3.5,4,9.6667),V(2.3,9.6667,11.3334),
   H(0,4,11.3334),
-  H(0,.45,14.3334),H(1.25,4,14.3334),V(1.7,14.3334,16),
-  H(5,8,8.7),V(6.3,8.7,10.9),
-  H(5,5.15,10.9),H(5.95,6.65,10.9),H(7.45,8,10.9),
+  H(0,.45,14.3334),H(1.25,2.7,14.3334),H(3.5,4,14.3334),V(2.3,14.3334,16),
+  H(5,8,8.7),
+  H(5,5.15,10.9),H(5.95,8,10.9),
   V(5,8.7,11.6),V(5,12.5,14.9),
   H(5,8,14.9)
  ];
  const doors=[
   D('front','h',4.05,0,.9,'north','Entrada'),D('rear','h',4.05,16,.9,'south','Salida trasera'),
-  D('r1','v',4,.8,.9,'west','Hab.1'),D('generic','v',4,5.15,.9,'west','Clóset general'),D('r2','v',4,7.45,.9,'west','Hab.2'),D('r3','v',4,12.15,.9,'west','Hab.3'),D('linen','v',4,14.7,.9,'west','Blancos'),
+  D('r1','v',4,.8,.9,'west','Hab.1'),D('generic','v',4,5.15,.9,'west','Clóset general'),D('r2','v',4,7.45,.9,'west','Hab.2'),D('r3','v',4,12.15,.9,'west','Hab.3'),
   D('b1','h',.45,3,.8,'north','Baño1'),D('v1','h',2.7,3,.8,'north','Vestidor1'),
   D('b2','h',.45,9.6667,.8,'north','Baño2'),D('v2','h',2.7,9.6667,.8,'north','Vestidor2'),
-  D('v3','h',.45,14.3334,.8,'north','Vestidor3'),
+  D('b3','h',.45,14.3334,.8,'north','Baño3'),D('v3','h',2.7,14.3334,.8,'north','Vestidor3'),
   D('r4','v',5,11.6,.9,'east','Hab.4'),
-  D('v4','h',5.15,10.9,.8,'south','Vestidor4'),D('b4','h',6.65,10.9,.8,'south','Baño4'),
+  D('v4','h',5.15,10.9,.8,'south','Vestidor4'),
   D('annex','v',8,15.0,.9,'east','Baño anexo')
  ];
- return {key:'opt3',name:'Opción 3 · Suites iguales',rooms:'4 iguales',baths:'3 privados + anexo',roomSize:'12 m² cada uno (4×3 / 3×4)',bathSize:'≈3.7–3.8 m²',vest:'≈2.8–2.9 m² cada uno',generic:'4×2 m = 8 m²',hall:'1.0 m continuo + hall trasero',social:'Sala 11.4 · Comedor 6.6 · Cocina 8.1 m²',note:'Nueva distribución: se retira una habitación de la fila izquierda y se mueve al antiguo sector de almacenamiento del lado derecho. El clóset general de 4×2 m entra en la fila privada. Los cuatro dormitorios quedan exactamente en 12 m²: tres son de 4×3 m y el cuarto es el mismo rectángulo rotado, 3×4 m. Hab. 1, 2 y 4 tienen baño privado y vestidor; Hab. 3 tiene vestidor y usa el baño anexo. Los baños son mayores que los vestidores. El corredor sigue recto hasta la puerta del fondo y el hall trasero mantiene acceso al baño anexo.',spaces,walls,doors,windows:[{w:'v',x:0,z:.65,l:1.3},{w:'v',x:0,z:3.25,l:.75},{w:'v',x:0,z:7.2,l:1.3},{w:'v',x:0,z:9.95,l:.75},{w:'v',x:0,z:12.0,l:1.3},{w:'v',x:8,z:1.1,l:1.6},{w:'v',x:8,z:4.4,l:1.2},{w:'v',x:8,z:6.6,l:1.2},{w:'v',x:8,z:9.15,l:.9},{w:'v',x:8,z:11.9,l:1.5},{w:'v',x:12,z:14.35,l:1.2}]};
+ return {key:'opt3',name:'Opción 3 · Suites iguales',rooms:'4 iguales',baths:'3 privados + anexo',roomSize:'12 m² cada uno (4×3 / 3×4)',bathSize:'≈3.8 m² (Hab. 1–3)',vest:'Hab. 1–3 ≈2.8 m² · Hab. 4 = 6.6 m²',generic:'4×2 m = 8 m²',hall:'1.0 m continuo + hall trasero',social:'Sala 11.4 · Comedor 6.6 · Cocina 8.1 m²',note:'Ajuste de la Opción 3: las habitaciones 1, 2 y 3 quedan completas, cada una con dormitorio de 12 m², baño privado de aproximadamente 3.8 m² y vestidor de aproximadamente 2.8 m². La habitación 4, que fue trasladada al lado derecho, conserva sus 12 m² y queda solo con vestidor propio; utiliza el baño anexo de 4×2 m. El clóset general permanece en la fila privada. Así, el cuarto del final de la fila queda completo con baño + vestidor y el cuarto trasladado aprovecha el baño anexo.',spaces,walls,doors,windows:[{w:'v',x:0,z:.65,l:1.3},{w:'v',x:0,z:3.25,l:.75},{w:'v',x:0,z:7.2,l:1.3},{w:'v',x:0,z:9.95,l:.75},{w:'v',x:0,z:12.0,l:1.3},{w:'v',x:8,z:1.1,l:1.6},{w:'v',x:8,z:4.4,l:1.2},{w:'v',x:8,z:6.6,l:1.2},{w:'v',x:8,z:9.15,l:.9},{w:'v',x:8,z:11.9,l:1.5},{w:'v',x:12,z:14.35,l:1.2}]};
 }
 
 const plans={opt1:option1(),opt2:option2(),opt3:option3()};
@@ -184,13 +183,13 @@ function addFurniture(p){
  else if(p.key==='opt2'){box(5.0,1.05,2.35,.75,.7,mats.acc,.35);box(5.1,5.2,2.15,.8,.76,mats.wood,.38);box(4.9,7.7,2.8,.58,.9,mats.white,.45);box(6.15,10.15,1.7,3.7,1.9,mats.closet,.95);box(4.72,10.15,1.15,3.7,1.6,mats.utility,.8)}
  else {box(5.18,.85,2.2,.72,.7,mats.acc,.35);box(5.25,4.35,1.9,.72,.76,mats.wood,.38);box(5.15,6.45,2.55,.55,.9,mats.white,.45);for(const v of p.spaces.filter(s=>s.t==='closet'))box(v.x+.08,v.z+.08,Math.max(.2,v.w-.16),Math.max(.2,v.d-.16),1.45,mats.closet,.73)}
 }
-function draw3dDoor(d){const mat=new THREE.LineBasicMaterial({color:0x9eb4d6});const pts=[];if(d.wall==='h'){const z=-d.z;pts.push(new THREE.Vector3(d.x,.04,z),new THREE.Vector3(d.x+d.len,.04,z))}else{pts.push(new THREE.Vector3(d.x,.04,-d.z),new THREE.Vector3(d.x,.04,-(d.z+d.len)))}root.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat))}
+function draw3dDoor(d){const mat=new THREE.LineBasicMaterial({color:0x9eb4d6});const pts=[];const r=d.len;if(d.wall==='h'){const z=-d.z;pts.push(new THREE.Vector3(d.x,.04,z),new THREE.Vector3(d.x+d.len,.04,z))}else{pts.push(new THREE.Vector3(d.x,.04,-d.z),new THREE.Vector3(d.x,.04,-(d.z+d.len)))}root.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat))}
 function rebuild3D(p){clearRoot();box(0,0,8,16,.08,mats.floor,.04);box(0,-4,8,4,.08,mats.porch,.04);box(0,16,8,2,.08,mats.porch,.04);box(8,14,4,2,.08,mats.annex,.04);for(const w of p.walls)wall3(w);for(const d of p.doors)draw3dDoor(d);for(const win of p.windows){if(win.w==='v')box(win.x-.03,win.z,.06,win.l,1.1,mats.glass,1.35);else box(win.x,win.z-.03,win.l,.06,1.1,mats.glass,1.35)}addFurniture(p);for(const sp of p.spaces.filter(s=>!s.overlay)){let col='#f7fbff';if(sp.t==='bath')col='#c9ebff';if(sp.t==='closet')col='#eadcff';if(sp.t==='utility')col='#ffe5cc';if(sp.t==='hall')col='#c9f7d7';label(sp.name,sp.x+sp.w/2,sp.z+sp.d/2,col)}label('PORCHE FRONTAL',4,-2,'#ffe6aa');label('PORCHE TRASERO',4,17,'#ffe6aa');const grid=new THREE.GridHelper(34,34,0x4b6a93,0x243654);grid.position.set(4,.01,-8);root.add(grid)}
 
 const views={persp:{pos:[4,14,18],t:[4,0,-8],name:'Vista 3D'},front:{pos:[4,7,26],t:[4,1.2,-8],name:'Frente'},rear:{pos:[4,7,-40],t:[4,1.2,-8],name:'Fondo'},left:{pos:[-24,7,-8],t:[4,1.2,-8],name:'Izquierda'},right:{pos:[32,7,-8],t:[4,1.2,-8],name:'Derecha'}};
 let current='opt1',mode='3d',cam='persp';
 function setCam(k){cam=k;const v=views[k];camera.position.set(...v.pos);controls.target.set(...v.t);controls.update();document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',b.dataset.cam===k));document.getElementById('modePill').textContent=mode==='2d'?'Vista 2D':v.name}
-function updateInfo(){const p=plans[current];document.getElementById('summary').innerHTML=`<span>Habitaciones</span><b>${p.rooms}</b><span>Tamaño dormitorio</span><b style="text-align:right">${p.roomSize}</b><span>Baños</span><b>${p.baths}</b><span>Tamaño baños</span><b style="text-align:right">${p.bathSize}</b><span>Vestidores</span><b style="text-align:right">${p.vest}</b><span>Clóset general</span><b>${p.generic}</b><span>Circulación</span><b style="text-align:right">${p.hall}</b><span>Área social</span><b style="text-align:right">${p.social}</b>`;document.getElementById('optionNote').innerHTML=p.note;document.getElementById('helpPill').textContent=p.name;if(current==='opt3')document.getElementById('bottomText').textContent='Opción 3: los 4 dormitorios son iguales (12 m²). Baños ≈3.8 m² · vestidores ≈2.8 m² · clóset general 4×2 m.';else if(current==='opt2')document.getElementById('bottomText').textContent='Opción 2: 4 habitaciones · 3 baños · clóset general 8 m².';else document.getElementById('bottomText').textContent='Opción 1: máxima amplitud en dormitorios.'}
+function updateInfo(){const p=plans[current];document.getElementById('summary').innerHTML=`<span>Habitaciones</span><b>${p.rooms}</b><span>Tamaño dormitorio</span><b style="text-align:right">${p.roomSize}</b><span>Baños</span><b>${p.baths}</b><span>Tamaño baños</span><b style="text-align:right">${p.bathSize}</b><span>Vestidores</span><b style="text-align:right">${p.vest}</b><span>Clóset general</span><b>${p.generic}</b><span>Circulación</span><b style="text-align:right">${p.hall}</b><span>Área social</span><b style="text-align:right">${p.social}</b>`;document.getElementById('optionNote').innerHTML=p.note;document.getElementById('helpPill').textContent=p.name;if(current==='opt3')document.getElementById('bottomText').textContent='Opción 3: 4 dormitorios iguales de 12 m² · Hab. 1–3 con baño + vestidor · Hab. 4 con vestidor y uso del baño anexo · clóset general 4×2 m.';else if(current==='opt2')document.getElementById('bottomText').textContent='Opción 2: 4 habitaciones · 3 baños · clóset general 8 m².';else document.getElementById('bottomText').textContent='Opción 1: máxima amplitud en dormitorios.'}
 function applyPlan(){const p=plans[current];render2D(p);rebuild3D(p);updateInfo();if(mode==='3d')setCam(cam)}
 function setMode(m){mode=m;const is2d=m==='2d';document.getElementById('planWrap').classList.toggle('hidden',!is2d);canvas.classList.toggle('hidden',is2d);document.getElementById('btn2d').classList.toggle('active',is2d);document.getElementById('btn3d').classList.toggle('active',!is2d);document.getElementById('modePill').textContent=is2d?'Vista 2D':views[cam].name;if(!is2d){resize();setCam(cam)}}
 document.getElementById('designSelect').onchange=e=>{current=e.target.value;applyPlan()};document.getElementById('btn2d').onclick=()=>setMode('2d');document.getElementById('btn3d').onclick=()=>setMode('3d');document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>{setMode('3d');setCam(b.dataset.cam)});document.getElementById('menuBtn').onclick=()=>document.getElementById('panel').classList.toggle('open');
