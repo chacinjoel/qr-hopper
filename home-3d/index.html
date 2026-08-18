@@ -14,67 +14,69 @@
 </head>
 <body>
 <div id="app">
-<aside class="panel" id="panel">
-<h1>Casa 8×16 · 2D / 3D</h1>
-<p class="sub">Ajustado como pediste: <b>sala, comedor y cocina al lado derecho</b>. La <b>puerta frontal</b> y la <b>puerta trasera</b> van <b>pegadas a la izquierda de su espacio disponible</b> para crear un pasillo visual casi centrado.</p>
-<div class="card"><div class="row"><button class="btn mode" id="btn2d">▦ Vista 2D</button><button class="btn mode active" id="btn3d">◈ Vista 3D</button></div></div>
-<div class="card"><div class="row"><button class="btn active" data-cam="persp">Perspectiva</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div></div>
-<div class="card"><div class="row"><button class="btn" id="resetCam">Restablecer</button><button class="btn" id="saveBtn">Guardar imagen</button></div></div>
-<div class="note">Referencia fija: desde el porche frontal mirando hacia el fondo, <b>habitaciones a la izquierda</b>, <b>sala/comedor/cocina a la derecha</b>. El corredor continúa recto al porche trasero. El baño anexo está por fuera del 8×16, a la derecha del corredor.</div>
-</aside>
-<main id="stage">
-<button class="btn mobile" id="menuBtn" style="position:absolute;left:10px;top:10px;z-index:8">☰</button>
-<div class="hud"><div class="pill" id="helpPill">3D alineado con 2D</div><div class="pill" id="modePill">Vista 3D</div></div>
-<div id="planWrap" class="view hidden"><svg id="plan2d" viewBox="0 0 900 1280"></svg></div>
-<canvas id="scene3d" class="view"></canvas>
-<div class="bottom" id="bottomText">Dormitorios ← IZQUIERDA · DERECHA → Sala / Comedor / Cocina · Frente abajo · Fondo arriba</div>
-</main>
+  <aside class="panel" id="panel">
+    <h1>Casa 8×16 · 2D / 3D</h1>
+    <p class="sub">Ajustado como pediste: <b>sala, comedor y cocina al lado derecho</b>. La <b>puerta frontal</b> y la <b>puerta trasera</b> van <b>pegadas a la izquierda de su espacio disponible</b> para crear un pasillo visual continuo casi centrado; la abertura entre cocina y corredor queda en ese mismo eje.</p>
+    <div class="card"><div class="row"><button class="btn mode" id="btn2d">▦ Vista 2D</button><button class="btn mode active" id="btn3d">◈ Vista 3D</button></div></div>
+    <div class="card"><div class="row"><button class="btn active" data-cam="persp">Perspectiva</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div></div>
+    <div class="card"><div class="row"><button class="btn" id="resetCam">Restablecer</button><button class="btn" id="saveBtn">Guardar imagen</button></div></div>
+    <div class="note">Referencia fija: desde el porche frontal mirando hacia el fondo, <b>habitaciones a la izquierda</b>, <b>sala/comedor/cocina a la derecha</b>. El corredor continúa recto al porche trasero. El baño anexo está por fuera del 8×16, a la derecha del corredor.</div>
+  </aside>
+  <main id="stage">
+    <button class="btn mobile" id="menuBtn" style="position:absolute;left:10px;top:10px;z-index:8">☰</button>
+    <div class="hud"><div class="pill" id="helpPill">3D alineado con 2D</div><div class="pill" id="modePill">Vista 3D</div></div>
+    <div id="planWrap" class="view hidden"><svg id="plan2d" viewBox="0 0 900 1280"></svg></div>
+    <canvas id="scene3d" class="view"></canvas>
+    <div class="bottom" id="bottomText">Dormitorios ← IZQUIERDA · DERECHA → Sala / Comedor / Cocina · Frente abajo · Fondo arriba</div>
+  </main>
 </div>
+
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
 const plan={
-house:{x:0,z:0,w:8,d:16},front:{x:0,z:-4,w:8,d:4},rear:{x:0,z:16,w:8,d:2},annex:{x:8,z:14,w:4,d:2},
-spaces:[
-{name:'HAB. 1',sub:'4×4',x:0,z:0,w:4,d:4,t:'room'},
-{name:'BAÑO 1',sub:'4×2',x:0,z:4,w:4,d:2,t:'bath'},
-{name:'HAB. 2',sub:'4×4',x:0,z:6,w:4,d:4,t:'room'},
-{name:'BAÑO 2',sub:'4×2',x:0,z:10,w:4,d:2,t:'bath'},
-{name:'HAB. 3',sub:'4×4',x:0,z:12,w:4,d:4,t:'room'},
-{name:'SALA',sub:'4×6',x:4,z:0,w:4,d:6,t:'social'},
-{name:'COMEDOR',sub:'4×3',x:4,z:6,w:4,d:3,t:'social'},
-{name:'COCINA',sub:'4×3',x:4,z:9,w:4,d:3,t:'kitchen'},
-{name:'CORREDOR',sub:'4×4',x:4,z:12,w:4,d:4,t:'corridor'},
-{name:'BAÑO ANEXO',sub:'4×2',x:8,z:14,w:4,d:2,t:'bath'}
-],
-openings:{front:{x:4.15,z:0,w:1},rear:{x:4.15,z:16,w:1},annex:{x:8,z:14.45,w:.9},r1:{x:4,z:1.55,w:.9},r2:{x:4,z:7.55,w:.9},r3:{x:4,z:13.55,w:.9},b1:{x:2.65,z:4,w:.9},b2:{x:2.65,z:10,w:.9}}
+  house:{x:0,z:0,w:8,d:16},front:{x:0,z:-4,w:8,d:4},rear:{x:0,z:16,w:8,d:2},annex:{x:8,z:14,w:4,d:2},
+  spaces:[
+    {name:'HAB. 1',sub:'4×4',x:0,z:0,w:4,d:4,t:'room'},
+    {name:'BAÑO 1',sub:'4×2',x:0,z:4,w:4,d:2,t:'bath'},
+    {name:'HAB. 2',sub:'4×4',x:0,z:6,w:4,d:4,t:'room'},
+    {name:'BAÑO 2',sub:'4×2',x:0,z:10,w:4,d:2,t:'bath'},
+    {name:'HAB. 3',sub:'4×4',x:0,z:12,w:4,d:4,t:'room'},
+    {name:'SALA',sub:'4×6',x:4,z:0,w:4,d:6,t:'social'},
+    {name:'COMEDOR',sub:'4×3',x:4,z:6,w:4,d:3,t:'social'},
+    {name:'COCINA',sub:'4×3',x:4,z:9,w:4,d:3,t:'kitchen'},
+    {name:'CORREDOR',sub:'4×4',x:4,z:12,w:4,d:4,t:'corridor'},
+    {name:'BAÑO ANEXO',sub:'4×2',x:8,z:14,w:4,d:2,t:'bath'}
+  ],
+  openings:{front:{x:4.15,z:0,w:1},rear:{x:4.15,z:16,w:1},annex:{x:8,z:14.45,w:.9},r1:{x:4,z:1.55,w:.9},r2:{x:4,z:7.55,w:.9},r3:{x:4,z:13.55,w:.9},b1:{x:2.65,z:4,w:.9},b2:{x:2.65,z:10,w:.9}}
 };
 function draw2D(){
-const svg=document.getElementById('plan2d'); const S=80, ox=150, oy=120;
-const X=x=>ox+x*S, Y=z=>oy+(18-z)*S;
-const rect=(x,z,w,d,f,s='#111827',sw=8)=>`<rect x="${X(x)}" y="${Y(z+d)}" width="${w*S}" height="${d*S}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`;
-const line=(x1,y1,x2,y2,cls='wall')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}"/>`;
-const text=(x,z,t,cls='label')=>`<text x="${X(x)}" y="${Y(z)}" class="${cls}">${t}</text>`;
-svg.innerHTML=`<style>.wall{stroke:#111827;stroke-width:8;fill:none;stroke-linecap:square}.door{stroke:#9a5f3b;stroke-width:4;fill:none}.thin{stroke:#475569;stroke-width:2;fill:none}.label{font:700 18px system-ui;fill:#0f172a;text-anchor:middle}.small{font:600 14px system-ui;fill:#334155;text-anchor:middle}.dim{font:700 14px system-ui;fill:#475569;text-anchor:middle}</style>`+
-`<rect x="20" y="20" width="860" height="1240" rx="24" fill="#fff"/>`+
-`<text x="450" y="58" class="label" style="font-size:24px">PLANO 2D · CASA 8 × 16 m</text>`+
-`<text x="450" y="84" class="small">Puertas frontal y trasera alineadas a la izquierda del tramo disponible</text>`+
-rect(0,16,8,2,'#eadfc9','#8b7355',3)+text(4,17.3,'PORCHE TRASERO','label')+text(4,16.9,'8×2','small')+
-rect(0,0,8,16,'#f8fafc')+rect(8,14,4,2,'#e7f2fb')+
-line(X(4),Y(0),X(4),Y(1.55))+line(X(4),Y(2.45),X(4),Y(7.55))+line(X(4),Y(8.45),X(4),Y(13.55))+line(X(4),Y(14.45),X(4),Y(16))+
-line(X(0),Y(4),X(2.65),Y(4))+line(X(3.55),Y(4),X(4),Y(4))+line(X(0),Y(6),X(4),Y(6))+line(X(0),Y(10),X(2.65),Y(10))+line(X(3.55),Y(10),X(4),Y(10))+line(X(0),Y(12),X(4),Y(12))+line(X(4),Y(12),X(6.2),Y(12))+line(X(7.2),Y(12),X(8),Y(12))+
-plan.spaces.map(s=>text(s.x+s.w/2,s.z+s.d/2+.2,s.name)+text(s.x+s.w/2,s.z+s.d/2-.15,s.sub,'small')).join('')+
-`<path d="M${X(4.15)} ${Y(0)} L${X(5.15)} ${Y(0)} M${X(4.15)} ${Y(0)} A${S} ${S} 0 0 0 ${X(4.15)} ${Y(1)}" class="door"/>`+
-`<path d="M${X(4.15)} ${Y(16)} L${X(5.15)} ${Y(16)} M${X(4.15)} ${Y(16)} A${S} ${S} 0 0 1 ${X(4.15)} ${Y(15)}" class="door"/>`+
-`<path d="M${X(4)} ${Y(1.55)} L${X(4)} ${Y(.65)} M${X(4)} ${Y(1.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(1.55)}" class="door"/>`+
-`<path d="M${X(4)} ${Y(7.55)} L${X(4)} ${Y(6.65)} M${X(4)} ${Y(7.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(7.55)}" class="door"/>`+
-`<path d="M${X(4)} ${Y(13.55)} L${X(4)} ${Y(12.65)} M${X(4)} ${Y(13.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(13.55)}" class="door"/>`+
-`<path d="M${X(2.65)} ${Y(4)} L${X(3.55)} ${Y(4)} M${X(2.65)} ${Y(4)} A${.9*S} ${.9*S} 0 0 0 ${X(2.65)} ${Y(4.9)}" class="door"/>`+
-`<path d="M${X(2.65)} ${Y(10)} L${X(3.55)} ${Y(10)} M${X(2.65)} ${Y(10)} A${.9*S} ${.9*S} 0 0 0 ${X(2.65)} ${Y(10.9)}" class="door"/>`+
-`<path d="M${X(8)} ${Y(14.45)} L${X(8)} ${Y(13.55)} M${X(8)} ${Y(14.45)} A${.9*S} ${.9*S} 0 0 0 ${X(8.9)} ${Y(14.45)}" class="door"/>`+
-rect(0,-4,8,4,'#eadfc9','#8b7355',3)+text(4,-2.1,'PORCHE FRONTAL','label')+text(4,-2.45,'8×4','small')+
-`<text x="80" y="125" class="small" style="text-anchor:start">← IZQUIERDA: dormitorios</text><text x="585" y="125" class="small" style="text-anchor:start">DERECHA: sala / comedor / cocina →</text>`;
+ const svg=document.getElementById('plan2d'); const S=80, ox=150, oy=120;
+ const X=x=>ox+x*S, Y=z=>oy+(18-z)*S;
+ const rect=(x,z,w,d,f,s='#111827',sw=8)=>`<rect x="${X(x)}" y="${Y(z+d)}" width="${w*S}" height="${d*S}" fill="${f}" stroke="${s}" stroke-width="${sw}"/>`;
+ const line=(x1,y1,x2,y2,cls='wall')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}"/>`;
+ const text=(x,z,t,cls='label')=>`<text x="${X(x)}" y="${Y(z)}" class="${cls}">${t}</text>`;
+ svg.innerHTML=`<style>.wall{stroke:#111827;stroke-width:8;fill:none;stroke-linecap:square}.door{stroke:#9a5f3b;stroke-width:4;fill:none}.thin{stroke:#475569;stroke-width:2;fill:none}.label{font:700 18px system-ui;fill:#0f172a;text-anchor:middle}.small{font:600 14px system-ui;fill:#334155;text-anchor:middle}.dim{font:700 14px system-ui;fill:#475569;text-anchor:middle}</style>`+
+ `<rect x="20" y="20" width="860" height="1240" rx="24" fill="#fff"/>`+
+ `<text x="450" y="58" class="label" style="font-size:24px">PLANO 2D · CASA 8 × 16 m</text>`+
+ `<text x="450" y="84" class="small">Puertas frontal y trasera alineadas a la izquierda del tramo disponible</text>`+
+ rect(0,16,8,2,'#eadfc9','#8b7355',3)+text(4,17.3,'PORCHE TRASERO','label')+text(4,16.9,'8×2','small')+
+ rect(0,0,8,16,'#f8fafc')+rect(8,14,4,2,'#e7f2fb')+`<rect x="${X(4.15)}" y="${Y(16)}" width="${S}" height="${16*S}" fill="#d1fae5" opacity=".45"/>`+
+ line(X(4),Y(0),X(4),Y(1.55))+line(X(4),Y(2.45),X(4),Y(7.55))+line(X(4),Y(8.45),X(4),Y(13.55))+line(X(4),Y(14.45),X(4),Y(16))+
+ line(X(0),Y(4),X(2.65),Y(4))+line(X(3.55),Y(4),X(4),Y(4))+line(X(0),Y(6),X(4),Y(6))+line(X(0),Y(10),X(2.65),Y(10))+line(X(3.55),Y(10),X(4),Y(10))+line(X(0),Y(12),X(4),Y(12))+line(X(4),Y(12),X(4.15),Y(12))+line(X(5.15),Y(12),X(8),Y(12))+
+ plan.spaces.map(s=>text(s.x+s.w/2,s.z+s.d/2+.2,s.name)+text(s.x+s.w/2,s.z+s.d/2-.15,s.sub,'small')).join('')+
+ `<path d="M${X(4.15)} ${Y(0)} L${X(5.15)} ${Y(0)} M${X(4.15)} ${Y(0)} A${S} ${S} 0 0 0 ${X(4.15)} ${Y(1)}" class="door"/>`+
+ `<path d="M${X(4.15)} ${Y(16)} L${X(5.15)} ${Y(16)} M${X(4.15)} ${Y(16)} A${S} ${S} 0 0 1 ${X(4.15)} ${Y(15)}" class="door"/>`+
+ `<path d="M${X(4)} ${Y(1.55)} L${X(4)} ${Y(.65)} M${X(4)} ${Y(1.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(1.55)}" class="door"/>`+
+ `<path d="M${X(4)} ${Y(7.55)} L${X(4)} ${Y(6.65)} M${X(4)} ${Y(7.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(7.55)}" class="door"/>`+
+ `<path d="M${X(4)} ${Y(13.55)} L${X(4)} ${Y(12.65)} M${X(4)} ${Y(13.55)} A${.9*S} ${.9*S} 0 0 1 ${X(3.1)} ${Y(13.55)}" class="door"/>`+
+ `<path d="M${X(2.65)} ${Y(4)} L${X(3.55)} ${Y(4)} M${X(2.65)} ${Y(4)} A${.9*S} ${.9*S} 0 0 0 ${X(2.65)} ${Y(4.9)}" class="door"/>`+
+ `<path d="M${X(2.65)} ${Y(10)} L${X(3.55)} ${Y(10)} M${X(2.65)} ${Y(10)} A${.9*S} ${.9*S} 0 0 0 ${X(2.65)} ${Y(10.9)}" class="door"/>`+
+ `<path d="M${X(8)} ${Y(14.45)} L${X(8)} ${Y(13.55)} M${X(8)} ${Y(14.45)} A${.9*S} ${.9*S} 0 0 0 ${X(8.9)} ${Y(14.45)}" class="door"/>`+
+ rect(0,-4,8,4,'#eadfc9','#8b7355',3)+text(4,-2.1,'PORCHE FRONTAL','label')+text(4,-2.45,'8×4','small')+
+ `<text x="80" y="125" class="small" style="text-anchor:start">← IZQUIERDA: dormitorios</text><text x="585" y="125" class="small" style="text-anchor:start">DERECHA: sala / comedor / cocina →</text><text x="${X(4.65)}" y="${Y(8)}" class="small" transform="rotate(-90 ${X(4.65)} ${Y(8)})">EJE DE PASO CONTINUO</text>`;
 }
 draw2D();
 const canvas=document.getElementById('scene3d');
@@ -87,19 +89,20 @@ const G={labels:new THREE.Group(),furn:new THREE.Group(),doors:new THREE.Group()
 const box=(x,z,w,d,h,mat,y=h/2,g=scene)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x+w/2,y,z+d/2);m.castShadow=true;m.receiveShadow=true;g.add(m);return m};
 const floor=(x,z,w,d,mat=mats.floor)=>box(x,z,w,d,.08,mat,.04,G.shell), wallH=(x1,x2,z)=>box(x1,z-.06,x2-x1,.12,2.8,mats.wall,1.4,G.shell), wallV=(x,z1,z2)=>box(x-.06,z1,.12,z2-z1,2.8,mats.wall,1.4,G.shell), lintelH=(x1,x2,z)=>box(x1,z-.06,x2-x1,.12,.65,mats.wall,2.47,G.shell), lintelV=(x,z1,z2)=>box(x-.06,z1,.12,z2-z1,.65,mats.wall,2.47,G.shell);
 floor(0,0,8,16);floor(0,-4,8,4,mats.porch);floor(0,16,8,2,mats.porch);floor(8,14,4,2,mats.annex);
+const pathMat=new THREE.MeshStandardMaterial({color:0xa7f3d0,transparent:true,opacity:.24,roughness:1});box(4.15,0,1,16,.018,pathMat,.058,G.shell);
 wallH(0,4.15,0);wallH(5.15,8,0);lintelH(4.15,5.15,0); wallH(0,4.15,16);wallH(5.15,8,16);lintelH(4.15,5.15,16); wallV(0,0,16); wallV(8,0,14.45);wallV(8,15.35,16);lintelV(8,14.45,15.35); wallV(12,14,16); wallH(8,12,14); wallH(8,12,16);
-wallV(4,0,1.55);wallV(4,2.45,7.55);wallV(4,8.45,13.55);wallV(4,14.45,16); lintelV(4,1.55,2.45);lintelV(4,7.55,8.45);lintelV(4,13.55,14.45); wallH(0,2.65,4);wallH(3.55,4,4);lintelH(2.65,3.55,4); wallH(0,4,6); wallH(0,2.65,10);wallH(3.55,4,10);lintelH(2.65,3.55,10); wallH(0,4,12); wallH(4,6.2,12);wallH(7.2,8,12);
+wallV(4,0,1.55);wallV(4,2.45,7.55);wallV(4,8.45,13.55);wallV(4,14.45,16); lintelV(4,1.55,2.45);lintelV(4,7.55,8.45);lintelV(4,13.55,14.45); wallH(0,2.65,4);wallH(3.55,4,4);lintelH(2.65,3.55,4); wallH(0,4,6); wallH(0,2.65,10);wallH(3.55,4,10);lintelH(2.65,3.55,10); wallH(0,4,12); wallH(4,4.15,12);wallH(5.15,8,12);
 const winV=(x,z,l)=>box(x-.03,z,.06,l,1.15,mats.glass,1.35,G.wins), winH=(x,z,l)=>box(x,z-.03,l,.06,1.15,mats.glass,1.35,G.wins); [ [0,1.25,1.5],[0,4.35,1],[0,7.2,1.6],[0,10.35,1],[0,13.15,1.8],[8,1.6,2.2],[8,6.6,1.8],[8,9.2,1.5],[12,14.35,1.2] ].forEach(v=>winV(...v)); winH(1.1,16,1.7);
 function arc(cx,cz,r,a0,a1){const pts=[];for(let i=0;i<=20;i++){const a=a0+(a1-a0)*(i/20);pts.push(new THREE.Vector3(cx+Math.cos(a)*r,.03,cz+Math.sin(a)*r))}G.doors.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x9eb4d6})))}
 function leafH(x,z,l,ang){const m=box(x,z-.02,l,.04,.06,mats.wood,.04,G.doors);m.geometry.translate(-l/2,0,0);m.position.x=x;m.rotation.y=ang} function leafV(x,z,l,ang){const m=box(x-.02,z,.04,l,.06,mats.wood,.04,G.doors);m.geometry.translate(0,0,-l/2);m.position.z=z;m.rotation.y=ang}
 leafH(4.15,0,1,Math.PI/2);arc(4.15,0,1,0,Math.PI/2); leafH(4.15,16,1,-Math.PI/2);arc(4.15,16,1,Math.PI,Math.PI*1.5); [1.55,7.55,13.55].forEach(z=>{leafV(4,z,.9,-Math.PI/2);arc(4,z,.9,Math.PI/2,Math.PI)}); leafH(2.65,4,.9,Math.PI/2);arc(2.65,4,.9,0,Math.PI/2); leafH(2.65,10,.9,Math.PI/2);arc(2.65,10,.9,0,Math.PI/2); leafV(8,14.45,.9,Math.PI/2);arc(8,14.45,.9,0,Math.PI/2);
 function bed(x,z){const g=new THREE.Group();box(-.9,-1,1.8,2,.24,mats.white,.18,g);box(-.95,-1.05,1.9,.16,.8,mats.wood,.4,g);g.position.set(x,0,z);G.furn.add(g)} function bath(x,z,w=4,d=2){box(x+.25,z+.3,.7,.9,.42,mats.white,.21,G.furn);box(x+1.35,z+.35,.75,.5,.82,mats.white,.41,G.furn);box(x+w-1.05,z+.18,.85,d-.35,.05,mats.glass,.03,G.furn)}
-bed(2,2.2);bed(2,8.15);bed(2,14.1); box(4.75,1.3,2.35,.8,.72,mats.acc,.36,G.furn); box(7.46,1,.18,2.3,1.1,mats.dark,.55,G.furn); box(5.45,2.55,1.15,.65,.35,mats.wood,.18,G.furn); box(5.1,6.9,1.8,.9,.76,mats.wood,.38,G.furn); [[5,6.35],[6.15,6.35],[5,7.82],[6.15,7.82]].forEach(([x,z])=>box(x,z,.45,.45,.45,mats.dark,.23,G.furn)); box(4.15,9.2,3.45,.62,.9,mats.white,.45,G.furn); box(7.1,9.2,.55,2.2,.9,mats.white,.45,G.furn); box(5.0,10.35,1.7,.76,.9,mats.wood,.45,G.furn); bath(0,4);bath(0,10);bath(8,14,4,2);
+bed(2,2.2);bed(2,8.15);bed(2,14.1); box(5.35,1.3,2.2,.8,.72,mats.acc,.36,G.furn); box(7.46,1,.18,2.3,1.1,mats.dark,.55,G.furn); box(5.75,2.55,1.15,.65,.35,mats.wood,.18,G.furn); box(5.55,6.9,1.8,.9,.76,mats.wood,.38,G.furn); [[5.45,6.35],[6.6,6.35],[5.45,7.82],[6.6,7.82]].forEach(([x,z])=>box(x,z,.45,.45,.45,mats.dark,.23,G.furn)); box(5.3,9.2,2.3,.62,.9,mats.white,.45,G.furn); box(7.1,9.2,.55,2.2,.9,mats.white,.45,G.furn); box(5.45,10.35,1.7,.76,.9,mats.wood,.45,G.furn); bath(0,4);bath(0,10);bath(8,14,4,2);
 const grid=new THREE.GridHelper(32,32,0x4b6a93,0x243654);grid.position.set(4,.01,8);G.grid.add(grid);const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x0f192c,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.receiveShadow=true;scene.add(ground);
 function rrect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
 function label(t,x,z,col='#f7fbff'){const c=document.createElement('canvas'),ctx=c.getContext('2d');c.width=512;c.height=128;ctx.fillStyle='rgba(8,14,28,.78)';rrect(ctx,8,20,496,88,18);ctx.fill();ctx.font='600 29px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=col;ctx.fillText(t,256,64);const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));s.position.set(x,.18,z);s.scale.set(3.35,.84,1);G.labels.add(s)}
 [['PORCHE FRONTAL 8×4',4,-2,'#ffe6aa'],['HAB. 1 · 4×4',2,2],['BAÑO 1 · 4×2',2,5,'#c9ebff'],['HAB. 2 · 4×4',2,8],['BAÑO 2 · 4×2',2,11,'#c9ebff'],['HAB. 3 · 4×4',2,14],['SALA · 4×6',6,3,'#d9f7e2'],['COMEDOR · 4×3',6,7.5,'#d9f7e2'],['COCINA · 4×3',6,10.5,'#ffe6aa'],['CORREDOR',6,14,'#d9f7e2'],['BAÑO ANEXO · 4×2',10,15,'#c9ebff'],['PORCHE TRASERO 8×2',4,17,'#ffe6aa']].forEach(v=>label(...v));
-const views={persp:{pos:[12,14,-16],t:[4,0,8],name:'Vista 3D'},front:{pos:[4,7,-26],t:[4,1.2,8],name:'Vista frontal'},rear:{pos:[4,7,40],t:[4,1.2,8],name:'Vista trasera'},left:{pos:[-24,7,8],t:[4,1.2,8],name:'Vista izquierda'},right:{pos:[32,7,8],t:[4,1.2,8],name:'Vista derecha'}}; let current='persp', mode='3d';
+const views={persp:{pos:[4,14,-18],t:[4,0,8],name:'Vista 3D frontal'},front:{pos:[4,7,-26],t:[4,1.2,8],name:'Vista frontal'},rear:{pos:[4,7,40],t:[4,1.2,8],name:'Vista trasera'},left:{pos:[-24,7,8],t:[4,1.2,8],name:'Vista izquierda'},right:{pos:[32,7,8],t:[4,1.2,8],name:'Vista derecha'}}; let current='persp', mode='3d';
 function setCam(k){current=k;const v=views[k];camera.position.set(...v.pos);controls.target.set(...v.t);controls.update();document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',b.dataset.cam===k));document.getElementById('modePill').textContent=mode==='2d'?'Vista 2D':v.name}
 function setMode(m){mode=m;const is2d=m==='2d';document.getElementById('planWrap').classList.toggle('hidden',!is2d);document.getElementById('scene3d').classList.toggle('hidden',is2d);document.getElementById('btn2d').classList.toggle('active',is2d);document.getElementById('btn3d').classList.toggle('active',!is2d);document.getElementById('modePill').textContent=is2d?'Vista 2D':views[current].name;document.getElementById('helpPill').textContent=is2d?'Plano fijo sin espejo':'3D alineado con 2D';document.getElementById('bottomText').textContent=is2d?'Vista 2D: puertas alineadas al eje visual y área social a la derecha.':'Vista 3D: sala/comedor/cocina a la derecha · puertas frontal y trasera pegadas a la izquierda del hueco.';if(!is2d){resize();setCam(current)}}
 document.getElementById('btn2d').onclick=()=>setMode('2d');document.getElementById('btn3d').onclick=()=>setMode('3d');document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>{if(mode!=='3d')setMode('3d');setCam(b.dataset.cam)});document.getElementById('resetCam').onclick=()=>{if(mode!=='3d')setMode('3d');setCam('persp')};document.getElementById('saveBtn').onclick=()=>{if(mode==='2d'){const a=document.createElement('a');const svg=document.getElementById('plan2d');const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'});a.href=URL.createObjectURL(blob);a.download='plano-2d.svg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}else{const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='vista-3d.png';a.click()}};
