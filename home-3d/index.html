@@ -3,233 +3,288 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Home 3D · Croquis 8×16</title>
+  <title>Home 2D/3D · Croquis 8×16</title>
   <style>
-    :root{--bg:#0b1020;--panel:#11182b;--panel2:#18223a;--text:#eef3ff;--muted:#aebbd6;--accent:#7dd3fc;--line:#2a3858}
-    *{box-sizing:border-box} html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+    :root{
+      --bg:#0b1020;--panel:#10172a;--panel2:#18233c;--line:#2a3756;
+      --text:#eef3ff;--muted:#aebbd6;--accent:#7dd3fc;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
     #app{display:grid;grid-template-columns:320px 1fr;height:100%}
-    aside{background:linear-gradient(180deg,var(--panel),#0d1424);border-right:1px solid var(--line);padding:18px;overflow:auto;z-index:3}
-    h1{font-size:20px;margin:0 0 4px} .sub{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+    aside{background:linear-gradient(180deg,var(--panel),#0c1323);border-right:1px solid var(--line);padding:16px;overflow:auto;z-index:3}
+    h1{font-size:20px;margin:0 0 4px}
+    .sub{font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 14px}
     .card{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
-    .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:#c7d6f5;margin:0 0 9px}
-    .row{display:flex;gap:8px;flex-wrap:wrap}.btn{appearance:none;border:1px solid #38507b;background:#18253f;color:var(--text);border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer}.btn:hover{background:#223455}.btn.active{outline:2px solid var(--accent);background:#17354b}
-    label.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px dashed #24324e}.toggle:last-child{border-bottom:0}.toggle input{accent-color:#38bdf8}
-    .spec{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:12px}.spec span:nth-child(odd){color:var(--muted)}
-    .legend{font-size:12px;line-height:1.55;color:var(--muted)} .legend b{color:var(--text)}
-    #stage{position:relative;min-width:0}.hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;z-index:2}.pill{background:rgba(8,13,25,.78);backdrop-filter:blur(8px);border:1px solid #31415f;color:#dbe8ff;padding:7px 10px;border-radius:999px;font-size:12px;pointer-events:auto}
+    .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#d8e6ff;margin:0 0 9px}
+    .row{display:flex;flex-wrap:wrap;gap:8px}
+    .btn{appearance:none;border:1px solid #38507b;background:#18253f;color:var(--text);border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer}
+    .btn:hover{background:#223455}.btn.active{outline:2px solid var(--accent);background:#17354b}
+    .spec{display:grid;grid-template-columns:1fr auto;gap:7px 10px;font-size:12px}
+    .spec span:nth-child(odd){color:var(--muted)}
+    label.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px dashed #24324e}
+    .toggle:last-child{border-bottom:0}.toggle input{accent-color:#38bdf8}
+    .note{font-size:11px;line-height:1.5;color:#c7d5ef;background:#111b2f;border:1px solid #263657;border-radius:10px;padding:10px}
+    #stage{position:relative;min-width:0}
     #canvasWrap{position:absolute;inset:0} canvas{display:block;width:100%;height:100%}
-    .notice{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(8,13,25,.82);border:1px solid #31415f;border-radius:12px;padding:8px 12px;font-size:11px;color:#bac7df;z-index:2;text-align:center;max-width:min(700px,90%)}
-    @media(max-width:850px){#app{grid-template-columns:1fr}aside{position:absolute;left:0;top:0;bottom:0;width:min(330px,88vw);transform:translateX(-100%);transition:.2s;box-shadow:0 20px 60px #0008}aside.open{transform:none}.mobile{display:block!important}.hud{left:54px}}
+    #plan2dContainer{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:18px;background:#eef2f6;overflow:auto}
+    #plan2d{width:min(100%,820px);height:auto;max-height:100%;filter:drop-shadow(0 16px 30px rgba(15,23,42,.18))}
+    #plan2d .wall{stroke:#111827;stroke-width:8;fill:none;stroke-linecap:square}
+    #plan2d .thin{stroke:#334155;stroke-width:2;fill:none}
+    #plan2d .door{stroke:#9a5f3b;stroke-width:4;fill:none}
+    #plan2d .label{font:700 18px system-ui;fill:#0f172a;text-anchor:middle}
+    #plan2d .small{font:600 14px system-ui;fill:#334155;text-anchor:middle}
+    #plan2d .dim{font:700 14px system-ui;fill:#475569;text-anchor:middle}
+    .modebtn{flex:1;min-width:115px;padding:11px 12px;font-weight:800}
+    .hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;z-index:2}
+    .pill{background:rgba(8,13,25,.8);border:1px solid #31415f;border-radius:999px;color:#dbe8ff;padding:8px 11px;font-size:12px;backdrop-filter:blur(8px);pointer-events:auto}
+    .notice{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(8,13,25,.84);border:1px solid #31415f;border-radius:12px;padding:8px 12px;font-size:11px;color:#bac7df;z-index:2;text-align:center;max-width:min(760px,92%)}
     .mobile{display:none}
+    @media(max-width:900px){
+      #app{grid-template-columns:1fr}
+      aside{position:absolute;left:0;top:0;bottom:0;width:min(330px,88vw);transform:translateX(-100%);transition:.2s;box-shadow:0 25px 80px #0008}
+      aside.open{transform:none}
+      .mobile{display:block}
+      .hud{left:54px}
+    }
   </style>
 </head>
 <body>
 <div id="app">
   <aside id="panel">
-    <h1>Home 3D · Croquis actualizado</h1>
-    <div class="sub">Vista interactiva basada en las medidas acordadas. Frente abajo; fondo arriba. El baño anexo queda <b>fuera</b> del volumen 8×16 y solo se accede desde el corredor interior.</div>
+    <h1>Home 2D/3D · Croquis corregido</h1>
+    <p class="sub">Menú independiente para <b>Vista 2D</b> y <b>Vista 3D</b>. En el plano 2D, izquierda/derecha y frente/fondo quedan fijados sin efecto espejo.</p>
 
     <div class="card">
-      <h2>Vistas</h2>
+      <h2>Modo de vista</h2>
       <div class="row">
-        <button class="btn active" data-view="3d">3D</button>
-        <button class="btn" data-view="top">Planta</button>
+        <button class="btn modebtn active" id="mode2dBtn">▦ Vista 2D</button>
+        <button class="btn modebtn" id="mode3dBtn">◈ Vista 3D</button>
+      </div>
+    </div>
+
+    <div class="card" id="views3dCard">
+      <h2>Ángulos de la vista 3D</h2>
+      <div class="row">
+        <button class="btn active" data-view="3d">Perspectiva</button>
         <button class="btn" data-view="front">Frente</button>
         <button class="btn" data-view="rear">Fondo</button>
         <button class="btn" data-view="left">Izq.</button>
         <button class="btn" data-view="right">Der.</button>
       </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="resetBtn">Restablecer cámara</button>
+        <button class="btn" id="shotBtn">Guardar PNG</button>
+      </div>
     </div>
 
     <div class="card">
       <h2>Capas</h2>
-      <label class="toggle">Etiquetas <input id="labelsToggle" type="checkbox" checked></label>
-      <label class="toggle">Mobiliario <input id="furnitureToggle" type="checkbox" checked></label>
-      <label class="toggle">Techos de porches <input id="roofToggle" type="checkbox"></label>
-      <label class="toggle">Cuadrícula métrica <input id="gridToggle" type="checkbox" checked></label>
+      <label class="toggle"><span>Etiquetas</span><input type="checkbox" id="labelsToggle" checked></label>
+      <label class="toggle"><span>Mobiliario</span><input type="checkbox" id="furnitureToggle" checked></label>
+      <label class="toggle"><span>Cuadrícula</span><input type="checkbox" id="gridToggle" checked></label>
+      <label class="toggle"><span>Techos porches</span><input type="checkbox" id="roofsToggle"></label>
     </div>
 
     <div class="card">
-      <h2>Medidas principales</h2>
+      <h2>Dimensiones fijadas</h2>
       <div class="spec">
-        <span>Casa principal</span><b>8 × 16 m</b>
-        <span>Porche frontal</span><b>8 × 4 m</b>
-        <span>Porche trasero</span><b>8 × 2 m</b>
-        <span>Habitaciones</span><b>3 × (4 × 4 m)</b>
-        <span>Baños privados</span><b>2 × (4 × 2 m)</b>
-        <span>Baño anexo</span><b>4 × 2 m</b>
-        <span>Área casa</span><b>128 m²</b>
-        <span>Área techada aprox.</span><b>184 m²</b>
+        <span>Casa principal</span><span>8 × 16 m</span>
+        <span>Porche frontal</span><span>8 × 4 m</span>
+        <span>Porche trasero</span><span>8 × 2 m</span>
+        <span>Habitación 1</span><span>4 × 4 m</span>
+        <span>Baño 1 privado</span><span>4 × 2 m</span>
+        <span>Habitación 2</span><span>4 × 4 m</span>
+        <span>Baño 2 privado</span><span>4 × 2 m</span>
+        <span>Habitación 3</span><span>4 × 4 m</span>
+        <span>Sala</span><span>4 × 6 m</span>
+        <span>Comedor</span><span>4 × 3 m</span>
+        <span>Cocina</span><span>4 × 3 m</span>
+        <span>Baño anexo</span><span>4 × 2 m</span>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Distribución exacta</h2>
-      <div class="legend">
-        <b>Lado izquierdo, de frente a fondo:</b> Habitación 1 (4×4), Baño 1 (4×2, acceso solo desde Hab. 1), Habitación 2 (4×4), Baño 2 (4×2, acceso solo desde Hab. 2), Habitación 3 (4×4, sin baño privado).<br><br>
-        <b>Lado derecho:</b> sala amplia al frente, comedor abierto, cocina, muro con paso alineado y corredor posterior recto hasta la puerta del porche trasero.<br><br>
-        <b>Baño anexo:</b> adosado por fuera al costado derecho, en la parte trasera; una sola puerta desde el corredor interior. No tiene puerta exterior.
-      </div>
+    <div class="note">
+      <b>Distribución final:</b> lado izquierdo con tres habitaciones y dos baños privados no compartidos; lado derecho con sala, comedor y cocina; al fondo, salida recta al porche trasero; antes de esa salida, a la derecha, una única puerta comunica con el baño anexo, que queda por fuera del rectángulo principal y sin puerta exterior.
     </div>
 
-    <div class="card">
-      <h2>Puertas</h2>
-      <div class="legend">Las puertas de las habitaciones abren hacia adentro de cada cuarto. Las puertas de los baños privados abren desde su habitación hacia el baño. La puerta del baño anexo abre desde el corredor hacia el baño. La puerta frontal y la trasera abren hacia el interior de la casa.</div>
-    </div>
-
-    <div class="row" style="margin-top:12px">
-      <button class="btn" id="resetBtn">Restablecer cámara</button>
-      <button class="btn" id="shotBtn">Guardar PNG</button>
-    </div>
-    <p class="sub" style="margin-top:14px">Croquis conceptual para visualización. Antes de construir, un profesional local debe convertirlo en planos técnicos y verificar estructura, instalaciones y normativa.</p>
+    <p class="sub" style="margin-top:14px">Croquis conceptual. Antes de construir, un profesional local debe convertirlo en planos técnicos y validar estructura, instalaciones y normativa.</p>
   </aside>
 
   <main id="stage">
     <button class="btn mobile" id="menuBtn" style="position:absolute;left:10px;top:10px;z-index:5">☰</button>
-    <div class="hud"><div class="pill">Arrastra para rotar · rueda/pellizco para zoom</div><div class="pill" id="modePill">Vista 3D</div></div>
+    <div class="hud">
+      <div class="pill">Arrastra para rotar · rueda o pellizco para zoom</div>
+      <div class="pill" id="modePill">Vista 3D</div>
+    </div>
     <div id="canvasWrap"></div>
-    <div class="notice">Frente = porche de 8×4 m · Fondo = porche de 8×2 m · Eje de circulación alineado de frente a fondo.</div>
+    <div id="plan2dContainer">
+      <svg id="plan2d" viewBox="0 0 760 1180" role="img" aria-label="Plano 2D de la casa">
+        <rect x="20" y="20" width="720" height="1140" rx="22" fill="#ffffff"/>
+        <text x="380" y="58" class="label" style="font-size:24px">PLANO 2D · CASA 8 × 16 m</text>
+        <text x="380" y="84" class="small">Frente abajo · Fondo arriba · izquierda y derecha sin espejo</text>
+        <rect x="120" y="105" width="400" height="100" fill="#e9dfcc" stroke="#8b7355" stroke-width="3"/>
+        <text x="320" y="158" class="label">PORCHE TRASERO</text><text x="320" y="181" class="small">8 × 2 m · techado</text>
+        <rect x="120" y="205" width="400" height="800" fill="#f8fafc" stroke="#111827" stroke-width="8"/>
+        <line x1="320" y1="205" x2="320" y2="1005" class="wall"/>
+        <line x1="120" y1="405" x2="320" y2="405" class="wall"/>
+        <line x1="120" y1="505" x2="320" y2="505" class="wall"/>
+        <line x1="120" y1="705" x2="320" y2="705" class="wall"/>
+        <line x1="120" y1="805" x2="320" y2="805" class="wall"/>
+        <line x1="320" y1="405" x2="520" y2="405" class="wall"/>
+        <rect x="520" y="205" width="200" height="100" fill="#e7f2fb" stroke="#111827" stroke-width="8"/>
+        <text x="220" y="292" class="label">HABITACIÓN 3</text><text x="220" y="317" class="small">4 × 4 m · sin baño privado</text>
+        <text x="220" y="455" class="label">BAÑO 2</text><text x="220" y="480" class="small">4 × 2 m · privado Hab. 2</text>
+        <text x="220" y="592" class="label">HABITACIÓN 2</text><text x="220" y="617" class="small">4 × 4 m</text>
+        <text x="220" y="755" class="label">BAÑO 1</text><text x="220" y="780" class="small">4 × 2 m · privado Hab. 1</text>
+        <text x="220" y="892" class="label">HABITACIÓN 1</text><text x="220" y="917" class="small">4 × 4 m</text>
+        <text x="420" y="282" class="label">CORREDOR</text><text x="420" y="307" class="small">salida recta al porche trasero</text>
+        <text x="420" y="472" class="label">COCINA</text><text x="420" y="497" class="small">4 × 3 m</text>
+        <text x="420" y="622" class="label">COMEDOR</text><text x="420" y="647" class="small">4 × 3 m · abierto</text>
+        <text x="420" y="842" class="label">SALA</text><text x="420" y="867" class="small">4 × 6 m</text>
+        <text x="620" y="248" class="label">BAÑO ANEXO</text><text x="620" y="273" class="small">4 × 2 m · acceso solo interior</text>
+        <path d="M320 910 L275 910 M320 910 A45 45 0 0 0 275 865" class="door"/>
+        <path d="M320 610 L275 610 M320 610 A45 45 0 0 0 275 565" class="door"/>
+        <path d="M320 310 L275 310 M320 310 A45 45 0 0 0 275 265" class="door"/>
+        <path d="M265 805 L265 760 M265 805 A45 45 0 0 0 220 760" class="door"/>
+        <path d="M265 505 L265 460 M265 505 A45 45 0 0 0 220 460" class="door"/>
+        <path d="M520 270 L565 270 M520 270 A45 45 0 0 1 565 225" class="door"/>
+        <path d="M455 205 L500 205 M455 205 A45 45 0 0 1 500 250" class="door"/>
+        <path d="M455 1005 L500 1005 M455 1005 A45 45 0 0 0 500 960" class="door"/>
+        <rect x="120" y="1005" width="400" height="200" fill="#e9dfcc" stroke="#8b7355" stroke-width="3"/>
+        <text x="320" y="1090" class="label">PORCHE FRONTAL</text><text x="320" y="1117" class="small">8 × 4 m · techado</text>
+        <line x1="94" y1="205" x2="94" y2="1005" class="thin"/><line x1="86" y1="205" x2="102" y2="205" class="thin"/><line x1="86" y1="1005" x2="102" y2="1005" class="thin"/>
+        <text x="62" y="610" class="dim" transform="rotate(-90 62 610)">16 m</text>
+        <line x1="120" y1="1035" x2="520" y2="1035" class="thin"/><text x="320" y="1058" class="dim">8 m</text>
+        <text x="220" y="1028" class="dim">4 m</text><text x="420" y="1028" class="dim">4 m</text>
+        <text x="80" y="110" class="small" style="text-anchor:start">← IZQUIERDA: dormitorios</text>
+        <text x="500" y="110" class="small" style="text-anchor:start">DERECHA: zona social →</text>
+      </svg>
+    </div>
+    <div class="notice" id="bottomNotice">Vista 2D: habitaciones a la izquierda · sala/comedor/cocina a la derecha · frente abajo · fondo arriba.</div>
   </main>
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
 </script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const wrap=document.getElementById('canvasWrap');
-const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0a1020);
-const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; wrap.appendChild(renderer.domElement);
-
-const camera=new THREE.PerspectiveCamera(48,1,.1,200); camera.position.set(18,18,24);
-const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.target.set(4,0,7); controls.maxPolarAngle=Math.PI/2.02; controls.minDistance=8; controls.maxDistance=55;
-scene.add(new THREE.HemisphereLight(0xddeeff,0x223344,1.55));
-const sun=new THREE.DirectionalLight(0xffffff,1.7); sun.position.set(12,25,-8); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); scene.add(sun);
-
-const groups={labels:new THREE.Group(),furniture:new THREE.Group(),roofs:new THREE.Group(),grid:new THREE.Group(),doors:new THREE.Group()}; Object.values(groups).forEach(g=>scene.add(g));
-const mats={
- wall:new THREE.MeshStandardMaterial({color:0xf3f0e8,roughness:.86}),
- floor:new THREE.MeshStandardMaterial({color:0xc9d4df,roughness:.95}),
- porch:new THREE.MeshStandardMaterial({color:0xb8a98e,roughness:1}),
- annex:new THREE.MeshStandardMaterial({color:0xcfd9e6,roughness:.95}),
- wood:new THREE.MeshStandardMaterial({color:0x9d704f,roughness:.8}),
- glass:new THREE.MeshStandardMaterial({color:0x78b8d8,transparent:true,opacity:.55,roughness:.2}),
- dark:new THREE.MeshStandardMaterial({color:0x273248,roughness:.8}),
- accent:new THREE.MeshStandardMaterial({color:0x6fa5c4,roughness:.75}),
- white:new THREE.MeshStandardMaterial({color:0xf7f8fb,roughness:.6}),
- green:new THREE.MeshStandardMaterial({color:0x789b7e,roughness:.9})
+const wrap = document.getElementById('canvasWrap');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1020);
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+wrap.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2.02;
+controls.minDistance = 8;
+controls.maxDistance = 60;
+scene.add(new THREE.HemisphereLight(0xe6f2ff, 0x223344, 1.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(16, 24, -10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+scene.add(sun);
+const groups = {labels:new THREE.Group(),furniture:new THREE.Group(),roofs:new THREE.Group(),grid:new THREE.Group(),doors:new THREE.Group(),windows:new THREE.Group(),shell:new THREE.Group()};
+Object.values(groups).forEach(g => scene.add(g));
+const mats = {
+  wall:new THREE.MeshStandardMaterial({color:0xf3efe7,roughness:0.9}),
+  floor:new THREE.MeshStandardMaterial({color:0xc9d4df,roughness:0.98}),
+  porch:new THREE.MeshStandardMaterial({color:0xb8aa92,roughness:1}),
+  annex:new THREE.MeshStandardMaterial({color:0xd6dee8,roughness:0.98}),
+  wood:new THREE.MeshStandardMaterial({color:0x9d6d4d,roughness:0.82}),
+  dark:new THREE.MeshStandardMaterial({color:0x273248,roughness:0.82}),
+  accent:new THREE.MeshStandardMaterial({color:0x77a3ba,roughness:0.78}),
+  glass:new THREE.MeshStandardMaterial({color:0x7fbad6,transparent:true,opacity:0.55,roughness:0.2}),
+  white:new THREE.MeshStandardMaterial({color:0xf8fafc,roughness:0.6}),
+  green:new THREE.MeshStandardMaterial({color:0x7f9a82,roughness:0.9})
 };
-
-function box(x,z,w,d,h,mat,y=h/2,group=scene){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x+w/2,y,z+d/2);m.castShadow=true;m.receiveShadow=true;group.add(m);return m}
-function wallH(x1,x2,z){return box(x1,z-.07,x2-x1,.14,2.8,mats.wall)}
-function wallV(x,z1,z2){return box(x-.07,z1,.14,z2-z1,2.8,mats.wall)}
-function lintelH(x1,x2,z){return box(x1,z-.07,x2-x1,.14,.7,mats.wall,2.45)}
-function lintelV(x,z1,z2){return box(x-.07,z1,.14,z2-z1,.7,mats.wall,2.45)}
-function floor(x,z,w,d,mat=mats.floor){return box(x,z,w,d,.08,mat,.04)}
-
-// Floors: exact footprint.
-floor(0,0,8,16); floor(0,-4,8,4,mats.porch); floor(0,16,8,2,mats.porch); floor(8,12,2,4,mats.annex);
-
-// Outer walls. Front and rear openings align on x=6.7 m.
-wallH(0,6.2,0); wallH(7.2,8,0); lintelH(6.2,7.2,0);
-wallH(0,6.2,16); wallH(7.2,8,16); lintelH(6.2,7.2,16);
+function box(x,z,w,d,h,mat,y=h/2,group=scene){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);mesh.position.set(x+w/2,y,z+d/2);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;}
+function floor(x,z,w,d,mat=mats.floor,group=groups.shell){return box(x,z,w,d,0.08,mat,0.04,group);}
+function wallH(x1,x2,z,group=groups.shell){return box(x1,z-0.06,x2-x1,0.12,2.8,mats.wall,1.4,group);}
+function wallV(x,z1,z2,group=groups.shell){return box(x-0.06,z1,0.12,z2-z1,2.8,mats.wall,1.4,group);}
+function lintelH(x1,x2,z,group=groups.shell){return box(x1,z-0.06,x2-x1,0.12,0.65,mats.wall,2.47,group);}
+function lintelV(x,z1,z2,group=groups.shell){return box(x-0.06,z1,0.12,z2-z1,0.65,mats.wall,2.47,group);}
+floor(0,0,8,16);floor(0,-4,8,4,mats.porch);floor(0,16,8,2,mats.porch);floor(8,14,4,2,mats.annex);
+wallH(0,6.2,0);wallH(7.2,8,0);lintelH(6.2,7.2,0);
+wallH(0,6.2,16);wallH(7.2,8,16);lintelH(6.2,7.2,16);
 wallV(0,0,16);
-wallV(8,0,13.35); wallV(8,14.35,16); lintelV(8,13.35,14.35);
-
-// Annex bath outer shell; no exterior door.
-wallV(10,12,16); wallH(8,10,12); wallH(8,10,16);
-
-// Central left/right division with doors ONLY to bedrooms.
-wallV(4,0,1.55); wallV(4,2.45,7.55); wallV(4,8.45,13.55); wallV(4,14.45,16);
-lintelV(4,1.55,2.45); lintelV(4,7.55,8.45); lintelV(4,13.55,14.45);
-
-// Left-side sequence: 4 + 2 + 4 + 2 + 4 = 16 m.
-wallH(0,2.70,4); wallH(3.60,4,4); lintelH(2.70,3.60,4); // Hab 1 -> Baño 1
-wallH(0,4,6); // Baño 1 -> Hab 2, no shared door
-wallH(0,2.70,10); wallH(3.60,4,10); lintelH(2.70,3.60,10); // Hab 2 -> Baño 2
-wallH(0,4,12); // Baño 2 -> Hab 3, no shared door
-
-// Kitchen/corridor separator with aligned open passage (no door obstruction).
-wallH(4,6.15,12); wallH(7.25,8,12);
-
-// Door leaf + floor swing. All room doors open toward the interior of the room.
-function doorSwing(cx,cz,r,start,end,rot=0){
-  const pts=[]; for(let i=0;i<=22;i++){const a=start+(end-start)*i/22;pts.push(new THREE.Vector3(cx+Math.cos(a)*r,.025,cz+Math.sin(a)*r))}
-  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x91a6c7})); groups.doors.add(line);
-}
-function doorLeafH(x,z,len,angle=0){const m=box(x,z-.025,len,.05,.06,mats.wood,.05,groups.doors);m.geometry.translate(-len/2,0,0);m.position.x=x;m.rotation.y=angle;return m}
-function doorLeafV(x,z,len,angle=0){const m=box(x-.025,z,.05,len,.06,mats.wood,.05,groups.doors);m.geometry.translate(0,0,-len/2);m.position.z=z;m.rotation.y=angle;return m}
-// Front door opens inward (+z)
-doorLeafH(6.2,0,1,Math.PI/2); doorSwing(6.2,0,1,0,Math.PI/2);
-// Rear door opens inward (-z)
-doorLeafH(7.2,16,1,-Math.PI/2); doorSwing(7.2,16,1,Math.PI,Math.PI*1.5);
-// Bedroom doors: hinges on lower z edge, opening left into each bedroom.
-for(const z of [1.55,7.55,13.55]){doorLeafV(4,z,.9,-Math.PI/2);doorSwing(4,z,.9,Math.PI/2,Math.PI)}
-// Private bathroom doors open from bedroom into bathroom (+z).
-doorLeafH(2.70,4,.9,Math.PI/2); doorSwing(2.70,4,.9,0,Math.PI/2);
-doorLeafH(2.70,10,.9,Math.PI/2); doorSwing(2.70,10,.9,0,Math.PI/2);
-// Annex bath: only one interior-access door, opens from corridor into annex (+x).
-doorLeafV(8,13.35,1,Math.PI/2); doorSwing(8,13.35,1,Math.PI/2,0);
-
-// Windows as glass panels on exterior walls.
-function windowV(x,z,w=1.5){const m=box(x-.04,z,.08,w,1.15,mats.glass,1.35);return m}
-function windowH(x,z,w=1.6){const m=box(x,z-.04,w,.08,1.15,mats.glass,1.35);return m}
-windowV(0,1.25,1.5); windowV(0,4.3,1.2); windowV(0,7.3,1.5); windowV(0,10.3,1.2); windowV(0,13.2,1.7);
-windowV(8,2.0,2.0); windowV(8,6.8,1.7); windowV(8,9.7,1.7); windowV(10,13.25,1.5); windowH(1.2,16,1.7);
-
-// Simple furniture for scale.
-function bed(x,z,rot=0){const g=new THREE.Group(); const base=box(-.9,-1.0,1.8,2.0,.25,mats.white,.2,g); const head=box(-.95,-1.05,1.9,.16,.8,mats.wood,.4,g); const p1=box(-.78,-.72,.7,.45,.14,mats.floor,.35,g); const p2=box(.08,-.72,.7,.45,.14,mats.floor,.35,g); g.position.set(x,0,z);g.rotation.y=rot;groups.furniture.add(g)}
-bed(2,2.2); bed(2,8.2); bed(2,14.2);
-// Living sofa + media
-box(5.0,1.25,2.2,.75,.7,mats.accent,.35,groups.furniture); box(7.45,1.0,.18,2.2,1.1,mats.dark,.55,groups.furniture); box(5.55,2.5,1.2,.65,.35,mats.wood,.18,groups.furniture);
-// Dining table + chairs
-box(5.15,6.85,1.7,.9,.76,mats.wood,.38,groups.furniture); for(const [x,z] of [[5,6.35],[6,6.35],[5,7.85],[6,7.85]])box(x,z,.45,.45,.45,mats.dark,.23,groups.furniture);
-// Kitchen counters
-box(4.25,9.2,3.25,.62,.9,mats.white,.45,groups.furniture); box(7.25,9.2,.5,2.2,.9,mats.white,.45,groups.furniture); box(5.25,10.45,1.5,.72,.92,mats.wood,.46,groups.furniture);
-// Baths: fixtures
-function bathFixtures(z0,x0=0){box(x0+.35,z0+.35,.65,.85,.45,mats.white,.23,groups.furniture);box(x0+1.45,z0+.4,.75,.5,.82,mats.white,.41,groups.furniture);box(x0+2.85,z0+.25,.85,1.35,.05,mats.glass,.03,groups.furniture)}
-bathFixtures(4); bathFixtures(10); bathFixtures(12,8);
-
-// Porch roofs + posts, off by default.
-function canopy(z,d){const r=box(0,z,8,d,.14,mats.dark,2.65,groups.roofs);r.material=r.material.clone();r.material.transparent=true;r.material.opacity=.72;for(const x of [.2,7.7])for(const zz of [z+.2,z+d-.2])box(x-.05,zz-.05,.1,.1,2.6,mats.dark,1.3,groups.roofs)}
-canopy(-4,4); canopy(16,2); groups.roofs.visible=false;
-
-// Metric grid centered on the project.
-const grid=new THREE.GridHelper(30,30,0x426187,0x243654);grid.position.set(4,.01,7);groups.grid.add(grid);
-
-function label(text,x,z,color='#f7fbff'){
- const c=document.createElement('canvas'),ctx=c.getContext('2d'); c.width=512;c.height=128;ctx.clearRect(0,0,c.width,c.height);ctx.fillStyle='rgba(8,14,28,.76)';ctx.roundRect(6,20,500,88,18);ctx.fill();ctx.font='600 30px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,64);
- const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));s.position.set(x,.18,z);s.scale.set(3.2,.8,1);groups.labels.add(s);
-}
-label('PORCHE FRONTAL 8×4',4,-2,'#ffe7b0'); label('HAB. 1 · 4×4',2,2); label('BAÑO 1 · 4×2',2,5,'#c7e9ff'); label('HAB. 2 · 4×4',2,8); label('BAÑO 2 · 4×2',2,11,'#c7e9ff'); label('HAB. 3 · 4×4',2,14);
-label('SALA · 4×6',6,3,'#d9f7e2'); label('COMEDOR · 4×3',6,7.5,'#d9f7e2'); label('COCINA · 4×3',6,10.5,'#ffe7b0'); label('CORREDOR POSTERIOR',6,14,'#d9f7e2'); label('BAÑO ANEXO · 4×2',9,14,'#c7e9ff'); label('PORCHE TRASERO 8×2',4,17,'#ffe7b0');
-
-// Ground plane.
-const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshStandardMaterial({color:0x101a2c,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.receiveShadow=true;scene.add(ground);
-
+wallV(8,0,14.45);wallV(8,15.35,16);lintelV(8,14.45,15.35);
+wallV(12,14,16);wallH(8,12,14);wallH(8,12,16);
+wallV(4,0,1.55);wallV(4,2.45,7.55);wallV(4,8.45,13.55);wallV(4,14.45,16);
+lintelV(4,1.55,2.45);lintelV(4,7.55,8.45);lintelV(4,13.55,14.45);
+wallH(0,2.65,4);wallH(3.55,4,4);lintelH(2.65,3.55,4);
+wallH(0,4,6);
+wallH(0,2.65,10);wallH(3.55,4,10);lintelH(2.65,3.55,10);
+wallH(0,4,12);
+wallH(4,6.2,12);wallH(7.2,8,12);
+function windowV(x,z,len=1.6){box(x-0.03,z,0.06,len,1.15,mats.glass,1.35,groups.windows);}
+function windowH(x,z,len=1.7){box(x,z-0.03,len,0.06,1.15,mats.glass,1.35,groups.windows);}
+windowV(0,1.25,1.5);windowV(0,4.35,1.0);windowV(0,7.2,1.6);windowV(0,10.35,1.0);windowV(0,13.15,1.8);
+windowV(8,1.6,2.2);windowV(8,6.6,1.8);windowV(8,9.2,1.5);windowH(9.2,16,1.8);windowV(12,14.35,1.2);windowH(1.1,16,1.7);
+function arc(cx,cz,r,a0,a1){const pts=[];for(let i=0;i<=24;i++){const a=a0+(a1-a0)*(i/24);pts.push(new THREE.Vector3(cx+Math.cos(a)*r,0.035,cz+Math.sin(a)*r));}const geom=new THREE.BufferGeometry().setFromPoints(pts);const line=new THREE.Line(geom,new THREE.LineBasicMaterial({color:0x9eb4d6}));groups.doors.add(line);}
+function doorLeafH(x,z,len,angle){const m=box(x,z-0.02,len,0.04,0.06,mats.wood,0.04,groups.doors);m.geometry.translate(-len/2,0,0);m.position.x=x;m.rotation.y=angle;return m;}
+function doorLeafV(x,z,len,angle){const m=box(x-0.02,z,0.04,len,0.06,mats.wood,0.04,groups.doors);m.geometry.translate(0,0,-len/2);m.position.z=z;m.rotation.y=angle;return m;}
+doorLeafH(6.2,0,1,Math.PI/2);arc(6.2,0,1,0,Math.PI/2);
+doorLeafH(7.2,16,1,-Math.PI/2);arc(7.2,16,1,Math.PI,Math.PI*1.5);
+for(const z of [1.55,7.55,13.55]){doorLeafV(4,z,0.9,-Math.PI/2);arc(4,z,0.9,Math.PI/2,Math.PI);}
+doorLeafH(2.65,4,0.9,Math.PI/2);arc(2.65,4,0.9,0,Math.PI/2);
+doorLeafH(2.65,10,0.9,Math.PI/2);arc(2.65,10,0.9,0,Math.PI/2);
+doorLeafV(8,14.45,0.9,Math.PI/2);arc(8,14.45,0.9,0,Math.PI/2);
+function bed(x,z,rot=0){const g=new THREE.Group();box(-0.9,-1.0,1.8,2.0,0.24,mats.white,0.18,g);box(-0.95,-1.05,1.9,0.16,0.8,mats.wood,0.4,g);box(-0.75,-0.7,0.68,0.42,0.12,mats.floor,0.31,g);box(0.10,-0.7,0.68,0.42,0.12,mats.floor,0.31,g);g.position.set(x,0,z);g.rotation.y=rot;groups.furniture.add(g);}
+function bathFixtures(x,z,w=4,d=2){box(x+0.25,z+0.30,0.7,0.9,0.42,mats.white,0.21,groups.furniture);box(x+1.35,z+0.35,0.75,0.5,0.82,mats.white,0.41,groups.furniture);box(x+w-1.05,z+0.18,0.85,d-0.35,0.05,mats.glass,0.03,groups.furniture);}
+bed(2.0,2.2);bed(2.0,8.15);bed(2.0,14.1);
+box(4.8,1.3,2.3,0.78,0.72,mats.accent,0.36,groups.furniture);box(7.46,1.0,0.18,2.3,1.1,mats.dark,0.55,groups.furniture);box(5.45,2.55,1.15,0.65,0.35,mats.wood,0.18,groups.furniture);
+box(5.10,6.85,1.8,0.9,0.76,mats.wood,0.38,groups.furniture);for(const [x,z] of [[5.0,6.35],[6.15,6.35],[5.0,7.82],[6.15,7.82]])box(x,z,0.45,0.45,0.45,mats.dark,0.23,groups.furniture);
+box(4.2,9.2,3.4,0.62,0.9,mats.white,0.45,groups.furniture);box(7.15,9.2,0.55,2.2,0.9,mats.white,0.45,groups.furniture);box(5.05,10.35,1.7,0.76,0.9,mats.wood,0.45,groups.furniture);
+bathFixtures(0,4);bathFixtures(0,10);bathFixtures(8,14,4,2);
+function canopy(z,d){const roof=box(0,z,8,d,0.14,mats.dark,2.65,groups.roofs);roof.material=roof.material.clone();roof.material.transparent=true;roof.material.opacity=0.72;for(const x of [0.18,7.72])for(const zz of [z+0.18,z+d-0.18])box(x-0.05,zz-0.05,0.1,0.1,2.6,mats.dark,1.3,groups.roofs);}
+canopy(-4,4);canopy(16,2);groups.roofs.visible=false;
+const grid=new THREE.GridHelper(32,32,0x4b6a93,0x243654);grid.position.set(4,0.01,8);groups.grid.add(grid);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x0f192c,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-0.03;ground.receiveShadow=true;scene.add(ground);
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function label(text,x,z,color='#f7fbff'){const c=document.createElement('canvas');const ctx=c.getContext('2d');c.width=512;c.height=128;ctx.fillStyle='rgba(8,14,28,.78)';roundRect(ctx,8,20,496,88,18);ctx.fill();ctx.font='600 29px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,64);const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sprite.position.set(x,0.18,z);sprite.scale.set(3.35,0.84,1);groups.labels.add(sprite);}
+label('PORCHE FRONTAL 8×4',4,-2,'#ffe6aa');label('HAB. 1 · 4×4',2,2);label('BAÑO 1 · 4×2',2,5,'#c9ebff');label('HAB. 2 · 4×4',2,8);label('BAÑO 2 · 4×2',2,11,'#c9ebff');label('HAB. 3 · 4×4',2,14);label('SALA · 4×6',6,3,'#d9f7e2');label('COMEDOR · 4×3',6,7.5,'#d9f7e2');label('COCINA · 4×3',6,10.5,'#ffe6aa');label('CORREDOR',6,14,'#d9f7e2');label('BAÑO ANEXO · 4×2',10,15,'#c9ebff');label('PORCHE TRASERO 8×2',4,17,'#ffe6aa');
 const views={
- '3d':{p:[18,18,24],t:[4,0,7],persp:true,name:'Vista 3D'},
- top:{p:[4,31,7],t:[4,0,7],persp:true,name:'Vista de planta'},
- front:{p:[4,7,-25],t:[4,1.2,6],persp:true,name:'Vista frontal'},
- rear:{p:[4,7,39],t:[4,1.2,10],persp:true,name:'Vista trasera'},
- left:{p:[-27,8,8],t:[4,1.2,8],persp:true,name:'Vista izquierda'},
- right:{p:[35,8,8],t:[5,1.2,8],persp:true,name:'Vista derecha'}
+ '3d':{pos:[18,16,-14],target:[4,0,8],up:[0,1,0],name:'Vista 3D'},
+ front:{pos:[4,7,-26],target:[4,1.2,8],up:[0,1,0],name:'Vista frontal'},
+ rear:{pos:[4,7,38],target:[4,1.2,8],up:[0,1,0],name:'Vista trasera'},
+ left:{pos:[-26,7,8],target:[4,1.2,8],up:[0,1,0],name:'Vista izquierda'},
+ right:{pos:[34,7,8],target:[4,1.2,8],up:[0,1,0],name:'Vista derecha'}
 };
-function setView(k){const v=views[k];camera.position.set(...v.p);controls.target.set(...v.t);controls.update();document.getElementById('modePill').textContent=v.name;document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===k))}
-document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
-document.getElementById('labelsToggle').onchange=e=>groups.labels.visible=e.target.checked;
-document.getElementById('furnitureToggle').onchange=e=>groups.furniture.visible=e.target.checked;
-document.getElementById('roofToggle').onchange=e=>groups.roofs.visible=e.target.checked;
-document.getElementById('gridToggle').onchange=e=>groups.grid.visible=e.target.checked;
-document.getElementById('resetBtn').onclick=()=>setView('3d');
-document.getElementById('shotBtn').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.download='home-3d-croquis.png';a.href=renderer.domElement.toDataURL('image/png');a.click()};
-document.getElementById('menuBtn').onclick=()=>document.getElementById('panel').classList.toggle('open');
-
-function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}addEventListener('resize',resize);resize();
-renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera)});
+let currentView='3d';
+function setView(name){const v=views[name];currentView=name;camera.up.set(...v.up);camera.position.set(...v.pos);controls.target.set(...v.target);controls.update();document.getElementById('modePill').textContent=v.name;document.querySelectorAll('[data-view]').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===name));}
+let displayMode='2d';
+const plan2dContainer=document.getElementById('plan2dContainer');
+const canvasWrap=document.getElementById('canvasWrap');
+const mode2dBtn=document.getElementById('mode2dBtn');
+const mode3dBtn=document.getElementById('mode3dBtn');
+const views3dCard=document.getElementById('views3dCard');
+const bottomNotice=document.getElementById('bottomNotice');
+function setDisplayMode(mode){displayMode=mode;const is2d=mode==='2d';plan2dContainer.style.display=is2d?'flex':'none';canvasWrap.style.display=is2d?'none':'block';views3dCard.style.opacity=is2d?'.55':'1';mode2dBtn.classList.toggle('active',is2d);mode3dBtn.classList.toggle('active',!is2d);document.getElementById('modePill').textContent=is2d?'Vista 2D':'Vista 3D';bottomNotice.textContent=is2d?'Vista 2D: habitaciones a la izquierda · sala/comedor/cocina a la derecha · frente abajo · fondo arriba.':'Vista 3D: arrastra para rotar · rueda o pellizco para zoom.';if(!is2d){resize();setView(currentView||'3d');}}
+mode2dBtn.onclick=()=>setDisplayMode('2d');
+mode3dBtn.onclick=()=>setDisplayMode('3d');
+document.querySelectorAll('[data-view]').forEach(btn=>btn.addEventListener('click',()=>{if(displayMode!=='3d')setDisplayMode('3d');setView(btn.dataset.view);}));
+document.getElementById('resetBtn').onclick=()=>{if(displayMode!=='3d')setDisplayMode('3d');setView('3d');};
+document.getElementById('shotBtn').onclick=()=>{if(displayMode==='2d'){const svg=document.getElementById('plan2d');const blob=new Blob([new XMLSerializer().serializeToString(svg)],{type:'image/svg+xml'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='home-3d-plano-2d.svg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}else{const url=renderer.domElement.toDataURL('image/png');const a=document.createElement('a');a.href=url;a.download='home-3d-vista-3d.png';a.click();}};
+const labelsToggle=document.getElementById('labelsToggle');const furnitureToggle=document.getElementById('furnitureToggle');const roofsToggle=document.getElementById('roofsToggle');const gridToggle=document.getElementById('gridToggle');
+labelsToggle.oninput=()=>groups.labels.visible=labelsToggle.checked;furnitureToggle.oninput=()=>groups.furniture.visible=furnitureToggle.checked;roofsToggle.oninput=()=>groups.roofs.visible=roofsToggle.checked;gridToggle.oninput=()=>groups.grid.visible=gridToggle.checked;
+const panel=document.getElementById('panel');const menuBtn=document.getElementById('menuBtn');menuBtn.onclick=()=>panel.classList.toggle('open');
+function resize(){const w=wrap.clientWidth,h=wrap.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+window.addEventListener('resize',resize);resize();setView('3d');setDisplayMode('2d');
+renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera);});
 </script>
 </body>
 </html>
