@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Casa 8×16 · Plano 2D / 3D</title>
 <style>
-:root{--bg:#0b1020;--panel:#11182b;--line:#2b3858;--text:#eef3ff;--muted:#aebbd6;--accent:#73d3ff;--card:#17223a}
+:root{--bg:#0b1020;--panel:#11182b;--line:#2b3858;--text:#eef3ff;--muted:#aebbd6;--accent:#73d3ff}
 *{box-sizing:border-box}html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
 #app{height:100%;display:grid;grid-template-columns:330px 1fr}.panel{background:linear-gradient(180deg,#11182b,#0d1424);border-right:1px solid var(--line);padding:16px;overflow:auto;z-index:5}
 h1{font-size:20px;margin:0 0 6px}.sub{font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 14px}.card{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:0 0 9px;color:#d5e3ff}.row{display:flex;gap:8px;flex-wrap:wrap}.btn{appearance:none;border:1px solid #3a5079;background:#18253f;color:var(--text);border-radius:10px;padding:9px 11px;font-size:12px;cursor:pointer}.btn:hover{background:#233656}.btn.active{outline:2px solid var(--accent);background:#17364d}.mode{flex:1;font-weight:800;min-width:120px}.tog{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px dashed #263552}.tog:last-child{border-bottom:0}.tog input{accent-color:#38bdf8}.spec{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:12px}.spec span:nth-child(odd){color:var(--muted)}.note{font-size:11px;line-height:1.55;color:#c4d2eb;background:#111b2f;border:1px solid #263657;border-radius:10px;padding:10px}
@@ -17,87 +17,122 @@ h1{font-size:20px;margin:0 0 6px}.sub{font-size:12px;color:var(--muted);line-hei
 <div id="app">
 <aside class="panel" id="panel">
   <h1>Casa 8×16 · 2D / 3D</h1>
-  <p class="sub">Las dos vistas se generan a partir de <b>la misma geometría</b>. Frente abajo, fondo arriba; dormitorios a la izquierda y zona social a la derecha.</p>
-  <div class="card">
-    <h2>Modo</h2><div class="row"><button class="btn mode active" id="btn2d">▦ Vista 2D</button><button class="btn mode" id="btn3d">◈ Vista 3D</button></div>
-  </div>
-  <div class="card" id="cameraCard">
-    <h2>Vista 3D</h2><div class="row"><button class="btn active" data-cam="front3d">Perspectiva frontal</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div>
-    <div class="row" style="margin-top:10px"><button class="btn" id="resetCam">Restablecer</button><button class="btn" id="savePng">Guardar PNG</button></div>
-  </div>
+  <p class="sub">La vista 2D es la referencia maestra. La geometría 3D se transforma desde esas mismas coordenadas para que <b>izquierda y derecha coincidan visualmente</b> al mirar desde el frente.</p>
+  <div class="card"><h2>Modo</h2><div class="row"><button class="btn mode" id="btn2d">▦ Vista 2D</button><button class="btn mode active" id="btn3d">◈ Vista 3D</button></div></div>
+  <div class="card" id="cameraCard"><h2>Vista 3D</h2><div class="row"><button class="btn active" data-cam="front3d">Perspectiva frontal</button><button class="btn" data-cam="front">Frente</button><button class="btn" data-cam="rear">Fondo</button><button class="btn" data-cam="left">Izquierda</button><button class="btn" data-cam="right">Derecha</button></div><div class="row" style="margin-top:10px"><button class="btn" id="resetCam">Restablecer</button><button class="btn" id="savePng">Guardar PNG</button></div></div>
   <div class="card"><h2>Capas</h2><label class="tog">Etiquetas <input id="togLabels" type="checkbox" checked></label><label class="tog">Mobiliario <input id="togFurniture" type="checkbox" checked></label><label class="tog">Techos porches <input id="togRoofs" type="checkbox"></label><label class="tog">Cuadrícula <input id="togGrid" type="checkbox" checked></label></div>
   <div class="card"><h2>Medidas</h2><div class="spec"><span>Casa principal</span><b>8 × 16 m</b><span>Porche frontal</span><b>8 × 4 m</b><span>Porche trasero</span><b>8 × 2 m</b><span>Habitaciones</span><b>3 × (4 × 4)</b><span>Baños privados</span><b>2 × (4 × 2)</b><span>Baño anexo</span><b>4 × 2 m</b></div></div>
-  <div class="note"><b>Referencia fija:</b> al entrar desde el porche frontal, los dormitorios quedan a la izquierda. Sala, comedor y cocina quedan a la derecha. El corredor continúa recto al fondo y sale al porche trasero. El baño anexo está por fuera del volumen 8×16, a la derecha del corredor posterior, y solo tiene una puerta desde el interior.</div>
+  <div class="note"><b>Orientación fija:</b> mirando desde el porche frontal hacia el fondo, los dormitorios están a la <b>izquierda</b>; sala, comedor y cocina están a la <b>derecha</b>. El baño anexo está por fuera del volumen 8×16, a la derecha del corredor posterior, y tiene una sola puerta desde el interior.</div>
 </aside>
 <main id="stage">
   <button class="btn mobile" id="menuBtn" style="position:absolute;left:10px;top:10px;z-index:8">☰</button>
-  <div class="hud"><div class="pill" id="helpPill">Vista 2D fija: sin espejo</div><div class="pill" id="modePill">Vista 2D</div></div>
-  <div id="plan2dWrap" class="view"><svg id="plan2d" viewBox="0 0 760 1240" aria-label="Plano 2D de la casa"></svg></div>
-  <canvas id="scene3d" class="view hidden"></canvas>
+  <div class="hud"><div class="pill" id="helpPill">3D corregido desde el 2D</div><div class="pill" id="modePill">Vista 3D</div></div>
+  <div id="plan2dWrap" class="view hidden"><svg id="plan2d" viewBox="0 0 760 1240" aria-label="Plano 2D de la casa"></svg></div>
+  <canvas id="scene3d" class="view"></canvas>
   <div class="bottom" id="bottomText">Dormitorios ← IZQUIERDA · DERECHA → Sala / Comedor / Cocina · Frente abajo · Fondo arriba</div>
 </main>
 </div>
-<script>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
 const PLAN={
-  house:{x:0,z:0,w:8,d:16}, frontPorch:{x:0,z:-4,w:8,d:4}, rearPorch:{x:0,z:16,w:8,d:2}, annex:{x:8,z:14,w:4,d:2},
-  spaces:[
-    {id:'r1',name:'HABITACIÓN 1',sub:'4 × 4 m',x:0,z:0,w:4,d:4,kind:'room'},
-    {id:'b1',name:'BAÑO 1',sub:'4 × 2 m · privado Hab. 1',x:0,z:4,w:4,d:2,kind:'bath'},
-    {id:'r2',name:'HABITACIÓN 2',sub:'4 × 4 m',x:0,z:6,w:4,d:4,kind:'room'},
-    {id:'b2',name:'BAÑO 2',sub:'4 × 2 m · privado Hab. 2',x:0,z:10,w:4,d:2,kind:'bath'},
-    {id:'r3',name:'HABITACIÓN 3',sub:'4 × 4 m · sin baño privado',x:0,z:12,w:4,d:4,kind:'room'},
-    {id:'living',name:'SALA',sub:'4 × 6 m',x:4,z:0,w:4,d:6,kind:'social'},
-    {id:'dining',name:'COMEDOR',sub:'4 × 3 m · abierto',x:4,z:6,w:4,d:3,kind:'social'},
-    {id:'kitchen',name:'COCINA',sub:'4 × 3 m',x:4,z:9,w:4,d:3,kind:'kitchen'},
-    {id:'corridor',name:'CORREDOR',sub:'salida recta al porche trasero',x:4,z:12,w:4,d:4,kind:'corridor'},
-    {id:'annex',name:'BAÑO ANEXO',sub:'4 × 2 m · acceso solo interior',x:8,z:14,w:4,d:2,kind:'bath'}
-  ],
-  wallSegments:[
-    {o:'h',a:0,b:6.2,c:0},{o:'h',a:7.2,b:8,c:0},
-    {o:'h',a:0,b:6.2,c:16},{o:'h',a:7.2,b:8,c:16},
-    {o:'v',a:0,b:0,c:16},
-    {o:'v',a:8,b:0,c:14.45},{o:'v',a:8,b:15.35,c:16},
-    {o:'v',a:12,b:14,c:16},{o:'h',a:8,b:12,c:14},{o:'h',a:8,b:12,c:16},
-    {o:'v',a:4,b:0,c:1.55},{o:'v',a:4,b:2.45,c:7.55},{o:'v',a:4,b:8.45,c:13.55},{o:'v',a:4,b:14.45,c:16},
-    {o:'h',a:0,b:2.65,c:4},{o:'h',a:3.55,b:4,c:4},
-    {o:'h',a:0,b:4,c:6},
-    {o:'h',a:0,b:2.65,c:10},{o:'h',a:3.55,b:4,c:10},
-    {o:'h',a:0,b:4,c:12},
-    {o:'h',a:4,b:6.2,c:12},{o:'h',a:7.2,b:8,c:12}
-  ],
-  doors:[
-    {id:'front',wall:'h',x:6.2,z:0,len:1,open:'north',label:'Entrada'},
-    {id:'rear',wall:'h',x:6.2,z:16,len:1,open:'south',label:'Salida porche trasero'},
-    {id:'r1',wall:'v',x:4,z:1.55,len:.9,open:'west'},
-    {id:'r2',wall:'v',x:4,z:7.55,len:.9,open:'west'},
-    {id:'r3',wall:'v',x:4,z:13.55,len:.9,open:'west'},
-    {id:'b1',wall:'h',x:2.65,z:4,len:.9,open:'north'},
-    {id:'b2',wall:'h',x:2.65,z:10,len:.9,open:'north'},
-    {id:'annex',wall:'v',x:8,z:14.45,len:.9,open:'east'}
-  ],
-  windows:[
-    {wall:'v',x:0,z:1.25,len:1.5},{wall:'v',x:0,z:4.35,len:1.0},{wall:'v',x:0,z:7.2,len:1.6},{wall:'v',x:0,z:10.35,len:1.0},{wall:'v',x:0,z:13.15,len:1.8},
-    {wall:'v',x:8,z:1.6,len:2.2},{wall:'v',x:8,z:6.6,len:1.8},{wall:'v',x:8,z:9.2,len:1.5},{wall:'v',x:12,z:14.35,len:1.2},{wall:'h',x:1.1,z:16,len:1.7}
-  ]
+ house:{x:0,z:0,w:8,d:16},frontPorch:{x:0,z:-4,w:8,d:4},rearPorch:{x:0,z:16,w:8,d:2},annex:{x:8,z:14,w:4,d:2},
+ spaces:[
+  {id:'r1',name:'HABITACIÓN 1',sub:'4 × 4 m',x:0,z:0,w:4,d:4,kind:'room'},
+  {id:'b1',name:'BAÑO 1',sub:'4 × 2 m · privado Hab. 1',x:0,z:4,w:4,d:2,kind:'bath'},
+  {id:'r2',name:'HABITACIÓN 2',sub:'4 × 4 m',x:0,z:6,w:4,d:4,kind:'room'},
+  {id:'b2',name:'BAÑO 2',sub:'4 × 2 m · privado Hab. 2',x:0,z:10,w:4,d:2,kind:'bath'},
+  {id:'r3',name:'HABITACIÓN 3',sub:'4 × 4 m · sin baño privado',x:0,z:12,w:4,d:4,kind:'room'},
+  {id:'living',name:'SALA',sub:'4 × 6 m',x:4,z:0,w:4,d:6,kind:'social'},
+  {id:'dining',name:'COMEDOR',sub:'4 × 3 m · abierto',x:4,z:6,w:4,d:3,kind:'social'},
+  {id:'kitchen',name:'COCINA',sub:'4 × 3 m',x:4,z:9,w:4,d:3,kind:'kitchen'},
+  {id:'corridor',name:'CORREDOR',sub:'salida recta al porche trasero',x:4,z:12,w:4,d:4,kind:'corridor'},
+  {id:'annex',name:'BAÑO ANEXO',sub:'4 × 2 m · acceso solo interior',x:8,z:14,w:4,d:2,kind:'bath'}
+ ],
+ wallSegments:[
+  {o:'h',a:0,b:6.2,c:0},{o:'h',a:7.2,b:8,c:0},{o:'h',a:0,b:6.2,c:16},{o:'h',a:7.2,b:8,c:16},{o:'v',a:0,b:0,c:16},
+  {o:'v',a:8,b:0,c:14.45},{o:'v',a:8,b:15.35,c:16},{o:'v',a:12,b:14,c:16},{o:'h',a:8,b:12,c:14},{o:'h',a:8,b:12,c:16},
+  {o:'v',a:4,b:0,c:1.55},{o:'v',a:4,b:2.45,c:7.55},{o:'v',a:4,b:8.45,c:13.55},{o:'v',a:4,b:14.45,c:16},
+  {o:'h',a:0,b:2.65,c:4},{o:'h',a:3.55,b:4,c:4},{o:'h',a:0,b:4,c:6},{o:'h',a:0,b:2.65,c:10},{o:'h',a:3.55,b:4,c:10},{o:'h',a:0,b:4,c:12},{o:'h',a:4,b:6.2,c:12},{o:'h',a:7.2,b:8,c:12}
+ ],
+ doors:[
+  {id:'front',wall:'h',x:6.2,z:0,len:1,open:'north'},{id:'rear',wall:'h',x:6.2,z:16,len:1,open:'south'},
+  {id:'r1',wall:'v',x:4,z:1.55,len:.9,open:'west'},{id:'r2',wall:'v',x:4,z:7.55,len:.9,open:'west'},{id:'r3',wall:'v',x:4,z:13.55,len:.9,open:'west'},
+  {id:'b1',wall:'h',x:2.65,z:4,len:.9,open:'north'},{id:'b2',wall:'h',x:2.65,z:10,len:.9,open:'north'},{id:'annex',wall:'v',x:8,z:14.45,len:.9,open:'east'}
+ ],
+ windows:[
+  {wall:'v',x:0,z:1.25,len:1.5},{wall:'v',x:0,z:4.35,len:1.0},{wall:'v',x:0,z:7.2,len:1.6},{wall:'v',x:0,z:10.35,len:1.0},{wall:'v',x:0,z:13.15,len:1.8},
+  {wall:'v',x:8,z:1.6,len:2.2},{wall:'v',x:8,z:6.6,len:1.8},{wall:'v',x:8,z:9.2,len:1.5},{wall:'v',x:12,z:14.35,len:1.2},{wall:'h',x:1.1,z:16,len:1.7}
+ ]
 };
-const svg=document.getElementById('plan2d');const NS='http://www.w3.org/2000/svg';const S=50,OX=80,BASEY=1135;const sx=x=>OX+x*S,sy=z=>BASEY-z*S;
-function el(tag,attrs={},parent=svg){const n=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);parent.appendChild(n);return n}function txt(x,y,text,cls='small',parent=svg){const n=el('text',{x,y,'text-anchor':'middle',class:cls},parent);n.textContent=text;return n}function rectWorld(r,fill,stroke='#111827',sw=3){return el('rect',{x:sx(r.x),y:sy(r.z+r.d),width:r.w*S,height:r.d*S,fill,stroke,'stroke-width':sw})}
-const defs=el('defs');const style=el('style',{},defs);style.textContent='.wall{stroke:#111827;stroke-width:8;fill:none;stroke-linecap:square}.door{stroke:#9a5f3b;stroke-width:4;fill:none}.win{stroke:#38a3d1;stroke-width:7}.label{font:700 18px system-ui;fill:#0f172a}.small{font:600 14px system-ui;fill:#334155}.dim{font:700 14px system-ui;fill:#475569}.dir{font:800 14px system-ui;fill:#0f172a}';
-el('rect',{x:15,y:15,width:730,height:1210,rx:22,fill:'#fff'});txt(380,52,'PLANO 2D · CASA 8 × 16 m','label');txt(380,78,'Frente abajo · Fondo arriba · izquierda/derecha sin espejo','small');rectWorld(PLAN.rearPorch,'#e9dfcc','#8b7355');rectWorld(PLAN.house,'#f8fafc','#111827',8);rectWorld(PLAN.frontPorch,'#e9dfcc','#8b7355');rectWorld(PLAN.annex,'#e7f2fb','#111827',8);
-for(const w of PLAN.wallSegments){if(w.o==='h')el('line',{x1:sx(w.a),y1:sy(w.c),x2:sx(w.b),y2:sy(w.c),class:'wall'});else el('line',{x1:sx(w.a),y1:sy(w.b),x2:sx(w.a),y2:sy(w.c),class:'wall'})}
-for(const w of PLAN.windows){if(w.wall==='h')el('line',{x1:sx(w.x),y1:sy(w.z),x2:sx(w.x+w.len),y2:sy(w.z),class:'win'});else el('line',{x1:sx(w.x),y1:sy(w.z),x2:sx(w.x),y2:sy(w.z+w.len),class:'win'})}
-for(const d of PLAN.doors){const r=d.len*S;let path='';if(d.wall==='h'){const hx=sx(d.x),hy=sy(d.z);if(d.open==='north')path=`M${hx} ${hy} L${hx} ${hy-r} M${hx} ${hy} A${r} ${r} 0 0 1 ${hx+r} ${hy-r}`;else path=`M${hx+r} ${hy} L${hx+r} ${hy+r} M${hx+r} ${hy} A${r} ${r} 0 0 1 ${hx} ${hy+r}`;}else{const hx=sx(d.x),hy=sy(d.z);if(d.open==='west')path=`M${hx} ${hy} L${hx-r} ${hy} M${hx} ${hy} A${r} ${r} 0 0 0 ${hx-r} ${hy-r}`;else path=`M${hx} ${hy} L${hx+r} ${hy} M${hx} ${hy} A${r} ${r} 0 0 1 ${hx+r} ${hy-r}`;}el('path',{d:path,class:'door'})}
-for(const sp of PLAN.spaces){const cx=sx(sp.x+sp.w/2),cy=sy(sp.z+sp.d/2);txt(cx,cy-6,sp.name,'label');txt(cx,cy+19,sp.sub,'small')}txt(sx(4),sy(17)+8,'PORCHE TRASERO','label');txt(sx(4),sy(17)+32,'8 × 2 m · techado','small');txt(sx(4),sy(-2)-4,'PORCHE FRONTAL','label');txt(sx(4),sy(-2)+20,'8 × 4 m · techado','small');txt(sx(1.9),102,'← IZQUIERDA: dormitorios','dir');txt(sx(8.7),102,'DERECHA: zona social →','dir');
-const canvas=document.getElementById('scene3d'),ctx=canvas.getContext('2d');let mode='2d',showLabels=true,showFurniture=true,showRoofs=false,showGrid=true;let yaw=0,pitch=.58,radius=27,target={x:4,y:.5,z:7.3},dragging=false,lastX=0,lastY=0;const COLORS={wall:'#efece5',wallSide:'#d8d4cd',floor:'#cbd5df',porch:'#b9aa91',annex:'#d9e5ef',wood:'#9b6b4c',glass:'rgba(87,177,218,.65)',grid:'rgba(108,135,170,.20)',ground:'#101a2c',bed:'#f6f7fa',accent:'#79a7bd',counter:'#f4f5f7'};const boxes=[];function addBox(x,z,w,d,h,color,y=0,tag='shell'){boxes.push({x,z,w,d,h,color,y,tag})}
-addBox(0,0,8,16,.08,COLORS.floor,0,'floor');addBox(0,-4,8,4,.08,COLORS.porch,0,'floor');addBox(0,16,8,2,.08,COLORS.porch,0,'floor');addBox(8,14,4,2,.08,COLORS.annex,0,'floor');for(const w of PLAN.wallSegments){if(w.o==='h')addBox(w.a,w.c-.06,w.b-w.a,.12,2.8,COLORS.wall,0,'wall');else addBox(w.a-.06,w.b,.12,w.c-w.b,2.8,COLORS.wall,0,'wall')}for(const d of PLAN.doors){if(d.wall==='h')addBox(d.x,d.z-.06,d.len,.12,.65,COLORS.wall,2.15,'wall');else addBox(d.x-.06,d.z,.12,d.len,.65,COLORS.wall,2.15,'wall')}
-function furnish(){for(const z of [1.0,7.0,13.0]){addBox(.95,z,2.1,1.75,.28,COLORS.bed,.12,'furn');addBox(.9,z-.08,2.2,.15,.85,COLORS.wood,0,'furn')}addBox(4.65,1.25,2.45,.8,.72,COLORS.accent,0,'furn');addBox(5.35,2.55,1.2,.7,.35,COLORS.wood,0,'furn');addBox(5.0,6.85,1.9,.9,.76,COLORS.wood,0,'furn');addBox(4.2,9.2,3.4,.62,.9,COLORS.counter,0,'furn');addBox(7.15,9.2,.55,2.2,.9,COLORS.counter,0,'furn');addBox(5.05,10.35,1.7,.76,.9,COLORS.wood,0,'furn');for(const [x,z,w,d] of [[0,4,4,2],[0,10,4,2],[8,14,4,2]]){addBox(x+.25,z+.3,.7,.9,.45,'#fff',0,'furn');addBox(x+1.35,z+.35,.75,.5,.82,'#fff',0,'furn');addBox(x+w-1.0,z+.2,.8,d-.4,.08,COLORS.glass,0,'furn')}}furnish();addBox(0,-4,8,4,.14,'rgba(47,59,81,.78)',2.6,'roof');addBox(0,16,8,2,.14,'rgba(47,59,81,.78)',2.6,'roof');for(const x of [.15,7.75])for(const z of [-3.85,-.25,16.15,17.75])addBox(x,z,.1,.1,2.6,COLORS.wallSide,0,'roof');for(const d of PLAN.doors){let x=d.x,z=d.z,w=.04,dep=.04,ang=0;if(d.wall==='h'){w=d.len;dep=.04;if(d.open==='north')ang=Math.PI/2;else ang=-Math.PI/2}else{w=.04;dep=d.len;if(d.open==='west')ang=-Math.PI/2;else ang=Math.PI/2}boxes.push({x,z,w,d:dep,h:2.1,color:COLORS.wood,y:0,tag:'door',angle:ang,hinge:true,door:d})}
-function resize(){const r=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.max(1,Math.round(r.width*dpr));canvas.height=Math.max(1,Math.round(r.height*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);draw3d()}function vsub(a,b){return{x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}}function dot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z}function cross(a,b){return{x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}}function norm(a){const l=Math.hypot(a.x,a.y,a.z)||1;return{x:a.x/l,y:a.y/l,z:a.z/l}}function camera(){const cp=Math.cos(pitch);const pos={x:target.x+radius*Math.sin(yaw)*cp,y:target.y+radius*Math.sin(pitch),z:target.z-radius*Math.cos(yaw)*cp};const f=norm(vsub(target,pos)),right=norm(cross({x:0,y:1,z:0},f)),up=norm(cross(f,right));return{pos,f,right,up}}function project(p,cam,w,h){const rel=vsub(p,cam.pos),cx=dot(rel,cam.right),cy=dot(rel,cam.up),cz=dot(rel,cam.f);if(cz<.1)return null;const focal=Math.min(w,h)*1.15;return{x:w/2+cx*focal/cz,y:h/2-cy*focal/cz,z:cz}}
-function boxFaces(b){let {x,z,w,d,h,y}=b;const y0=y,y1=y+h;let pts=[{x,y:y0,z},{x:x+w,y:y0,z},{x:x+w,y:y0,z:z+d},{x,y:y0,z:z+d},{x,y:y1,z},{x:x+w,y:y1,z},{x:x+w,y:y1,z:z+d},{x,y:y1,z:z+d}];if(b.tag==='door'&&b.hinge){const D=b.door;const hinge={x:D.x,y:0,z:D.z};let angle=b.angle;pts=pts.map(p=>{const dx=p.x-hinge.x,dz=p.z-hinge.z;return{x:hinge.x+dx*Math.cos(angle)-dz*Math.sin(angle),y:p.y,z:hinge.z+dx*Math.sin(angle)+dz*Math.cos(angle)}})}return[[0,1,2,3],[4,7,6,5],[0,4,5,1],[1,5,6,2],[2,6,7,3],[3,7,4,0]].map(idx=>idx.map(i=>pts[i]))}
-function shade(hex,f){if(hex.startsWith('rgba'))return hex;const n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;return`rgb(${Math.max(0,Math.min(255,Math.round(r*f)))},${Math.max(0,Math.min(255,Math.round(g*f)))},${Math.max(0,Math.min(255,Math.round(b*f)))})`}
-function draw3d(){if(mode!=='3d')return;const W=canvas.clientWidth,H=canvas.clientHeight;if(!W||!H)return;ctx.clearRect(0,0,W,H);ctx.fillStyle=COLORS.ground;ctx.fillRect(0,0,W,H);const cam=camera();if(showGrid){ctx.lineWidth=1;ctx.strokeStyle=COLORS.grid;for(let x=-8;x<=20;x++){const a=project({x,y:0,z:-8},cam,W,H),b=project({x,y:0,z:24},cam,W,H);if(a&&b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}for(let z=-8;z<=24;z++){const a=project({x:-8,y:0,z},cam,W,H),b=project({x:20,y:0,z},cam,W,H);if(a&&b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}}const faces=[];for(const b of boxes){if(b.tag==='furn'&&!showFurniture)continue;if(b.tag==='roof'&&!showRoofs)continue;for(const face of boxFaces(b)){const pp=face.map(p=>project(p,cam,W,H));if(pp.some(p=>!p))continue;const dep=pp.reduce((s,p)=>s+p.z,0)/pp.length;faces.push({pp,dep,color:b.color,tag:b.tag})}}faces.sort((a,b)=>b.dep-a.dep);for(const f of faces){ctx.beginPath();ctx.moveTo(f.pp[0].x,f.pp[0].y);for(let i=1;i<f.pp.length;i++)ctx.lineTo(f.pp[i].x,f.pp[i].y);ctx.closePath();let factor=f.tag==='wall'?.96:f.tag==='floor'?1:f.tag==='furn'?1.02:1;ctx.fillStyle=shade(f.color,factor);ctx.fill();ctx.strokeStyle='rgba(20,28,42,.35)';ctx.lineWidth=.7;ctx.stroke()}for(const w of PLAN.windows){let a,b;if(w.wall==='h'){a={x:w.x,y:1.45,z:w.z};b={x:w.x+w.len,y:1.45,z:w.z}}else{a={x:w.x,y:1.45,z:w.z};b={x:w.x,y:1.45,z:w.z+w.len}}const pa=project(a,cam,W,H),pb=project(b,cam,W,H);if(pa&&pb){ctx.strokeStyle='rgba(75,178,224,.9)';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.stroke()}}if(showLabels){ctx.font='700 12px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';for(const sp of PLAN.spaces){const p=project({x:sp.x+sp.w/2,y:3.15,z:sp.z+sp.d/2},cam,W,H);if(!p)continue;const text=sp.name;const tw=ctx.measureText(text).width+12;ctx.fillStyle='rgba(8,14,28,.78)';ctx.fillRect(p.x-tw/2,p.y-10,tw,20);ctx.fillStyle='#f4f8ff';ctx.fillText(text,p.x,p.y)}for(const [text,x,z] of [['PORCHE FRONTAL',4,-2],['PORCHE TRASERO',4,17]]){const p=project({x,y:2.95,z},cam,W,H);if(p){const tw=ctx.measureText(text).width+12;ctx.fillStyle='rgba(8,14,28,.78)';ctx.fillRect(p.x-tw/2,p.y-10,tw,20);ctx.fillStyle='#ffe6aa';ctx.fillText(text,p.x,p.y)}}}ctx.font='800 12px system-ui';ctx.fillStyle='rgba(6,12,24,.84)';ctx.fillRect(12,H-54,276,38);ctx.fillStyle='#dce8ff';ctx.textAlign='left';ctx.fillText('← IZQUIERDA: dormitorios',22,H-40);ctx.fillText('DERECHA: zona social →',22,H-24)}
-function setCamera(name){if(name==='front3d'){yaw=0;pitch=.58;radius=27}else if(name==='front'){yaw=0;pitch=.23;radius=34}else if(name==='rear'){yaw=Math.PI;pitch=.23;radius=34}else if(name==='left'){yaw=-Math.PI/2;pitch=.28;radius=31}else if(name==='right'){yaw=Math.PI/2;pitch=.28;radius=31}document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',b.dataset.cam===name));draw3d()}
-canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw+=dx*.008;pitch=Math.max(.12,Math.min(1.18,pitch-dy*.006));draw3d()});canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointercancel',()=>dragging=false);canvas.addEventListener('wheel',e=>{e.preventDefault();radius=Math.max(13,Math.min(48,radius+e.deltaY*.02));draw3d()},{passive:false});
-const planWrap=document.getElementById('plan2dWrap'),btn2d=document.getElementById('btn2d'),btn3d=document.getElementById('btn3d'),helpPill=document.getElementById('helpPill'),modePill=document.getElementById('modePill'),bottomText=document.getElementById('bottomText');function setMode(m){mode=m;const is2=m==='2d';planWrap.classList.toggle('hidden',!is2);canvas.classList.toggle('hidden',is2);btn2d.classList.toggle('active',is2);btn3d.classList.toggle('active',!is2);modePill.textContent=is2?'Vista 2D':'Vista 3D';helpPill.textContent=is2?'Vista 2D fija: sin espejo':'Arrastra para rotar · rueda/pellizco para zoom';bottomText.textContent=is2?'Dormitorios ← IZQUIERDA · DERECHA → Sala / Comedor / Cocina · Frente abajo · Fondo arriba':'Perspectiva inicial desde el frente: la izquierda del modelo permanece a la izquierda de la pantalla.';if(!is2){resize();setCamera('front3d')}}btn2d.onclick=()=>setMode('2d');btn3d.onclick=()=>setMode('3d');document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>{if(mode!=='3d')setMode('3d');setCamera(b.dataset.cam)});document.getElementById('resetCam').onclick=()=>{if(mode!=='3d')setMode('3d');setCamera('front3d')};document.getElementById('savePng').onclick=()=>{if(mode!=='3d')setMode('3d');const a=document.createElement('a');a.href=canvas.toDataURL('image/png');a.download='casa-8x16-vista-3d.png';a.click()};document.getElementById('togLabels').oninput=e=>{showLabels=e.target.checked;draw3d()};document.getElementById('togFurniture').oninput=e=>{showFurniture=e.target.checked;draw3d()};document.getElementById('togRoofs').oninput=e=>{showRoofs=e.target.checked;draw3d()};document.getElementById('togGrid').oninput=e=>{showGrid=e.target.checked;draw3d()};document.getElementById('menuBtn').onclick=()=>document.getElementById('panel').classList.toggle('open');window.addEventListener('resize',resize);setMode('2d');
+
+// ---------- 2D: authoritative plan coordinates ----------
+const svg=document.getElementById('plan2d');
+const NS='http://www.w3.org/2000/svg';
+const S={ox:120,oz:100,k:50};
+const sx=x=>S.ox+x*S.k, sy=z=>S.oz+(18-z)*S.k;
+function el(n,a={},t=''){const e=document.createElementNS(NS,n);for(const[k,v]of Object.entries(a))e.setAttribute(k,v);if(t)e.textContent=t;svg.appendChild(e);return e}
+el('rect',{x:25,y:20,width:710,height:1200,rx:24,fill:'#fff'});el('text',{x:380,y:54,'text-anchor':'middle','font-size':24,'font-weight':800,fill:'#0f172a'},'PLANO 2D · REFERENCIA MAESTRA');
+el('text',{x:380,y:80,'text-anchor':'middle','font-size':14,'font-weight':600,fill:'#475569'},'Frente abajo · Fondo arriba · dormitorios izquierda · zona social derecha');
+function rectPlan(r,fill,stroke='#334155',sw=2){el('rect',{x:sx(r.x),y:sy(r.z+r.d),width:r.w*S.k,height:r.d*S.k,fill,stroke,'stroke-width':sw})}
+rectPlan(PLAN.frontPorch,'#e9dfcc','#8b7355',3);rectPlan(PLAN.rearPorch,'#e9dfcc','#8b7355',3);rectPlan(PLAN.house,'#f8fafc','#111827',0);rectPlan(PLAN.annex,'#e7f2fb','#111827',0);
+for(const w of PLAN.wallSegments){if(w.o==='h')el('line',{x1:sx(w.a),y1:sy(w.c),x2:sx(w.b),y2:sy(w.c),stroke:'#111827','stroke-width':8,'stroke-linecap':'square'});else el('line',{x1:sx(w.a),y1:sy(w.b),x2:sx(w.a),y2:sy(w.c),stroke:'#111827','stroke-width':8,'stroke-linecap':'square'})}
+for(const sp of PLAN.spaces){const cx=sx(sp.x+sp.w/2),cy=sy(sp.z+sp.d/2);el('text',{x:cx,y:cy-6,'text-anchor':'middle','font-size':17,'font-weight':800,fill:'#0f172a'},sp.name);el('text',{x:cx,y:cy+17,'text-anchor':'middle','font-size':12,'font-weight':600,fill:'#475569'},sp.sub)}
+el('text',{x:sx(4),y:sy(17)-8,'text-anchor':'middle','font-size':18,'font-weight':800,fill:'#493b2d'},'PORCHE TRASERO 8×2');el('text',{x:sx(4),y:sy(-2),'text-anchor':'middle','font-size':18,'font-weight':800,fill:'#493b2d'},'PORCHE FRONTAL 8×4');
+el('text',{x:85,y:108,'font-size':13,'font-weight':800,fill:'#334155'},'← IZQUIERDA: DORMITORIOS');el('text',{x:470,y:108,'font-size':13,'font-weight':800,fill:'#334155'},'DERECHA: ZONA SOCIAL →');
+for(const d of PLAN.doors){if(d.wall==='v'){const x=sx(d.x),z=sy(d.z);el('line',{x1:x,y1:z,x2:x-40,y2:z,stroke:'#9a5f3b','stroke-width':4});}else{const x=sx(d.x),z=sy(d.z);el('line',{x1:x,y1:z,x2:x,y2:z-40,stroke:'#9a5f3b','stroke-width':4});}}
+
+// ---------- 3D: map plan X to world X so front view is NOT mirrored ----------
+const canvas=document.getElementById('scene3d');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a1020);
+const camera=new THREE.PerspectiveCamera(45,1,.1,150);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.minDistance=8;controls.maxDistance=60;controls.maxPolarAngle=Math.PI/2.02;
+scene.add(new THREE.HemisphereLight(0xe6f2ff,0x25334a,1.45));const sun=new THREE.DirectionalLight(0xffffff,1.6);sun.position.set(15,25,-10);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+const G={labels:new THREE.Group(),furniture:new THREE.Group(),roofs:new THREE.Group(),grid:new THREE.Group(),shell:new THREE.Group(),doors:new THREE.Group(),windows:new THREE.Group()};Object.values(G).forEach(g=>scene.add(g));
+const M={wall:new THREE.MeshStandardMaterial({color:0xf3f0e8,roughness:.88}),floor:new THREE.MeshStandardMaterial({color:0xcad5e1,roughness:.96}),porch:new THREE.MeshStandardMaterial({color:0xb9ad95,roughness:1}),annex:new THREE.MeshStandardMaterial({color:0xd7e2ee,roughness:.96}),wood:new THREE.MeshStandardMaterial({color:0x936a4d,roughness:.82}),glass:new THREE.MeshStandardMaterial({color:0x77bad8,transparent:true,opacity:.55}),dark:new THREE.MeshStandardMaterial({color:0x273248}),accent:new THREE.MeshStandardMaterial({color:0x789eb5}),white:new THREE.MeshStandardMaterial({color:0xf8fafc})};
+function cube(x,z,w,d,h,mat,y=h/2,grp=scene){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x+w/2,y,z+d/2);m.castShadow=true;m.receiveShadow=true;grp.add(m);return m}
+const WX=(x,w=0)=>8-x-w;            // rectangle left edge
+const WXP=x=>8-x;                    // point/line X
+function floor3(r,mat=M.floor){return cube(WX(r.x,r.w),r.z,r.w,r.d,.08,mat,.04,G.shell)}
+function wallSeg3(w){if(w.o==='h')return cube(8-w.b,w.c-.06,w.b-w.a,.12,2.8,M.wall,1.4,G.shell);return cube(WXP(w.a)-.06,w.b,.12,w.c-w.b,2.8,M.wall,1.4,G.shell)}
+floor3(PLAN.house);floor3(PLAN.frontPorch,M.porch);floor3(PLAN.rearPorch,M.porch);floor3(PLAN.annex,M.annex);PLAN.wallSegments.forEach(wallSeg3);
+function win3(w){if(w.wall==='v')cube(WXP(w.x)-.035,w.z,.07,w.len,1.1,M.glass,1.35,G.windows);else cube(WX(w.x,w.len),w.z-.035,w.len,.07,1.1,M.glass,1.35,G.windows)}PLAN.windows.forEach(win3);
+// door leaf markers on floor (openings already exist in wall geometry)
+for(const d of PLAN.doors){if(d.wall==='v')cube(WXP(d.x)-.025,d.z,.05,d.len,.07,M.wood,.04,G.doors);else cube(WX(d.x,d.len),d.z-.025,d.len,.05,.07,M.wood,.04,G.doors)}
+function label(text,px,pz,color='#f7fbff'){const c=document.createElement('canvas'),ctx=c.getContext('2d');c.width=512;c.height=128;ctx.fillStyle='rgba(8,14,28,.82)';ctx.beginPath();ctx.roundRect(8,20,496,88,18);ctx.fill();ctx.font='700 29px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(text,256,64);const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));s.position.set(WXP(px),.2,pz);s.scale.set(3.25,.8,1);G.labels.add(s)}
+for(const sp of PLAN.spaces)label(`${sp.name} · ${sp.w}×${sp.d}`,sp.x+sp.w/2,sp.z+sp.d/2,sp.kind==='bath'?'#c9ebff':sp.kind==='kitchen'?'#ffe4a7':'#e8f2ff');label('PORCHE FRONTAL 8×4',4,-2,'#ffe4a7');label('PORCHE TRASERO 8×2',4,17,'#ffe4a7');
+// visual orientation anchors
+label('← IZQUIERDA · DORMITORIOS',1.8,-3.2,'#bfe8ff');label('DERECHA · ZONA SOCIAL →',6.2,-3.2,'#c8f5d4');
+// furniture generated in PLAN coordinates then transformed
+function furnRect(px,pz,w,d,h,mat){return cube(WX(px,w),pz,w,d,h,mat,h/2,G.furniture)}
+function bed(px,pz){furnRect(px+.7,pz+.7,1.8,2.2,.28,M.white);furnRect(px+.65,pz+.55,1.9,.18,.85,M.wood)}bed(0,0);bed(0,6);bed(0,12);
+furnRect(4.55,1.15,2.4,.8,.7,M.accent);furnRect(5.25,2.45,1.2,.7,.35,M.wood);furnRect(5.05,6.8,1.8,.95,.75,M.wood);furnRect(4.2,9.15,3.45,.65,.9,M.white);furnRect(5.0,10.35,1.7,.75,.9,M.wood);
+function bath(px,pz,w=4,d=2){furnRect(px+.3,pz+.3,.7,.85,.45,M.white);furnRect(px+1.4,pz+.35,.75,.5,.8,M.white);furnRect(px+w-1.05,pz+.2,.85,d-.4,.08,M.glass)}bath(0,4);bath(0,10);bath(8,14,4,2);
+function canopy(r){const roof=furnRect(r.x,r.z,r.w,r.d,.14,M.dark);roof.material=roof.material.clone();roof.material.transparent=true;roof.material.opacity=.7;roof.position.y=2.65;G.roofs.add(roof)}canopy(PLAN.frontPorch);canopy(PLAN.rearPorch);G.roofs.visible=false;
+const grid=new THREE.GridHelper(36,36,0x4b6a93,0x263753);grid.position.set(4,.01,7);G.grid.add(grid);const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x111a2c,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.03;ground.receiveShadow=true;scene.add(ground);
+
+const cams={
+ front3d:{p:[4,15,-16],t:[4,0,7],name:'Perspectiva frontal'},
+ front:{p:[4,6,-25],t:[4,1.2,8],name:'Frente'},
+ rear:{p:[4,6,39],t:[4,1.2,8],name:'Fondo'},
+ left:{p:[26,7,8],t:[4,1.2,8],name:'Izquierda'},
+ right:{p:[-18,7,8],t:[4,1.2,8],name:'Derecha'}
+};
+let currentCam='front3d';
+function setCam(k){currentCam=k;const c=cams[k];camera.up.set(0,1,0);camera.position.set(...c.p);controls.target.set(...c.t);controls.update();document.querySelectorAll('[data-cam]').forEach(b=>b.classList.toggle('active',b.dataset.cam===k));document.getElementById('modePill').textContent='3D · '+c.name}
+document.querySelectorAll('[data-cam]').forEach(b=>b.onclick=()=>{show3d();setCam(b.dataset.cam)});document.getElementById('resetCam').onclick=()=>{show3d();setCam('front3d')};
+function resize(){const w=canvas.parentElement.clientWidth,h=canvas.parentElement.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}window.addEventListener('resize',resize);
+const planWrap=document.getElementById('plan2dWrap');const btn2d=document.getElementById('btn2d'),btn3d=document.getElementById('btn3d'),pill=document.getElementById('modePill'),help=document.getElementById('helpPill'),bottom=document.getElementById('bottomText');
+function show2d(){planWrap.classList.remove('hidden');canvas.classList.add('hidden');btn2d.classList.add('active');btn3d.classList.remove('active');pill.textContent='Vista 2D';help.textContent='2D = referencia maestra';bottom.textContent='Dormitorios ← IZQUIERDA · DERECHA → Sala / Comedor / Cocina · Frente abajo · Fondo arriba'}
+function show3d(){planWrap.classList.add('hidden');canvas.classList.remove('hidden');btn2d.classList.remove('active');btn3d.classList.add('active');help.textContent='3D generado desde el 2D · sin espejo';bottom.textContent='En 3D debe coincidir: dormitorios a la izquierda · zona social a la derecha · baño anexo a la derecha';resize();setCam(currentCam)}
+btn2d.onclick=show2d;btn3d.onclick=show3d;
+document.getElementById('togLabels').oninput=e=>G.labels.visible=e.target.checked;document.getElementById('togFurniture').oninput=e=>G.furniture.visible=e.target.checked;document.getElementById('togRoofs').oninput=e=>G.roofs.visible=e.target.checked;document.getElementById('togGrid').oninput=e=>G.grid.visible=e.target.checked;
+document.getElementById('savePng').onclick=()=>{show3d();renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='casa-8x16-3d.png';a.click()};
+const panel=document.getElementById('panel');document.getElementById('menuBtn').onclick=()=>panel.classList.toggle('open');
+resize();setCam('front3d');show3d();renderer.setAnimationLoop(()=>{controls.update();renderer.render(scene,camera)});
 </script>
 </body>
 </html>
