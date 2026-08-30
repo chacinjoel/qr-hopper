@@ -31,6 +31,10 @@
 </div>
 <div id="gate" class="fullscreen"><div class="screenBox"><div class="orb"></div><h1>SPECTRAL AR SCANNER</h1><p>Activa cámara, micrófono y sensores. Después un wizard hará una calibración espacial de sonido, luz y movimiento para que el visor pueda combinar mediciones instantáneas con lo aprendido durante el barrido.</p><button id="start" class="startBtn">ACTIVAR Y COMENZAR WIZARD</button><div class="secure">Procesamiento local. HTTPS requerido. El visor marca claramente datos medidos y estimaciones.</div></div></div>
 <div id="wizard" class="fullscreen"><div class="screenBox"><div class="wizardTop"><small id="stepLabel">PASO 1/6</small><div class="progress"><i id="wizardProgress"></i></div><small id="sensorState">SENSORES</small></div><div class="stepIcon" id="stepIcon">◎</div><div class="wizardCard"><h2 id="stepTitle">Preparación</h2><p id="stepDesc"></p><div id="instructions"></div><div class="scanMeter" id="scanMeter"><div class="big" id="scanBig">LISTO</div><small id="scanSmall">Pulsa iniciar cuando estés preparado.</small><div class="bar"><i id="scanBar"></i></div><div class="scanStats"><div class="scanStat"><b>RUMBO</b><strong id="wsHeading">—</strong></div><div class="scanStat"><b>LECTURA</b><strong id="wsReading">—</strong></div><div class="scanStat"><b>MUESTRAS</b><strong id="wsSamples">0</strong></div></div></div><div id="summaryGrid" class="summaryGrid" style="display:none"></div><div class="wizardActions"><button id="wizBack">ATRÁS</button><button id="wizAction" class="primary">INICIAR</button><button id="wizSkip">SALTAR</button></div></div></div></div>
-<script src="app.js"></script>
+<script src="core.js"></script>
+<script src="sensors.js"></script>
+<script src="wizard.js"></script>
+<script src="viewer.js"></script>
+<script src="init.js"></script>
 </body>
 </html>
