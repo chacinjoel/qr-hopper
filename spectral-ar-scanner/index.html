@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#03070b" />
+<title>Spectral AR Scanner</title>
+<style>
+:root{--glass:rgba(3,10,16,.66);--line:rgba(135,246,255,.2);--text:#effcff;--muted:#8eabb4;--ok:#7cffbd;--warn:#ffd879;--bad:#ff7e8a;--cyan:#77f5ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020609;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}body{position:fixed;inset:0}
+#camera{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#020609;filter:saturate(.85) contrast(1.04)}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.scanlines{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,transparent 0,transparent 3px,rgba(120,248,255,.018) 4px);mix-blend-mode:screen}
+.vignette{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 130px rgba(0,0,0,.82)}
+.hud{position:absolute;inset:0;padding:max(14px,env(safe-area-inset-top)) 12px max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;pointer-events:none}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.brand,.chip,.panel,.modebar{backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:var(--glass);border:1px solid var(--line);box-shadow:0 12px 36px rgba(0,0,0,.28)}
+.brand{border-radius:14px;padding:10px 12px;min-width:0}.brand strong{display:block;font-size:12px;letter-spacing:.16em}.brand span{display:block;color:var(--muted);font-size:9px;margin-top:3px}.live{color:var(--ok)}
+.chip{border-radius:999px;padding:8px 10px;font-size:9px;white-space:nowrap}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--warn);box-shadow:0 0 12px currentColor}.dot.on{background:var(--ok)}
+.crosshair{position:absolute;left:50%;top:48%;width:98px;height:98px;transform:translate(-50%,-50%);border:1px solid rgba(139,249,255,.26);border-radius:50%}.crosshair:before,.crosshair:after{content:"";position:absolute;background:rgba(139,249,255,.34)}.crosshair:before{width:130px;height:1px;left:-16px;top:48px}.crosshair:after{height:130px;width:1px;top:-16px;left:48px}.crossdot{position:absolute;left:50%;top:48%;width:5px;height:5px;border-radius:50%;transform:translate(-50%,-50%);background:var(--cyan);box-shadow:0 0 16px var(--cyan)}
+.centerread{position:absolute;left:50%;top:calc(48% + 65px);transform:translateX(-50%);font-size:10px;padding:6px 9px;border-radius:999px;background:rgba(2,7,10,.58);border:1px solid rgba(119,245,255,.16);white-space:nowrap}
+.spacer{flex:1}.panel{border-radius:18px;padding:10px;margin-bottom:8px;max-height:38vh;overflow:auto;pointer-events:auto}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.metric{background:rgba(4,13,19,.66);border:1px solid rgba(145,244,255,.11);border-radius:12px;padding:8px;min-height:61px}.metric b{display:block;font-size:8px;color:var(--muted);font-weight:600;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metric strong{display:block;font-size:14px;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metric small{display:block;color:var(--muted);font-size:7px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.good{color:var(--ok)}.warning{color:var(--warn)}.bad{color:var(--bad)}
+.modebar{display:flex;gap:5px;border-radius:16px;padding:6px;overflow-x:auto;pointer-events:auto}.modebar button{border:0;background:transparent;color:var(--muted);padding:9px 10px;border-radius:11px;font:inherit;font-size:9px;white-space:nowrap}.modebar button.active{color:#031014;background:var(--cyan)}
+#gate{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#102732 0,#050a0e 45%,#010305 100%);padding:24px}.gatebox{max-width:520px;width:100%;text-align:center}.orb{width:92px;height:92px;margin:0 auto 22px;border-radius:50%;border:1px solid rgba(119,245,255,.5);box-shadow:0 0 45px rgba(119,245,255,.16),inset 0 0 35px rgba(119,245,255,.11);position:relative}.orb:before,.orb:after{content:"";position:absolute;inset:13px;border:1px dashed rgba(119,245,255,.35);border-radius:50%;animation:spin 9s linear infinite}.orb:after{inset:26px;animation-direction:reverse;animation-duration:5s}@keyframes spin{to{transform:rotate(360deg)}}
+.gatebox h1{font-size:22px;letter-spacing:.08em;margin:0}.gatebox p{color:#9eb5bd;font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:12px 0 20px}.start{width:100%;border:1px solid rgba(119,245,255,.45);background:linear-gradient(180deg,rgba(119,245,255,.19),rgba(119,245,255,.08));color:#dfffff;border-radius:14px;padding:15px 18px;font:700 13px/1 ui-monospace,monospace;letter-spacing:.08em;box-shadow:0 0 25px rgba(119,245,255,.1)}.secure{font-size:9px;color:#65818b;margin-top:12px}.notice{position:absolute;left:12px;right:12px;top:calc(max(14px,env(safe-area-inset-top)) + 58px);z-index:12;border-radius:12px;padding:9px 11px;background:rgba(6,16,22,.82);border:1px solid rgba(255,216,121,.25);font-size:9px;color:#cbd9dd;display:none}.notice.show{display:block}
+@media(min-width:700px){.panel{width:520px;align-self:flex-end}.modebar{width:max-content;align-self:flex-end}.grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<video id="camera" autoplay playsinline muted></video><canvas id="fx"></canvas><div class="scanlines"></div><div class="vignette"></div>
+<div id="notice" class="notice"></div>
+<div class="hud">
+  <div class="top"><div class="brand"><strong>SPECTRAL AR SCANNER</strong><span>REAL-TIME SENSOR FUSION · <i class="live">LIVE</i></span></div><div class="chip"><span id="liveDot" class="dot"></span><span id="status">STANDBY</span></div></div>
+  <div class="crosshair"></div><div class="crossdot"></div><div id="centerRead" class="centerread">Esperando sensores…</div>
+  <div class="spacer"></div>
+  <section class="panel"><div class="grid">
+    <div class="metric" data-mode="sound"><b>AUDIO · PICO</b><strong id="freq">— Hz</strong><small id="note">micrófono</small></div>
+    <div class="metric" data-mode="sound"><b>NIVEL SONORO</b><strong id="db">— dBFS</strong><small>nivel relativo</small></div>
+    <div class="metric" data-mode="light"><b>LUZ · CÁMARA</b><strong id="lum">— %</strong><small id="flicker">luminancia</small></div>
+    <div class="metric" data-mode="motion"><b>ACELERACIÓN</b><strong id="acc">— m/s²</strong><small>magnitud XYZ</small></div>
+    <div class="metric" data-mode="motion"><b>ROTACIÓN</b><strong id="rot">— °/s</strong><small>giroscopio</small></div>
+    <div class="metric" data-mode="compass"><b>RUMBO</b><strong id="heading">— °</strong><small id="headingLabel">brújula</small></div>
+    <div class="metric" data-mode="position"><b>GPS</b><strong id="gps">—</strong><small id="gpsAcc">posición</small></div>
+    <div class="metric" data-mode="network"><b>RED WEB</b><strong id="net">—</strong><small id="netDetail">API del navegador</small></div>
+    <div class="metric" data-mode="system"><b>ORIENTACIÓN</b><strong id="orient">—</strong><small>α β γ</small></div>
+    <div class="metric" data-mode="system"><b>CÁMARA</b><strong id="camInfo">—</strong><small id="camDetail">stream</small></div>
+    <div class="metric" data-mode="system"><b>BLUETOOTH</b><strong id="ble">—</strong><small>Web Bluetooth</small></div>
+    <div class="metric" data-mode="system"><b>RF / WIFI GHz</b><strong class="warning">NO DIRECTO</strong><small>requiere API/hardware RF</small></div>
+  </div></section>
+  <nav class="modebar" id="modes"><button class="active" data-filter="all">TODO</button><button data-filter="sound">SONIDO</button><button data-filter="light">LUZ</button><button data-filter="motion">MOVIMIENTO</button><button data-filter="compass">BRÚJULA</button><button data-filter="position">GPS</button><button data-filter="network">RED</button><button data-filter="system">SISTEMA</button></nav>
+</div>
+<div id="gate"><div class="gatebox"><div class="orb"></div><h1>SPECTRAL AR SCANNER</h1><p>Superpone sobre la cámara mediciones reales que el navegador puede obtener: audio/FFT, movimiento, orientación, brújula cuando esté disponible, GPS, luminancia de cámara y datos de red expuestos por el dispositivo.</p><button id="start" class="start">ACTIVAR CÁMARA + SENSORES</button><div class="secure">Los datos se procesan localmente en este dispositivo. HTTPS requerido.</div></div></div>
+<script>
+(() => {
+'use strict';
+const $=id=>document.getElementById(id), video=$('camera'), canvas=$('fx'), ctx=canvas.getContext('2d',{alpha:true});
+const state={running:false,audioAmp:0,freq:0,db:-100,lum:0,heading:null,alpha:null,beta:null,gamma:null,acc:0,rot:0,mode:'all',w:0,h:0,t:0};
+let audioCtx, analyser, freqData, timeData, lumTimer=0, lastLum=0, flickerEMA=0, gpsWatch=null;
+const sampleCanvas=document.createElement('canvas'); sampleCanvas.width=48; sampleCanvas.height=32; const sctx=sampleCanvas.getContext('2d',{willReadFrequently:true});
+function txt(id,v){$(id).textContent=v} function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+function notify(message,ms=5500){const n=$('notice');n.textContent=message;n.classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>n.classList.remove('show'),ms)}
+function resize(){const dpr=Math.min(devicePixelRatio||1,2);state.w=innerWidth;state.h=innerHeight;canvas.width=state.w*dpr;canvas.height=state.h*dpr;canvas.style.width=state.w+'px';canvas.style.height=state.h+'px';ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',resize);resize();
+async function permissionsAndStart(){
+  if(!isSecureContext){notify('Este escáner necesita HTTPS para cámara, micrófono y sensores.',9000)}
+  const sensorPermissionPromise=requestMotionOrientation();
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    video.srcObject=stream; await video.play(); setupAudio(stream); updateCameraInfo(stream);
+  }catch(e){notify('No pude abrir cámara/micrófono: '+e.message,9000); throw e}
+  await sensorPermissionPromise; setupGeo(); setupNetwork(); setupCapabilities();
+  state.running=true;$('gate').style.display='none';$('liveDot').classList.add('on');txt('status','SCANNING');requestAnimationFrame(loop);
+}
+async function requestMotionOrientation(){
+  try{
+    if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+      const p=await DeviceMotionEvent.requestPermission(); if(p!=='granted') notify('Movimiento no autorizado. El resto del escáner seguirá funcionando.');
+    }
+    if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+      let p; try{p=await DeviceOrientationEvent.requestPermission(true)}catch(_){p=await DeviceOrientationEvent.requestPermission()}
+      if(p!=='granted') notify('Orientación/brújula no autorizada.');
+    }
+  }catch(e){notify('Permiso de sensores: '+e.message)}
+  addEventListener('devicemotion',onMotion,{passive:true});
+  addEventListener('deviceorientation',onOrientation,{passive:true});
+  addEventListener('deviceorientationabsolute',onOrientation,{passive:true});
+}
+function onMotion(e){const a=e.acceleration||e.accelerationIncludingGravity;if(a){const x=a.x||0,y=a.y||0,z=a.z||0;state.acc=Math.sqrt(x*x+y*y+z*z);txt('acc',state.acc.toFixed(2)+' m/s²')}const r=e.rotationRate;if(r){const a=r.alpha||0,b=r.beta||0,g=r.gamma||0;state.rot=Math.sqrt(a*a+b*b+g*g);txt('rot',state.rot.toFixed(1)+' °/s')}}
+function onOrientation(e){state.alpha=e.alpha;state.beta=e.beta;state.gamma=e.gamma;const vals=[e.alpha,e.beta,e.gamma].map(v=>v==null?'—':Math.round(v));txt('orient',vals.join(' · '));let h=null;if(typeof e.webkitCompassHeading==='number')h=e.webkitCompassHeading;else if(e.absolute && typeof e.alpha==='number')h=(360-e.alpha)%360;if(h!=null){state.heading=h;txt('heading',h.toFixed(0)+' °');txt('headingLabel',cardinal(h)+' · '+(e.absolute||e.webkitCompassHeading!=null?'absoluto':'estimado'))}}
+function cardinal(d){return ['N','NE','E','SE','S','SO','O','NO'][Math.round(d/45)%8]}
+function setupAudio(stream){audioCtx=new (window.AudioContext||window.webkitAudioContext)();const src=audioCtx.createMediaStreamSource(stream);analyser=audioCtx.createAnalyser();analyser.fftSize=4096;analyser.smoothingTimeConstant=.72;src.connect(analyser);freqData=new Uint8Array(analyser.frequencyBinCount);timeData=new Uint8Array(analyser.fftSize)}
+function analyseAudio(){if(!analyser)return;analyser.getByteFrequencyData(freqData);let max=0,idx=0;for(let i=2;i<freqData.length;i++){if(freqData[i]>max){max=freqData[i];idx=i}}state.freq=idx*audioCtx.sampleRate/analyser.fftSize;state.audioAmp=max/255;txt('freq',(state.freq<20?'—':state.freq.toFixed(state.freq<1000?1:0))+' Hz');txt('note',state.freq>=20?noteName(state.freq)+' · resolución '+(audioCtx.sampleRate/analyser.fftSize).toFixed(1)+' Hz':'micrófono');analyser.getByteTimeDomainData(timeData);let sum=0;for(const v of timeData){const x=(v-128)/128;sum+=x*x}const rms=Math.sqrt(sum/timeData.length);state.db=rms>0?20*Math.log10(rms):-100;txt('db',Math.max(-100,state.db).toFixed(1)+' dBFS')}
+function noteName(f){if(!f||f<20)return '—';const n=Math.round(69+12*Math.log2(f/440)), names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];return names[(n%12+12)%12]+(Math.floor(n/12)-1)}
+function analyseLight(ts){if(ts-lumTimer<180||video.readyState<2)return;lumTimer=ts;try{sctx.drawImage(video,0,0,48,32);const d=sctx.getImageData(0,0,48,32).data;let sum=0;for(let i=0;i<d.length;i+=4)sum+=.2126*d[i]+.7152*d[i+1]+.0722*d[i+2];const lum=sum/(d.length/4)/255*100;const delta=Math.abs(lum-lastLum);flickerEMA=.82*flickerEMA+.18*delta;lastLum=lum;state.lum=lum;txt('lum',lum.toFixed(1)+' %');txt('flicker','variación '+flickerEMA.toFixed(2)+' · no lux calibrado')}catch(_){}}
+function setupGeo(){if(!navigator.geolocation){txt('gps','NO API');return}gpsWatch=navigator.geolocation.watchPosition(p=>{txt('gps',p.coords.latitude.toFixed(5)+', '+p.coords.longitude.toFixed(5));txt('gpsAcc','±'+Math.round(p.coords.accuracy)+' m'+(p.coords.altitude!=null?' · alt '+Math.round(p.coords.altitude)+' m':''))},e=>{txt('gps','SIN PERMISO');txt('gpsAcc',e.message)},{enableHighAccuracy:true,maximumAge:1000,timeout:10000})}
+function setupNetwork(){const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(!c){txt('net','NO API');txt('netDetail','iOS suele ocultarlo');return}const u=()=>{txt('net',(c.effectiveType||c.type||'online').toUpperCase());txt('netDetail',[(c.downlink!=null?c.downlink+' Mb/s':null),(c.rtt!=null?c.rtt+' ms':null),(c.saveData?'ahorro datos':null)].filter(Boolean).join(' · ')||'conectividad')};u();c.addEventListener&&c.addEventListener('change',u)}
+function setupCapabilities(){txt('ble',navigator.bluetooth?'DISPONIBLE':'NO API');if(!navigator.bluetooth)$('ble').className='bad';if(!('DeviceMotionEvent'in window))txt('acc','NO API');if(!('DeviceOrientationEvent'in window))txt('heading','NO API')}
+function updateCameraInfo(stream){const tr=stream.getVideoTracks()[0],s=tr&&tr.getSettings?tr.getSettings():{};txt('camInfo',(s.width&&s.height)?s.width+'×'+s.height:'ACTIVA');txt('camDetail',[s.frameRate?s.frameRate.toFixed(0)+' fps':null,s.facingMode||null].filter(Boolean).join(' · ')||'stream activo')}
+function drawAudio(t){const cx=state.w/2,cy=state.h*.48,amp=state.audioAmp;if(amp<.02)return;ctx.save();ctx.globalCompositeOperation='lighter';for(let i=0;i<4;i++){const phase=(t*.00018*(1+state.freq/1000)+i*.23)%1,r=55+phase*Math.min(state.w,state.h)*.46;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=`rgba(108,244,255,${(1-phase)*amp*.44})`;ctx.lineWidth=1+amp*1.5;ctx.stroke()}ctx.restore()}
+function drawCompass(){if(state.heading==null)return;const cx=state.w/2,y=86,w=Math.min(250,state.w*.65);ctx.save();ctx.strokeStyle='rgba(124,255,189,.7)';ctx.fillStyle='rgba(124,255,189,.9)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(cx-w/2,y);ctx.lineTo(cx+w/2,y);ctx.stroke();ctx.beginPath();ctx.moveTo(cx,y-5);ctx.lineTo(cx,y+5);ctx.stroke();ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';ctx.fillText(cardinal(state.heading)+' '+state.heading.toFixed(0)+'°',cx,y-10);ctx.restore()}
+function drawMotion(){if(state.acc<.3)return;const cx=state.w/2,cy=state.h*.48,r=50+Math.min(48,state.acc*2);ctx.save();ctx.strokeStyle=`rgba(255,216,121,${clamp(state.acc/18,.08,.55)})`;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();ctx.restore()}
+function drawLight(){const a=clamp((state.lum-65)/100,0,.12);if(!a)return;ctx.fillStyle=`rgba(255,250,210,${a})`;ctx.fillRect(0,0,state.w,state.h)}
+function loop(t){if(!state.running)return;ctx.clearRect(0,0,state.w,state.h);analyseAudio();analyseLight(t);if(state.mode==='all'||state.mode==='sound')drawAudio(t);if(state.mode==='all'||state.mode==='compass')drawCompass();if(state.mode==='all'||state.mode==='motion')drawMotion();if(state.mode==='all'||state.mode==='light')drawLight();const bits=[];if(state.mode==='all'||state.mode==='sound')bits.push(state.freq>=20?state.freq.toFixed(0)+' Hz':'audio —');if((state.mode==='all'||state.mode==='compass')&&state.heading!=null)bits.push(cardinal(state.heading)+' '+state.heading.toFixed(0)+'°');if(state.mode==='light')bits.push('L '+state.lum.toFixed(0)+'%');$('centerRead').textContent=bits.join(' · ')||'SENSOR '+state.mode.toUpperCase();requestAnimationFrame(loop)}
+$('start').addEventListener('click',()=>permissionsAndStart().catch(()=>{}));
+$('modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#modes button').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.mode=b.dataset.filter;document.querySelectorAll('.metric').forEach(m=>m.style.display=(state.mode==='all'||m.dataset.mode===state.mode)?'block':'none')});
+document.addEventListener('visibilitychange',()=>{if(audioCtx&&document.visibilityState==='visible'&&audioCtx.state==='suspended')audioCtx.resume()});
+})();
+</script>
+</body>
+</html>
