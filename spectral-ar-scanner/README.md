@@ -1,32 +1,23 @@
-# Spectral AR Scanner · Spatial Fusion
+# Spectral AR Scanner · Spatial Fusion V3
 
-Prototipo web móvil que combina cámara, micrófono, orientación, movimiento y contexto del dispositivo en un visor espacial en tiempo real.
+Prototipo web móvil que fusiona cámara, audio, movimiento, orientación y memoria de escaneo espacial.
 
-## Flujo V2
-1. **Preparación espacial**: activa permisos y explica límites de medición.
-2. **Barrido de sonido**: giro 360°; relaciona rumbo, nivel dBFS y frecuencia dominante para estimar direcciones acústicas.
-3. **Barrido de luz**: detecta regiones brillantes en los frames y las consolida por rumbo aproximado.
-4. **Calibración de movimiento**: crea una referencia de aceleración y rotación.
-5. **Entorno y sensores**: registra disponibilidad de brújula, GPS y capacidades web.
-6. **Visor Spatial Fusion**: fusiona el scan almacenado localmente con datos en vivo y proyecta las fuentes recordadas sobre la cámara según el rumbo actual.
+## Luz premium
+Cada fuente luminosa detectada puede incluir intensidad relativa, pico, diferencia frente al ambiente, CCT estimada en kelvin, modulación temporal observada, estabilidad, glare, uniformidad, dirección, confianza y Light Quality Score (LQS). CCT/LQS son estimaciones derivadas de cámara; no sustituyen luxímetro, colorímetro, CRI ni espectrómetro.
 
-## Datos medidos
-- Cámara trasera y luminancia relativa.
-- Regiones luminosas activas dentro del frame.
-- Micrófono con FFT: frecuencia dominante y nivel relativo dBFS.
-- Acelerómetro y velocidad de rotación vía DeviceMotion.
-- Orientación y rumbo/brújula cuando el navegador los entrega.
-- GPS y precisión reportada.
+## Temperatura
+La temperatura ambiental en °C **no está expuesta por Safari/iPhone como sensor web**. El módulo soporta:
+- Web Bluetooth Environmental Sensing (0x181A / Temperature 0x2A6E) en navegadores compatibles.
+- Puente nativo mediante el evento `spectral-temperature`.
+- API de integración `window.SpectralAR.setTemperature(celsius, source)`.
 
-## Datos estimados
-- Dirección de fuentes acústicas a partir de un barrido angular con un solo stream de micrófono.
-- Asociación espacial de fuentes guardadas con el rumbo actual.
-- Clasificación acústica básica por banda de frecuencia.
+En iPhone Safari, un sensor físico necesita puente nativo u otra vía de datos. El estado térmico del dispositivo de iOS no equivale a temperatura ambiental en °C.
 
-## Persistencia
-La última calibración se guarda localmente en `localStorage` del navegador y puede borrarse o reemplazarse desde el visor.
+## Otros sensores
+- Micrófono con FFT, frecuencia dominante y dBFS relativo.
+- Acelerómetro, rotación y orientación.
+- Brújula cuando iOS la expone.
+- GPS y precisión.
+- Detección visual de regiones luminosas y memoria angular de fuentes.
 
-## Límites importantes
-Un HTML en iPhone/Safari no tiene acceso directo al espectro RF de Wi‑Fi/5G/Bluetooth, RSSI Wi‑Fi, canal GHz ni al magnetómetro crudo en µT. Esos datos requieren APIs nativas, permisos/plataformas compatibles o hardware externo. Las visualizaciones son una combinación de mediciones disponibles y estimaciones explícitamente identificadas; no representan una imagen física directa de campos electromagnéticos.
-
-Cámara, micrófono y sensores requieren HTTPS y permisos del usuario.
+Los datos marcados como ESTIMATED son inferencias; los medidos se muestran por separado. HTTPS y permisos son obligatorios.
