@@ -6,19 +6,19 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=051">
-<link rel="stylesheet" href="fiducial-filter.css?v=051">
+<link rel="stylesheet" href="styles.css?v=052">
+<link rel="stylesheet" href="fiducial-filter.css?v=052">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
-    <div class="badge">MVP v0.5.1 · Camera Guard</div>
+    <div class="badge">MVP v0.5.2 · Repair Pre-roll</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS5 · ARQ bidireccional determinista</h2>
-    <div class="sub">Sin temporizadores para cambiar de rol. HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos. Camera Guard valida fiduciales por color, forma y geometría.</div>
+    <div class="sub">HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos. Las rondas de reparación ahora arrancan con un pre-roll de 3 segundos sin DATA para estabilizar cámara y manos.</div>
     <div class="transport">
       <span class="chip on">● HPS5</span>
       <span class="chip on">● Header + payload CRC32</span>
@@ -26,6 +26,7 @@
       <span class="chip on">● NACK bitmap</span>
       <span class="chip on">● Reparación selectiva</span>
       <span class="chip on">● Camera Guard geométrico</span>
+      <span class="chip on">● Repair Pre-roll 3 s</span>
       <span class="chip" id="phaseStatus">HPS5 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -52,7 +53,8 @@
         <button class="btn primary" id="txRepairBtn" style="display:none">Enviar reparación</button>
       </div>
       <div class="small" id="speedHint" style="margin-top:10px"></div>
-      <div class="small" style="margin-top:6px"><b>Flujo:</b> Handshake → DATA → PASS_END fijo → leer NACK/COMPLETE → reparación selectiva.</div>
+      <div class="small" style="margin-top:6px"><b>Flujo:</b> Handshake → DATA → PASS_END fijo → leer NACK/COMPLETE → pre-roll 3 s → reparación selectiva.</div>
+      <div class="small" style="margin-top:6px">Al pulsar “Enviar reparación”, aparece 3 → 2 → 1 → LISTO. Durante esa cuenta no se transmite ningún DATA; puedes soltar el teléfono y estabilizar la cámara receptora.</div>
       <div class="small" style="margin-top:6px">Durante NACK/COMPLETE los controles del overlay son neutros para no confundirse con los cuatro fiduciales ópticos.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
@@ -83,7 +85,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.5.1 · HPS5 StateFlow · Camera Guard geométrico · HELLO / DATA / PASS_END / NACK / COMPLETE · CRC32 integral · reparación selectiva · 1×/2×/4×/8×.</div>
+  <div class="footer">PixelStream v0.5.2 · HPS5 StateFlow · Camera Guard · Repair Pre-roll 3 s · CRC32 integral · NACK bitmap · reparación selectiva · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
@@ -101,7 +103,8 @@
   <div class="streamBottom" id="streamBottom">HPS5 StateFlow</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="fiducial-filter.js?v=051"></script>
-<script src="hps5.js?v=051"></script>
+<script src="fiducial-filter.js?v=052"></script>
+<script src="hps5.js?v=052"></script>
+<script src="repair-preroll.js?v=052"></script>
 </body>
 </html>
