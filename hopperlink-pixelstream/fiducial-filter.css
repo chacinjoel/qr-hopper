@@ -1,0 +1,8 @@
+/* PixelStream v0.5.1 · Fiducial Camera Guard */
+.finder{width:12%;height:12%;border:3px solid #fff;box-shadow:0 0 0 3px #000}
+.finder:after{inset:27%;background:#000;border:2px solid #fff}
+.f-tl{background:rgb(0,220,220)}
+.f-tr{background:rgb(220,0,220)}
+.f-bl{background:rgb(220,220,0)}
+.f-br{background:rgb(0,220,102)}
+#overlayActionBtn{background:#1f2937!important;border-color:#64748b!important;color:#fff!important;box-shadow:none!important}
