@@ -6,24 +6,25 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=043" />
+<link rel="stylesheet" href="styles.css?v=044" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
-    <div class="badge">MVP v0.4.3 · Pass Hold</div>
+    <div class="badge">MVP v0.4.4 · Session Guard</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HopperLink Transport Layer</h2>
-    <div class="sub">HPS4 hace una pasada, retiene manualmente el último DATA para asegurar su lectura, después publica PASS_END con guarda extendida y continúa con ACK/NACK óptico y reparación selectiva.</div>
+    <div class="sub">HPS4 retiene el último DATA, publica PASS_END con guarda extendida y usa ACK/NACK óptico. Session Guard bloquea la transferencia al primer sessionId válido para impedir reinicios falsos por errores de lectura del header.</div>
     <div class="transport">
       <span class="chip on">● PixelStream AutoLock</span>
       <span class="chip on">● HPS4 ARQ bidireccional</span>
       <span class="chip on">● NACK manual</span>
       <span class="chip on">● Color Assist adaptativo</span>
       <span class="chip on">● Last Frame Hold</span>
+      <span class="chip on">● Session Guard</span>
       <span class="chip" id="phaseStatus">HPS4 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -65,13 +66,13 @@
 
     <section class="card">
       <h2>2. Receptor / canal de retorno</h2>
-      <div class="sub">Primero recibe los datos. El último frame puede permanecer fijo todo el tiempo necesario. Después detecta PASS_END, genera el NACK compacto con faltantes o COMPLETE, y espera la reparación.</div>
+      <div class="sub">La primera sesión válida queda bloqueada. Un frame con sessionId inconsistente se ignora en vez de borrar el progreso. Al detectar PASS_END genera NACK con los faltantes o COMPLETE.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">Color Assist tolera cambios de exposición y balance de blancos. Mantén visibles los cuatro marcadores.</div>
+        <div class="camHint">Color Assist + Session Guard: mantén visibles los cuatro marcadores; lecturas dudosas del header no reinician la transferencia.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -88,7 +89,7 @@
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.4.3 · HPS4 · último DATA retenido manualmente · PASS_END con guarda de 3 s · Color Assist · NACK manual · reparación selectiva · COMPLETE con CRC · 1×/2×/4×/8×.</div>
+  <div class="footer">PixelStream v0.4.4 · HPS4 · Session Guard · header validation · último DATA retenido · PASS_END 3 s · Color Assist · NACK manual · reparación selectiva · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
@@ -106,12 +107,12 @@
     <span class="finder f-br" aria-hidden="true"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">HPS4 cambia de dirección: datos → último frame retenido → PASS_END → NACK/COMPLETE → reparación selectiva.</div>
+  <div class="streamBottom" id="streamBottom">HPS4: datos → último frame retenido → PASS_END → NACK/COMPLETE → reparación selectiva.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="manual-arq.js?v=043"></script>
-<script src="color-assist.js?v=043"></script>
-<script src="pass-hold.js?v=043"></script>
-<script src="hps4.js?v=043"></script>
+<script src="manual-arq.js?v=044"></script>
+<script src="color-assist.js?v=044"></script>
+<script src="pass-hold.js?v=044"></script>
+<script src="hps4-session-loader.js?v=044"></script>
 </body>
 </html>
