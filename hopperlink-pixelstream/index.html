@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=032" />
+<link rel="stylesheet" href="styles.css?v=033" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin librerías externas.</p></div>
-    <div class="badge">MVP v0.3.2 · Sender Fix</div>
+    <div class="badge">MVP v0.3.3 · ETA + 8×</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
@@ -35,9 +35,10 @@
         <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
         <div class="grow"><label>Velocidad de transferencia</label><br>
           <select id="speedMode" style="width:100%">
-            <option value="slow" selected>Lenta · 1× actual</option>
-            <option value="normal">Normal · 2× actual</option>
-            <option value="fast">Rápida · 4× actual</option>
+            <option value="slow" selected>Lenta · 1×</option>
+            <option value="normal">Normal · 2×</option>
+            <option value="fast">Rápida · 4×</option>
+            <option value="ultra">Experimental · 8×</option>
           </select>
         </div>
       </div>
@@ -48,7 +49,7 @@
       </div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar PixelStream</button><button class="btn good" id="sendBtn" disabled>Emitir</button></div>
       <div class="small" id="speedHint" style="margin-top:10px">Lenta: máxima estabilidad · 1 frame nuevo/segundo · cada frame se muestra 3 veces.</div>
-      <div class="small" style="margin-top:5px">Ya no necesitas colocar el patrón exactamente dentro de la guía del receptor.</div>
+      <div class="small" style="margin-top:5px">8× es experimental: puede perder frames según la cámara, pantalla, distancia o movimiento.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
@@ -66,13 +67,16 @@
         <div class="stat"><b id="rxFrames">0</b><span>Frames únicos</span></div>
         <div class="stat"><b id="rxTotal">—</b><span>Total esperado</span></div>
         <div class="stat"><b id="rxErrors">0</b><span>CRC / lectura</span></div>
+        <div class="stat"><b id="rxElapsed">—</b><span>Tiempo transcurrido</span></div>
+        <div class="stat"><b id="rxEta">—</b><span>Restante aprox.</span></div>
+        <div class="stat"><b id="rxRate">—</b><span>Velocidad real</span></div>
       </div>
       <div class="progress"><div class="bar" id="rxBar"></div></div>
       <div id="receivedBox" class="received" style="display:none"></div>
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.3.2 AutoLock · HPS3 · perfiles 1×/2×/4× · emisor fail-safe · 4 fiduciales · homografía/proyección · tracking ligero · CRC32.</div>
+  <div class="footer">PixelStream v0.3.3 AutoLock · HPS3 · perfiles 1×/2×/4×/8× experimental · ETA dinámico · emisor fail-safe · homografía/proyección · CRC32.</div>
 </div>
 
 <div id="streamOverlay">
@@ -87,7 +91,8 @@
   <div class="streamBottom">Los cuatro marcadores permiten AutoLock incluso con desplazamiento, giro e inclinación moderada. Mantén los cuatro visibles.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="app.js?v=032"></script>
-<script src="sender-fix.js?v=032"></script>
+<script src="app.js?v=033"></script>
+<script src="sender-fix.js?v=033"></script>
+<script src="transfer-metrics.js?v=033"></script>
 </body>
 </html>
