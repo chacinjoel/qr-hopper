@@ -6,30 +6,31 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=033" />
+<link rel="stylesheet" href="styles.css?v=040" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin librerías externas.</p></div>
-    <div class="badge">MVP v0.3.3 · ETA + 8×</div>
+    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
+    <div class="badge">MVP v0.4 · HPS4 Bidirectional ARQ</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HopperLink Transport Layer</h2><div class="sub">PixelStream detecta automáticamente el área transmisora mediante cuatro fiduciales, corrige perspectiva y mantiene tracking entre frames.</div>
+    <h2>HopperLink Transport Layer</h2>
+    <div class="sub">HPS4 hace una pasada, invierte automáticamente pantalla/cámara, recibe ACK/NACK óptico y retransmite solo los frames faltantes hasta completar.</div>
     <div class="transport">
-      <span class="chip on">● PixelStream AutoLock: disponible</span>
+      <span class="chip on">● PixelStream AutoLock</span>
+      <span class="chip on">● HPS4 ARQ bidireccional</span>
+      <span class="chip" id="phaseStatus">HPS4 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
-      <span class="chip off">○ BLE: siguiente fase</span>
-      <span class="chip off">○ Wi‑Fi P2P: siguiente fase</span>
-      <span class="chip off">○ AudioBurst: siguiente fase</span>
     </div>
   </div>
 
   <div class="grid">
     <section class="card">
-      <h2>1. Emisor</h2><div class="sub">Selecciona un archivo. HPS3 lo convierte en frames ópticos con pilotos internos, CRC32 y marcadores AutoLock.</div>
+      <h2>1. Emisor</h2>
+      <div class="sub">Selecciona un archivo. Tras cada pasada, este mismo dispositivo abre su cámara y espera la lista óptica de faltantes o la confirmación COMPLETE.</div>
       <div class="filebox"><input id="fileInput" type="file" /></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
@@ -48,35 +49,37 @@
         <div class="stat"><b id="capacity">—</b><span>Payload/frame</span></div>
       </div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar PixelStream</button><button class="btn good" id="sendBtn" disabled>Emitir</button></div>
-      <div class="small" id="speedHint" style="margin-top:10px">Lenta: máxima estabilidad · 1 frame nuevo/segundo · cada frame se muestra 3 veces.</div>
-      <div class="small" style="margin-top:5px">8× es experimental: puede perder frames según la cámara, pantalla, distancia o movimiento.</div>
+      <div class="small" id="speedHint" style="margin-top:10px">Lenta: máxima estabilidad · 1 frame nuevo/segundo.</div>
+      <div class="small" style="margin-top:5px">Al terminar la pasada, permite el acceso a la cámara del emisor: estará esperando el PixelStream de control del receptor.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
-      <h2>2. Receptor</h2><div class="sub">Apunta aproximadamente hacia PixelStream. AutoLock busca cyan, magenta, amarillo y verde, calcula la perspectiva y encuentra la cuadrícula por sí solo.</div>
+      <h2>2. Receptor / canal de retorno</h2>
+      <div class="sub">Primero recibe los datos. Al detectar fin de pasada, cambia automáticamente a pantalla y muestra un NACK compacto con los frames faltantes o COMPLETE si ya tiene todo.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">Solo apunta al patrón. La guía cyan es un fallback manual; AutoLock no exige alineación perfecta.</div>
+        <div class="camHint">Solo apunta al patrón. HPS4 alternará automáticamente entre cámara y PixelStream de control.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
         <div class="stat"><b id="rxFrames">0</b><span>Frames únicos</span></div>
         <div class="stat"><b id="rxTotal">—</b><span>Total esperado</span></div>
-        <div class="stat"><b id="rxErrors">0</b><span>CRC / lectura</span></div>
+        <div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div>
         <div class="stat"><b id="rxElapsed">—</b><span>Tiempo transcurrido</span></div>
         <div class="stat"><b id="rxEta">—</b><span>Restante aprox.</span></div>
         <div class="stat"><b id="rxRate">—</b><span>Velocidad real</span></div>
+        <div class="stat"><b id="rxErrors">0</b><span>CRC / lectura</span></div>
       </div>
       <div class="progress"><div class="bar" id="rxBar"></div></div>
       <div id="receivedBox" class="received" style="display:none"></div>
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.3.3 AutoLock · HPS3 · perfiles 1×/2×/4×/8× experimental · ETA dinámico · emisor fail-safe · homografía/proyección · CRC32.</div>
+  <div class="footer">PixelStream v0.4 · HPS4 · DATA / PASS_END / CONTROL · NACK por bitmap · COMPLETE con CRC final · reparación selectiva · AutoLock · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
@@ -88,11 +91,9 @@
     <span class="finder f-br" aria-hidden="true"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom">Los cuatro marcadores permiten AutoLock incluso con desplazamiento, giro e inclinación moderada. Mantén los cuatro visibles.</div>
+  <div class="streamBottom">HPS4 cambia de dirección automáticamente: datos → control de faltantes → reparación → COMPLETE.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="app.js?v=033"></script>
-<script src="sender-fix.js?v=033"></script>
-<script src="transfer-metrics.js?v=033"></script>
+<script src="hps4.js?v=040"></script>
 </body>
 </html>
