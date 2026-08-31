@@ -42,12 +42,14 @@ function choosePasses(missing){
   return 1;
 }
 
+// Los ecos son copias de seguridad, no la pasada principal. Se transmiten
+// más rápido, pero cada frame permanece >1 ciclo del scanner (~90 ms).
 function echoPeriod(){
   const mode=$('speedMode')?.value||'slow';
   if(mode==='ultra')return 140;
-  if(mode==='fast')return 250;
-  if(mode==='normal')return 500;
-  return 1000;
+  if(mode==='fast')return 180;
+  if(mode==='normal')return 200;
+  return 220;
 }
 
 function imageHash(img){
@@ -78,9 +80,8 @@ async function replayBurst(passEnd){
   const meta=$('streamMeta');
   const bottom=$('streamBottom');
   const savedMeta=passEnd.meta;
-  const savedBottom=bottom?.textContent||'';
 
-  log(`Repair Burst: ${capturedFrames.length} frame(s) únicos · ${totalPasses} pasada(s) totales.`);
+  log(`Repair Burst: ${capturedFrames.length} frame(s) únicos · ${totalPasses} pasada(s) totales · eco ${period} ms/frame.`);
   setPhase(`EMISOR · REPAIR BURST ${totalPasses}×`,'on');
 
   for(let pass=2;pass<=totalPasses;pass++){
@@ -129,7 +130,7 @@ CanvasRenderingContext2D.prototype.putImageData=function(img,dx,dy,...rest){
   }
 
   // Capturamos una sola copia de cada DATA distinto; HPS5 ya repite cada frame
-  // varias veces en la pasada principal, así que no guardamos duplicados consecutivos.
+  // varias veces en la pasada principal, así que no guardamos duplicados.
   const h=imageHash(img);
   if(!capturedHashes.has(h)){
     capturedHashes.add(h);
@@ -205,7 +206,7 @@ function install(){
       }else{
         if(countdownTimer){nativeClearInterval(countdownTimer);countdownTimer=null;}
         if(meta)meta.textContent='REPARACIÓN · pasada principal';
-        if(bottom)bottom.textContent=totalPasses>1?'Primera pasada activa; luego vendrán ecos internos sin cambiar de rol.':'Primer frame asegurado. Continuando reparación normal…';
+        if(bottom)bottom.textContent=totalPasses>1?'Primera pasada activa; luego vendrán ecos rápidos sin cambiar de rol.':'Primer frame asegurado. Continuando reparación normal…';
         setPhase('EMISOR · REPARANDO','on');
         log('Primer frame liberado; continúa la pasada principal de reparación.');
       }
