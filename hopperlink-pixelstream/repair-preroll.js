@@ -2,20 +2,10 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
+const nativeSetInterval = window.setInterval.bind(window);
+const nativeClearInterval = window.clearInterval.bind(window);
+const nativeSetTimeout = window.setTimeout.bind(window);
 let running = false;
-
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
-function ensureOverlay(){
-  let o=$('repairPrerollOverlay');
-  if(o)return o;
-  o=document.createElement('div');
-  o.id='repairPrerollOverlay';
-  o.style.cssText='position:fixed;inset:0;z-index:120;background:#020617;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px;color:#f8fafc;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;';
-  o.innerHTML='<div id="repairPrerollLabel" style="font-size:clamp(18px,4vw,28px);font-weight:800;margin-bottom:16px">Preparando reparación</div><div id="repairPrerollCount" style="font-size:clamp(84px,26vw,180px);font-weight:900;line-height:1">3</div><div id="repairPrerollHint" style="margin-top:18px;max-width:560px;color:#cbd5e1;font-size:14px">Suelta el teléfono y apunta la cámara receptora al centro de la pantalla. Aún no se está enviando ningún frame.</div>';
-  document.body.appendChild(o);
-  return o;
-}
 
 function setPhase(text,kind='mid'){
   const e=$('phaseStatus');
@@ -24,54 +14,91 @@ function setPhase(text,kind='mid'){
   e.className='chip '+kind;
 }
 
-async function runPreroll(original,event){
-  if(running)return;
-  running=true;
-  const btn=$('txRepairBtn');
-  if(btn)btn.disabled=true;
-  const o=ensureOverlay(),count=$('repairPrerollCount'),label=$('repairPrerollLabel'),hint=$('repairPrerollHint');
-  o.style.display='flex';
-  document.body.style.overflow='hidden';
-  setPhase('EMISOR · PREPARANDO REPARACIÓN','mid');
-
-  const sendLog=$('sendLog');
-  if(sendLog){const t=new Date().toLocaleTimeString();sendLog.textContent=`[${t}] Pre-roll de reparación iniciado · 3 segundos sin DATA.\n`+sendLog.textContent.slice(0,7000);}
-
-  label.textContent='Preparando reparación';
-  hint.textContent='Suelta el teléfono y apunta la cámara receptora al centro de la pantalla. Aún no se está enviando ningún frame.';
-  for(const n of [3,2,1]){
-    count.textContent=String(n);
-    navigator.vibrate?.(n===1?60:25);
-    await sleep(1000);
-  }
-
-  count.textContent='LISTO';
-  count.style.fontSize='clamp(54px,16vw,110px)';
-  label.textContent='Cámara estable';
-  hint.textContent='La reparación comienza ahora.';
-  navigator.vibrate?.(80);
-  await sleep(450);
-
-  o.style.display='none';
-  document.body.style.overflow='';
-  count.style.fontSize='clamp(84px,26vw,180px)';
-  running=false;
-  if(btn)btn.disabled=false;
-  setPhase('EMISOR · INICIANDO REPARACIÓN','on');
-  original?.call(btn,event);
+function log(msg){
+  const el=$('sendLog');
+  if(!el)return;
+  const t=new Date().toLocaleTimeString();
+  el.textContent=`[${t}] ${msg}\n`+el.textContent.slice(0,7000);
 }
 
 function install(){
   const btn=$('txRepairBtn');
-  if(!btn||btn.dataset.prerollInstalled==='1')return;
+  if(!btn||btn.dataset.firstFrameLockInstalled==='1')return;
   const original=btn.onclick;
+
   btn.onclick=function(e){
     e?.preventDefault?.();
-    runPreroll(original,e);
+    if(running)return;
+    running=true;
+    btn.disabled=true;
+
+    // HPS5 sendRepair() llama sendPass(), y sendPass() hace:
+    // 1) tick() inmediatamente -> dibuja el primer DATA de reparación.
+    // 2) setInterval(tick, ...) -> empieza a avanzar por los frames.
+    // Interceptamos SOLO esa próxima creación de intervalo. El primer tick se
+    // dibuja normalmente, pero los ticks siguientes quedan bloqueados 3 s.
+    const originalSetInterval=window.setInterval;
+    let intercepted=false;
+    let holdUntil=0;
+    let countdownTimer=null;
+
+    window.setInterval=function(fn,delay,...args){
+      if(!intercepted && typeof fn==='function'){
+        intercepted=true;
+        holdUntil=performance.now()+3000;
+        const wrapped=(...cbArgs)=>{
+          if(performance.now()<holdUntil)return;
+          fn(...cbArgs);
+        };
+        const id=nativeSetInterval(wrapped,delay,...args);
+        // Restaurar inmediatamente: no alteramos otros intervalos de la app.
+        window.setInterval=originalSetInterval;
+        return id;
+      }
+      return originalSetInterval(fn,delay,...args);
+    };
+
+    setPhase('EMISOR · FIJANDO PRIMER FRAME DE REPARACIÓN','mid');
+    log('Repair First-Frame Lock: el primer frame quedará fijo 3 segundos antes de avanzar.');
+
+    try{
+      original?.call(btn,e);
+    }catch(err){
+      window.setInterval=originalSetInterval;
+      running=false;
+      btn.disabled=false;
+      throw err;
+    }
+
+    // Si por cualquier motivo HPS5 no creó el intervalo esperado, restauramos.
+    nativeSetTimeout(()=>{window.setInterval=originalSetInterval;},0);
+
+    const started=performance.now();
+    const updateCountdown=()=>{
+      const remaining=Math.max(0,3000-(performance.now()-started));
+      const sec=Math.max(1,Math.ceil(remaining/1000));
+      const meta=$('streamMeta');
+      const bottom=$('streamBottom');
+      if(remaining>0){
+        if(meta)meta.textContent=`REPARACIÓN · primer frame fijo · ${sec}s`;
+        if(bottom)bottom.textContent='Mantén la cámara receptora apuntando al patrón. HPS5 no avanzará al siguiente frame hasta terminar esta estabilización.';
+      }else{
+        if(countdownTimer){nativeClearInterval(countdownTimer);countdownTimer=null;}
+        if(meta)meta.textContent='REPARACIÓN · transmisión activa';
+        if(bottom)bottom.textContent='Primer frame asegurado. Continuando con los demás frames faltantes…';
+        setPhase('EMISOR · REPARANDO','on');
+        log('Primer frame de reparación liberado después de 3 s; continúa la secuencia normal.');
+        running=false;
+        btn.disabled=false;
+      }
+    };
+    updateCountdown();
+    countdownTimer=nativeSetInterval(updateCountdown,100);
   };
-  btn.dataset.prerollInstalled='1';
+
+  btn.dataset.firstFrameLockInstalled='1';
 }
 
 install();
-window.__hopperRepairPreroll={version:'0.5.2',active:true,seconds:3,settleMs:450};
+window.__hopperRepairPreroll={version:'0.5.3',active:true,mode:'first-frame-lock',holdMs:3000};
 })();
