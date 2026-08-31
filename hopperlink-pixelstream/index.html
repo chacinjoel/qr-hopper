@@ -26,6 +26,7 @@
       <span class="chip on">● DATA Grid hasta 80</span>
       <span class="chip on">● Decoder frame-synced</span>
       <span class="chip on">● Fast Homography Track</span>
+      <span class="chip on">● Camera Fallback</span>
       <span class="chip on">● CRC32 integral</span>
       <span class="chip on">● Adaptive Repair Burst</span>
       <span class="chip" id="phaseStatus">HPS6 LISTO</span>
@@ -62,7 +63,7 @@
 
     <section class="card">
       <h2>2. Receptor / canal óptico</h2>
-      <div class="sub">HPS6 pide hasta 1920×1080 @ 30 fps cuando la cámara lo permite y usa requestVideoFrameCallback; si no existe, cae automáticamente a un scanner compatible.</div>
+      <div class="sub">HPS6 intenta hasta 1920×1080 @ 30 fps y, si la cámara no lo acepta, cae automáticamente a 1280×720 o al perfil ambiental disponible.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
@@ -86,7 +87,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.6 · HPS6 Optical Turbo · Control 56 · DATA 32–80 · frame-synced decoder · Fast Homography Track · CRC32 · Adaptive Repair Burst.</div>
+  <div class="footer">PixelStream v0.6 · HPS6 Optical Turbo · Control 56 · DATA 32–80 · frame-synced decoder · Fast Homography Track · Camera Fallback · Adaptive Repair Burst.</div>
 </div>
 
 <div id="streamOverlay">
@@ -104,6 +105,7 @@
   <div class="streamBottom" id="streamBottom">HPS6 Optical Turbo</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
+<script src="camera-fallback.js?v=060"></script>
 <script src="fiducial-filter.js?v=060"></script>
 <script src="hps6.js?v=060"></script>
 </body>
