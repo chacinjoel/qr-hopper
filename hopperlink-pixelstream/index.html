@@ -6,19 +6,19 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=053">
-<link rel="stylesheet" href="fiducial-filter.css?v=053">
+<link rel="stylesheet" href="styles.css?v=054">
+<link rel="stylesheet" href="fiducial-filter.css?v=054">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
-    <div class="badge">MVP v0.5.3 · Repair First-Frame Lock</div>
+    <div class="badge">MVP v0.5.4 · Adaptive Repair Burst</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS5 · ARQ bidireccional determinista</h2>
-    <div class="sub">HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos. En reparación, el primer DATA queda fijo 3 segundos antes de avanzar.</div>
+    <div class="sub">HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos. Las reparaciones pequeñas repiten internamente los mismos faltantes antes de cambiar de rol.</div>
     <div class="transport">
       <span class="chip on">● HPS5</span>
       <span class="chip on">● Header + payload CRC32</span>
@@ -27,6 +27,7 @@
       <span class="chip on">● Reparación selectiva</span>
       <span class="chip on">● Camera Guard geométrico</span>
       <span class="chip on">● First Repair Frame Lock 3 s</span>
+      <span class="chip on">● Adaptive Repair Burst</span>
       <span class="chip" id="phaseStatus">HPS5 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -53,15 +54,15 @@
         <button class="btn primary" id="txRepairBtn" style="display:none">Enviar reparación</button>
       </div>
       <div class="small" id="speedHint" style="margin-top:10px"></div>
-      <div class="small" style="margin-top:6px"><b>Flujo:</b> Handshake → DATA → PASS_END fijo → leer NACK/COMPLETE → primer frame de reparación fijo 3 s → resto de reparación.</div>
-      <div class="small" style="margin-top:6px">Al pulsar “Enviar reparación”, HPS5 muestra inmediatamente el primer frame faltante y lo mantiene inmóvil durante 3 segundos. La cámara receptora puede enfocarlo y validarlo antes de que avance la secuencia.</div>
-      <div class="small" style="margin-top:6px">Después de esos 3 segundos, ese mismo frame aún recibe sus repeticiones normales y luego continúan los demás faltantes.</div>
+      <div class="small" style="margin-top:6px"><b>Flujo:</b> Handshake → DATA → PASS_END → NACK → primer frame fijo 3 s → Repair Burst → PASS_END único.</div>
+      <div class="small" style="margin-top:6px">Si faltan 1–100 frames: 3 pasadas internas. Si faltan 101–300: 2 pasadas. Más de 300: 1 pasada normal.</div>
+      <div class="small" style="margin-top:6px">En los ecos internos cada frame se muestra una vez por vuelta; el receptor ignora duplicados y conserva cualquier copia válida que logre leer.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / canal de retorno</h2>
-      <div class="sub">Inicia la cámara antes de comenzar. Cuando lea PASS_END, deja de escanear datos y muestra automáticamente NACK o COMPLETE.</div>
+      <div class="sub">Inicia la cámara antes de comenzar. Durante Repair Burst permanece en cámara y aprovecha todas las copias sin hacer switches intermedios.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
@@ -85,7 +86,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.5.3 · HPS5 StateFlow · Camera Guard · First Repair Frame Lock 3 s · CRC32 integral · NACK bitmap · reparación selectiva · 1×/2×/4×/8×.</div>
+  <div class="footer">PixelStream v0.5.4 · HPS5 StateFlow · Camera Guard · First Repair Frame Lock · Adaptive Repair Burst · CRC32 integral · NACK bitmap · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
@@ -103,8 +104,8 @@
   <div class="streamBottom" id="streamBottom">HPS5 StateFlow</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="fiducial-filter.js?v=053"></script>
-<script src="hps5.js?v=053"></script>
-<script src="repair-preroll.js?v=053"></script>
+<script src="fiducial-filter.js?v=054"></script>
+<script src="hps5.js?v=054"></script>
+<script src="repair-preroll.js?v=054"></script>
 </body>
 </html>
