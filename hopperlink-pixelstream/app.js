@@ -4,318 +4,75 @@
 const $ = id => document.getElementById(id);
 const enc = new TextEncoder(), dec = new TextDecoder();
 const LEVELS = [26, 92, 164, 236];
-const MAGIC = [0x48,0x50,0x53,0x32]; // HPS2
-const VERSION = 2;
+const MAGIC = [0x48,0x50,0x53,0x33]; // HPS3
+const VERSION = 3;
 const PILOT_CELLS = 32;
+const DATA_MIN = 0.12;
+const DATA_MAX = 0.88;
+const MARKER_NORM = {tl:[0.06,0.06],tr:[0.94,0.06],bl:[0.06,0.94],br:[0.94,0.94]};
+const MARKER_KEYS = ['tl','tr','bl','br'];
+const TARGET_HUES = {tl:180,tr:300,bl:60,br:144};
 
-let prepared = null, timer = null, wakeLock = null, cameraStream = null, scanTimer = null;
-let rx = {id:null,total:null,chunks:new Map(),errors:0,lastGood:0};
+let prepared=null,timer=null,wakeLock=null,cameraStream=null,scanTimer=null;
+let trackedH=null,trackAge=0,lastMarkerCount=0;
+let rx={id:null,total:null,chunks:new Map(),errors:0,lastGood:0};
 
-function log(el,msg){
-  const t = new Date().toLocaleTimeString();
-  el.textContent = `[${t}] ${msg}\n` + el.textContent.slice(0,5500);
-}
-function fmtBytes(n){
-  if(n<1024) return n+' B';
-  if(n<1048576) return (n/1024).toFixed(1)+' KB';
-  return (n/1048576).toFixed(2)+' MB';
-}
+function log(el,msg){const t=new Date().toLocaleTimeString();el.textContent=`[${t}] ${msg}\n`+el.textContent.slice(0,5500);}
+function fmtBytes(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';return (n/1048576).toFixed(2)+' MB';}
 function u32(n){return [(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255]}
 function readU32(a,o){return ((((a[o]<<24)>>>0)|(a[o+1]<<16)|(a[o+2]<<8)|a[o+3])>>>0)}
 function u16(n){return [(n>>>8)&255,n&255]}
 function readU16(a,o){return (a[o]<<8)|a[o+1]}
-const crcTable=(()=>{let t=new Uint32Array(256);for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;t[i]=c>>>0}return t})();
+const crcTable=(()=>{const t=new Uint32Array(256);for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;t[i]=c>>>0}return t})();
 function crc32(bytes){let c=0xFFFFFFFF;for(const b of bytes)c=crcTable[(c^b)&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
 function concat(...arrs){const n=arrs.reduce((s,a)=>s+a.length,0),o=new Uint8Array(n);let p=0;for(const a of arrs){o.set(a,p);p+=a.length}return o}
 function randomId(){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]>>>0}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
 
-function pilotEntries(grid){
-  const out=[];
-  const add=(row,colStart,pattern)=>{for(let i=0;i<8;i++)out.push([row*grid+colStart+i,pattern[i]])};
-  add(0,0,              [0,1,2,3,0,1,2,3]);
-  add(0,grid-8,         [3,2,1,0,3,2,1,0]);
-  add(grid-1,0,         [1,3,0,2,1,3,0,2]);
-  add(grid-1,grid-8,    [2,0,3,1,2,0,3,1]);
-  return out;
-}
-function pilotMap(grid){ return new Map(pilotEntries(grid)); }
-function rawCapacity(grid){ return Math.floor((grid*grid-PILOT_CELLS)*2/8); }
-function payloadCapacity(grid){ return rawCapacity(grid)-26; }
+function pilotEntries(grid){const out=[];const add=(row,colStart,pattern)=>{for(let i=0;i<8;i++)out.push([row*grid+colStart+i,pattern[i]])};add(0,0,[0,1,2,3,0,1,2,3]);add(0,grid-8,[3,2,1,0,3,2,1,0]);add(grid-1,0,[1,3,0,2,1,3,0,2]);add(grid-1,grid-8,[2,0,3,1,2,0,3,1]);return out;}
+function pilotMap(grid){return new Map(pilotEntries(grid));}
+function rawCapacity(grid){return Math.floor((grid*grid-PILOT_CELLS)*2/8);}
+function payloadCapacity(grid){return rawCapacity(grid)-26;}
+function makeFrame(tid,index,total,chunk,grid){const header=new Uint8Array(22);header.set(MAGIC,0);header[4]=VERSION;header[5]=grid;header.set(u32(tid),6);header.set(u32(index),10);header.set(u32(total),14);header.set(u16(chunk.length),18);header.set(u16(0),20);return concat(header,new Uint8Array(u32(crc32(chunk))),chunk);}
+function rawToGridSymbols(raw,grid){const total=grid*grid,out=new Uint8Array(total),pilots=pilotMap(grid);for(const [idx,s] of pilots)out[idx]=s;let bytePos=0,shift=6;for(let i=0;i<total;i++){if(pilots.has(i))continue;if(bytePos<raw.length){out[i]=(raw[bytePos]>>shift)&3;shift-=2;if(shift<0){shift=6;bytePos++;}}else out[i]=0;}return out;}
+function dataSymbolsToBytes(sym,grid){const pilots=pilotMap(grid),data=[];for(let i=0;i<sym.length;i++)if(!pilots.has(i))data.push(sym[i]);const n=Math.floor(data.length/4),out=new Uint8Array(n);for(let i=0;i<n;i++)out[i]=(data[i*4]<<6)|(data[i*4+1]<<4)|(data[i*4+2]<<2)|data[i*4+3];return out;}
+function renderFrame(raw,grid){const c=$('pixelCanvas');c.width=grid;c.height=grid;const ctx=c.getContext('2d',{alpha:false}),sym=rawToGridSymbols(raw,grid),img=ctx.createImageData(grid,grid);for(let i=0;i<sym.length;i++){const v=LEVELS[sym[i]],p=i*4;img.data[p]=v;img.data[p+1]=v;img.data[p+2]=v;img.data[p+3]=255;}ctx.putImageData(img,0,0);}
 
-function makeFrame(tid,index,total,chunk,grid){
-  const header=new Uint8Array(22);
-  header.set(MAGIC,0); header[4]=VERSION; header[5]=grid;
-  header.set(u32(tid),6); header.set(u32(index),10); header.set(u32(total),14);
-  header.set(u16(chunk.length),18); header.set(u16(0),20);
-  const crcBytes=new Uint8Array(u32(crc32(chunk)));
-  return concat(header,crcBytes,chunk);
-}
+async function prepare(){const f=$('fileInput').files[0];if(!f){alert('Selecciona un archivo.');return}const grid=+$('gridSize').value,cap=payloadCapacity(grid);if(cap<32){alert('Grid demasiado pequeño.');return}const fileBytes=new Uint8Array(await f.arrayBuffer());const meta=enc.encode(JSON.stringify({name:f.name,type:f.type||'application/octet-stream',size:f.size,lastModified:f.lastModified}));if(meta.length>65535){alert('Metadata demasiado grande.');return}const pkg=concat(new Uint8Array(u16(meta.length)),meta,fileBytes),total=Math.ceil(pkg.length/cap),tid=randomId(),frames=[];for(let i=0;i<total;i++){const chunk=pkg.slice(i*cap,Math.min(pkg.length,(i+1)*cap));frames.push(makeFrame(tid,i,total,chunk,grid));}prepared={f,grid,cap,tid,total,frames};$('fileSize').textContent=fmtBytes(f.size);$('frameCount').textContent=total;$('capacity').textContent=cap+' B';$('sendBtn').disabled=false;log($('sendLog'),`Preparado ${f.name} · ${fmtBytes(f.size)} · ${total} frames · HPS3 AutoLock · ${grid}×${grid}`);}
+async function startSend(){if(!prepared)return;const fps=+$('fps').value,repeat=+$('repeat').value;let i=0,r=0;$('streamOverlay').style.display='flex';try{if('wakeLock'in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch{}const tick=()=>{renderFrame(prepared.frames[i],prepared.grid);$('streamMeta').textContent=`Frame ${i+1}/${prepared.total} · HPS3 AutoLock · ${fps} FPS · x${repeat}`;r++;if(r>=repeat){r=0;i=(i+1)%prepared.total;}};tick();timer=setInterval(tick,1000/fps);}
+function stopSend(){if(timer){clearInterval(timer);timer=null}$('streamOverlay').style.display='none';if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}}
 
-function rawToGridSymbols(raw,grid){
-  const total=grid*grid, out=new Uint8Array(total), pilots=pilotMap(grid);
-  for(const [idx,s] of pilots) out[idx]=s;
-  let bytePos=0, shift=6;
-  for(let i=0;i<total;i++){
-    if(pilots.has(i)) continue;
-    if(bytePos<raw.length){
-      out[i]=(raw[bytePos]>>shift)&3;
-      shift-=2;
-      if(shift<0){shift=6;bytePos++;}
-    } else out[i]=0;
-  }
-  return out;
-}
+function parseFrame(bytes){if(bytes.length<26)return null;for(let i=0;i<4;i++)if(bytes[i]!==MAGIC[i])return null;if(bytes[4]!==VERSION)return null;const grid=bytes[5],tid=readU32(bytes,6),index=readU32(bytes,10),total=readU32(bytes,14),len=readU16(bytes,18),expected=readU32(bytes,22);if(total===0||index>=total||len>bytes.length-26)return null;const chunk=bytes.slice(26,26+len);if(crc32(chunk)!==expected)return {bad:true};return {grid,tid,index,total,chunk};}
+function captureFrame(){const v=$('video'),c=$('capture');if(!v.videoWidth||!v.clientWidth)return null;const w=Math.max(1,Math.round(v.clientWidth)),h=Math.max(1,Math.round(v.clientHeight));c.width=w;c.height=h;const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(v,0,0,w,h);return {w,h,data:ctx.getImageData(0,0,w,h).data};}
+function rgbToHsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){if(mx===r)h=60*(((g-b)/d)%6);else if(mx===g)h=60*((b-r)/d+2);else h=60*((r-g)/d+4);if(h<0)h+=360;}return {h,s:mx?d/mx:0,v:mx};}
+function hueDistance(a,b){const d=Math.abs(a-b);return Math.min(d,360-d);}
+function classifyMarker(r,g,b){const hsv=rgbToHsv(r,g,b);if(hsv.s<0.48||hsv.v<0.42)return 0;let best=0,bd=999;for(let i=0;i<MARKER_KEYS.length;i++){const d=hueDistance(hsv.h,TARGET_HUES[MARKER_KEYS[i]]);if(d<bd){bd=d;best=i+1;}}return bd<=24?best:0;}
+function detectFiducials(frame){const stride=Math.max(2,Math.floor(Math.min(frame.w,frame.h)/180)),gw=Math.ceil(frame.w/stride),gh=Math.ceil(frame.h/stride),mask=new Uint8Array(gw*gh);for(let gy=0;gy<gh;gy++){const y=Math.min(frame.h-1,gy*stride+Math.floor(stride/2));for(let gx=0;gx<gw;gx++){const x=Math.min(frame.w-1,gx*stride+Math.floor(stride/2)),p=(y*frame.w+x)*4;mask[gy*gw+gx]=classifyMarker(frame.data[p],frame.data[p+1],frame.data[p+2]);}}const seen=new Uint8Array(mask.length),best={};for(let idx=0;idx<mask.length;idx++){const type=mask[idx];if(!type||seen[idx])continue;const stack=[idx];seen[idx]=1;let count=0,sumX=0,sumY=0,minX=1e9,maxX=-1,minY=1e9,maxY=-1;while(stack.length){const cur=stack.pop(),cy=Math.floor(cur/gw),cx=cur-cy*gw;count++;sumX+=cx;sumY+=cy;minX=Math.min(minX,cx);maxX=Math.max(maxX,cx);minY=Math.min(minY,cy);maxY=Math.max(maxY,cy);const ns=[cur-1,cur+1,cur-gw,cur+gw];for(const ni of ns){if(ni<0||ni>=mask.length||seen[ni]||mask[ni]!==type)continue;const ny=Math.floor(ni/gw),nx=ni-ny*gw;if(Math.abs(nx-cx)+Math.abs(ny-cy)!==1)continue;seen[ni]=1;stack.push(ni);}}if(count<6)continue;const key=MARKER_KEYS[type-1],cand={x:(sumX/count+.5)*stride,y:(sumY/count+.5)*stride,count,w:(maxX-minX+1)*stride,h:(maxY-minY+1)*stride};if(!best[key]||cand.count>best[key].count)best[key]=cand;}const found=MARKER_KEYS.filter(k=>best[k]).length;lastMarkerCount=found;if(found<4)return {found,markers:best};const counts=MARKER_KEYS.map(k=>best[k].count),ratio=Math.max(...counts)/Math.max(1,Math.min(...counts));const poly=[best.tl,best.tr,best.br,best.bl];let area=0;for(let i=0;i<4;i++){const a=poly[i],b=poly[(i+1)%4];area+=a.x*b.y-b.x*a.y;}area=Math.abs(area)/2;const areaRatio=area/(frame.w*frame.h),minSide=Math.min(dist(best.tl,best.tr),dist(best.tr,best.br),dist(best.br,best.bl),dist(best.bl,best.tl));if(areaRatio<0.018||minSide<Math.min(frame.w,frame.h)*0.12||ratio>8)return {found,markers:best,invalid:true};const src=MARKER_KEYS.map(k=>({x:MARKER_NORM[k][0],y:MARKER_NORM[k][1]})),dst=MARKER_KEYS.map(k=>({x:best[k].x,y:best[k].y}));const H=computeHomography(src,dst);if(!H)return {found,markers:best,invalid:true};const geometry=Math.max(0,Math.min(100,Math.round(50+Math.min(35,areaRatio*220)+Math.max(0,15-(ratio-1)*5))));return {found,markers:best,H,quality:geometry};}
 
-function dataSymbolsToBytes(sym,grid){
-  const pilots=pilotMap(grid), data=[];
-  for(let i=0;i<sym.length;i++) if(!pilots.has(i)) data.push(sym[i]);
-  const n=Math.floor(data.length/4), out=new Uint8Array(n);
-  for(let i=0;i<n;i++) out[i]=(data[i*4]<<6)|(data[i*4+1]<<4)|(data[i*4+2]<<2)|data[i*4+3];
-  return out;
-}
+function solveLinear(A,b){const n=b.length,M=A.map((r,i)=>r.concat([b[i]]));for(let c=0;c<n;c++){let pivot=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[pivot][c]))pivot=r;if(Math.abs(M[pivot][c])<1e-10)return null;[M[c],M[pivot]]=[M[pivot],M[c]];const div=M[c][c];for(let j=c;j<=n;j++)M[c][j]/=div;for(let r=0;r<n;r++){if(r===c)continue;const f=M[r][c];for(let j=c;j<=n;j++)M[r][j]-=f*M[c][j];}}return M.map(r=>r[n]);}
+function computeHomography(src,dst){const A=[],b=[];for(let i=0;i<4;i++){const x=src[i].x,y=src[i].y,u=dst[i].x,v=dst[i].y;A.push([x,y,1,0,0,0,-u*x,-u*y]);b.push(u);A.push([0,0,0,x,y,1,-v*x,-v*y]);b.push(v);}const h=solveLinear(A,b);return h?[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1]:null;}
+function mapPoint(H,x,y){const d=H[6]*x+H[7]*y+H[8];return {x:(H[0]*x+H[1]*y+H[2])/d,y:(H[3]*x+H[4]*y+H[5])/d};}
+function luminanceAt(frame,x,y,rad){const xi=Math.round(x),yi=Math.round(y);if(xi<0||yi<0||xi>=frame.w||yi>=frame.h)return 0;let sum=0,n=0;for(let yy=Math.max(0,yi-rad);yy<=Math.min(frame.h-1,yi+rad);yy++)for(let xx=Math.max(0,xi-rad);xx<=Math.min(frame.w-1,xi+rad);xx++){const p=(yy*frame.w+xx)*4;sum+=(frame.data[p]+frame.data[p+1]+frame.data[p+2])/3;n++;}return sum/Math.max(1,n);}
+function sampleGridByHomography(frame,grid,H){const p00=mapPoint(H,DATA_MIN,DATA_MIN),p10=mapPoint(H,DATA_MAX,DATA_MIN),p01=mapPoint(H,DATA_MIN,DATA_MAX),p11=mapPoint(H,DATA_MAX,DATA_MAX);const cellPx=(dist(p00,p10)+dist(p01,p11)+dist(p00,p01)+dist(p10,p11))/(4*grid),rad=Math.max(0,Math.min(2,Math.floor(cellPx*0.12)));const samples=new Float32Array(grid*grid);let k=0;for(let y=0;y<grid;y++)for(let x=0;x<grid;x++){const nx=DATA_MIN+(x+.5)*(DATA_MAX-DATA_MIN)/grid,ny=DATA_MIN+(y+.5)*(DATA_MAX-DATA_MIN)/grid,p=mapPoint(H,nx,ny);samples[k++]=luminanceAt(frame,p.x,p.y,rad);}return samples;}
+function decodeSamples(samples,grid){const pilots=pilotEntries(grid),sums=[0,0,0,0],counts=[0,0,0,0];for(const [idx,s] of pilots){sums[s]+=samples[idx];counts[s]++;}const means=sums.map((v,i)=>v/Math.max(1,counts[i]));if(!(means[0]+6<means[1]&&means[1]+6<means[2]&&means[2]+6<means[3]))return null;let pilotErr=0;for(const [idx,s] of pilots)pilotErr+=Math.abs(samples[idx]-means[s]);pilotErr/=pilots.length;const separation=Math.min(means[1]-means[0],means[2]-means[1],means[3]-means[2]),quality=Math.max(0,Math.min(100,Math.round(100-pilotErr*2-Math.max(0,22-separation))));const sym=new Uint8Array(samples.length);for(let i=0;i<samples.length;i++){let best=0,bd=Infinity;for(let s=0;s<4;s++){const d=Math.abs(samples[i]-means[s]);if(d<bd){bd=d;best=s;}}sym[i]=best;}return {bytes:dataSymbolsToBytes(sym,grid),quality};}
+function decodeWithH(frame,grid,H){const d=decodeSamples(sampleGridByHomography(frame,grid,H),grid);if(!d)return null;const p=parseFrame(d.bytes);if(p?.bad)return {bad:true,quality:d.quality};if(p)return {parsed:p,quality:d.quality};return {quality:d.quality};}
+function nominalFallbackH(){const v=$('video'),aim=document.querySelector('.aim'),vr=v.getBoundingClientRect(),ar=aim.getBoundingClientRect();const x0=ar.left-vr.left,y0=ar.top-vr.top,x1=x0+ar.width,y1=y0+ar.height;return computeHomography([{x:0,y:0},{x:1,y:0},{x:0,y:1},{x:1,y:1}],[{x:x0,y:y0},{x:x1,y:y0},{x:x0,y:y1},{x:x1,y:y1}]);}
+function drawGuide(markers,H,state){const c=$('guideCanvas'),v=$('video');if(!c||!v.clientWidth)return;c.width=Math.round(v.clientWidth);c.height=Math.round(v.clientHeight);const ctx=c.getContext('2d');ctx.clearRect(0,0,c.width,c.height);if(markers){const colors={tl:'#00ffff',tr:'#ff00ff',bl:'#ffff00',br:'#00ff66'};for(const k of MARKER_KEYS){const m=markers[k];if(!m)continue;ctx.beginPath();ctx.arc(m.x,m.y,8,0,Math.PI*2);ctx.strokeStyle=colors[k];ctx.lineWidth=3;ctx.stroke();}}if(H){const pts=[[DATA_MIN,DATA_MIN],[DATA_MAX,DATA_MIN],[DATA_MAX,DATA_MAX],[DATA_MIN,DATA_MAX]].map(([x,y])=>mapPoint(H,x,y));ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.closePath();ctx.strokeStyle=state==='LOCK'?'#34d399':'#67e8f9';ctx.lineWidth=3;ctx.stroke();}}
+function setQuality(q,label){const el=$('lockQuality');if(!el)return;el.textContent=`${label} · ${q||0}%`;el.className='lock '+(label.startsWith('LOCK')?'good':q>=45?'mid':'');}
+function tryDecode(){const frame=captureFrame();if(!frame)return false;const g=+$('gridSize').value;if(trackedH&&trackAge<8){const r=decodeWithH(frame,g,trackedH);if(r?.parsed){trackAge++;setQuality(r.quality,'LOCK');drawGuide(null,trackedH,'LOCK');acceptFrame(r.parsed);return true;}if(r?.bad){rx.errors++;$('rxErrors').textContent=rx.errors;}trackAge=99;}const det=detectFiducials(frame);if(det.H){const r=decodeWithH(frame,g,det.H);drawGuide(det.markers,det.H,r?.parsed?'LOCK':'AUTOLOCK');if(r?.parsed){trackedH=det.H;trackAge=0;setQuality(Math.round((r.quality+det.quality)/2),'LOCK');acceptFrame(r.parsed);return true;}if(r?.bad){rx.errors++;$('rxErrors').textContent=rx.errors;}setQuality(Math.max(det.quality||0,r?.quality||0),'AUTOLOCK');return false;}drawGuide(det.markers||null,null,'SEARCH');const fallback=nominalFallbackH(),fr=decodeWithH(frame,g,fallback);if(fr?.parsed){trackedH=fallback;trackAge=0;setQuality(fr.quality,'LOCK MANUAL');drawGuide(null,fallback,'LOCK');acceptFrame(fr.parsed);return true;}setQuality(Math.round((det.found||0)*18),`BUSCANDO ${det.found||0}/4`);return false;}
 
-function renderFrame(raw,grid){
-  const c=$('pixelCanvas'); c.width=grid; c.height=grid;
-  const ctx=c.getContext('2d',{alpha:false});
-  const sym=rawToGridSymbols(raw,grid), img=ctx.createImageData(grid,grid);
-  for(let i=0;i<sym.length;i++){
-    const v=LEVELS[sym[i]],p=i*4;
-    img.data[p]=v;img.data[p+1]=v;img.data[p+2]=v;img.data[p+3]=255;
-  }
-  ctx.putImageData(img,0,0);
-}
-
-async function prepare(){
-  const f=$('fileInput').files[0];
-  if(!f){alert('Selecciona un archivo.');return}
-  const grid=+$('gridSize').value, cap=payloadCapacity(grid);
-  if(cap<32){alert('Grid demasiado pequeño.');return}
-  const fileBytes=new Uint8Array(await f.arrayBuffer());
-  const meta=enc.encode(JSON.stringify({name:f.name,type:f.type||'application/octet-stream',size:f.size,lastModified:f.lastModified}));
-  if(meta.length>65535){alert('Metadata demasiado grande.');return}
-  const packageBytes=concat(new Uint8Array(u16(meta.length)),meta,fileBytes);
-  const total=Math.ceil(packageBytes.length/cap), tid=randomId(), frames=[];
-  for(let i=0;i<total;i++){
-    const chunk=packageBytes.slice(i*cap,Math.min(packageBytes.length,(i+1)*cap));
-    frames.push(makeFrame(tid,i,total,chunk,grid));
-  }
-  prepared={f,grid,cap,tid,total,frames};
-  $('fileSize').textContent=fmtBytes(f.size);
-  $('frameCount').textContent=total;
-  $('capacity').textContent=cap+' B';
-  $('sendBtn').disabled=false;
-  log($('sendLog'),`Preparado ${f.name} · ${fmtBytes(f.size)} · ${total} frames · HPS2 Safe · ${grid}×${grid}`);
-}
-
-async function startSend(){
-  if(!prepared)return;
-  const fps=+$('fps').value, repeat=+$('repeat').value;
-  let i=0,r=0;
-  $('streamOverlay').style.display='flex';
-  try{if('wakeLock'in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch{}
-  const tick=()=>{
-    renderFrame(prepared.frames[i],prepared.grid);
-    $('streamMeta').textContent=`Frame ${i+1}/${prepared.total} · ${prepared.cap} B · ${fps} FPS · x${repeat}`;
-    r++;
-    if(r>=repeat){r=0;i=(i+1)%prepared.total;}
-  };
-  tick(); timer=setInterval(tick,1000/fps);
-}
-function stopSend(){
-  if(timer){clearInterval(timer);timer=null}
-  $('streamOverlay').style.display='none';
-  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}
-}
-
-function parseFrame(bytes){
-  if(bytes.length<26)return null;
-  for(let i=0;i<4;i++)if(bytes[i]!==MAGIC[i])return null;
-  if(bytes[4]!==VERSION)return null;
-  const grid=bytes[5],tid=readU32(bytes,6),index=readU32(bytes,10),total=readU32(bytes,14),len=readU16(bytes,18),expected=readU32(bytes,22);
-  if(total===0||index>=total||len>bytes.length-26)return null;
-  const chunk=bytes.slice(26,26+len);
-  if(crc32(chunk)!==expected)return {bad:true};
-  return {grid,tid,index,total,chunk};
-}
-
-function captureFrame(){
-  const v=$('video'), c=$('capture');
-  if(!v.videoWidth||!v.clientWidth)return null;
-  const w=Math.max(1,Math.round(v.clientWidth)), h=Math.max(1,Math.round(v.clientHeight));
-  c.width=w;c.height=h;
-  const ctx=c.getContext('2d',{willReadFrequently:true});
-  ctx.drawImage(v,0,0,w,h);
-  return {w,h,data:ctx.getImageData(0,0,w,h).data};
-}
-
-function nominalGridBox(){
-  const v=$('video'), aim=document.querySelector('.aim');
-  const vr=v.getBoundingClientRect(), ar=aim.getBoundingClientRect();
-  const shellX=ar.left-vr.left, shellY=ar.top-vr.top, shellW=ar.width, shellH=ar.height;
-  return {
-    cx:shellX+shellW/2,
-    cy:shellY+shellH/2,
-    side:Math.min(shellW,shellH)*0.944
-  };
-}
-
-function luminanceAt(frame,x,y,rad){
-  const {w,h,data}=frame;
-  const xi=Math.round(x), yi=Math.round(y);
-  let sum=0,n=0;
-  for(let yy=Math.max(0,yi-rad);yy<=Math.min(h-1,yi+rad);yy++){
-    let p=(yy*w+Math.max(0,xi-rad))*4;
-    for(let xx=Math.max(0,xi-rad);xx<=Math.min(w-1,xi+rad);xx++,p+=4){
-      sum+=(data[p]+data[p+1]+data[p+2])/3;n++;
-    }
-  }
-  return sum/Math.max(1,n);
-}
-
-function sampleGrid(frame,grid,opts){
-  const box=nominalGridBox(), cell=(box.side*opts.scale)/grid;
-  const side=cell*grid;
-  const x0=box.cx-side/2+opts.dx*cell, y0=box.cy-side/2+opts.dy*cell;
-  const rad=Math.max(0,Math.min(2,Math.floor(cell*0.12)));
-  const samples=new Float32Array(grid*grid);
-  let k=0;
-  const a=opts.angle||0, ca=Math.cos(a), sa=Math.sin(a), cx=box.cx, cy=box.cy;
-  for(let y=0;y<grid;y++)for(let x=0;x<grid;x++){
-    let px=x0+(x+.5)*cell, py=y0+(y+.5)*cell;
-    if(a){const rx=px-cx,ry=py-cy;px=cx+rx*ca-ry*sa;py=cy+rx*sa+ry*ca;}
-    samples[k++]=luminanceAt(frame,px,py,rad);
-  }
-  return samples;
-}
-
-function decodeSamples(samples,grid){
-  const pilots=pilotEntries(grid), sums=[0,0,0,0], counts=[0,0,0,0];
-  for(const [idx,s] of pilots){sums[s]+=samples[idx];counts[s]++;}
-  const means=sums.map((v,i)=>v/Math.max(1,counts[i]));
-  if(!(means[0]+8<means[1] && means[1]+8<means[2] && means[2]+8<means[3])) return null;
-
-  let pilotErr=0;
-  for(const [idx,s] of pilots) pilotErr+=Math.abs(samples[idx]-means[s]);
-  pilotErr/=pilots.length;
-  const separation=Math.min(means[1]-means[0],means[2]-means[1],means[3]-means[2]);
-  const quality=Math.max(0,100-Math.round(pilotErr*2.2)-Math.max(0,25-Math.round(separation)));
-
-  const sym=new Uint8Array(samples.length);
-  for(let i=0;i<samples.length;i++){
-    let best=0,bd=Infinity;
-    for(let s=0;s<4;s++){const d=Math.abs(samples[i]-means[s]);if(d<bd){bd=d;best=s;}}
-    sym[i]=best;
-  }
-  return {bytes:dataSymbolsToBytes(sym,grid),quality,pilotErr,separation};
-}
-
-function tryCandidate(frame,grid,opts){
-  const decoded=decodeSamples(sampleGrid(frame,grid,opts),grid);
-  if(!decoded)return null;
-  const parsed=parseFrame(decoded.bytes);
-  if(parsed?.bad)return {bad:true,quality:decoded.quality};
-  if(parsed)return {parsed,quality:decoded.quality};
-  return {quality:decoded.quality};
-}
-
-function tryDecode(){
-  const frame=captureFrame(); if(!frame)return false;
-  const g=+$('gridSize').value;
-  const offsets=[0,-0.14,0.14];
-  let bestQuality=0, sawBad=false;
-
-  let r=tryCandidate(frame,g,{dx:0,dy:0,scale:1,angle:0});
-  if(r?.parsed){setQuality(r.quality,'LOCK');acceptFrame(r.parsed);return true;}
-  if(r?.bad)sawBad=true;if(r?.quality)bestQuality=Math.max(bestQuality,r.quality);
-
-  for(const scale of [0.985,1.015]){
-    for(const dx of offsets)for(const dy of offsets){
-      r=tryCandidate(frame,g,{dx,dy,scale,angle:0});
-      if(r?.parsed){setQuality(r.quality,'LOCK');acceptFrame(r.parsed);return true;}
-      if(r?.bad)sawBad=true;if(r?.quality)bestQuality=Math.max(bestQuality,r.quality);
-    }
-  }
-
-  for(const angle of [-0.012,0.012]){
-    r=tryCandidate(frame,g,{dx:0,dy:0,scale:1,angle});
-    if(r?.parsed){setQuality(r.quality,'LOCK');acceptFrame(r.parsed);return true;}
-    if(r?.bad)sawBad=true;if(r?.quality)bestQuality=Math.max(bestQuality,r.quality);
-  }
-
-  if(sawBad){rx.errors++;$('rxErrors').textContent=rx.errors;}
-  setQuality(bestQuality,bestQuality>55?'CALIBRANDO':'BUSCANDO');
-  return false;
-}
-
-function setQuality(q,label){
-  const el=$('lockQuality'); if(!el)return;
-  el.textContent=`${label} · ${q||0}%`;
-  el.className='lock '+(q>=70?'good':q>=45?'mid':'');
-}
-
-function acceptFrame(p){
-  if(rx.id!==null&&rx.id!==p.tid){
-    rx={id:p.tid,total:p.total,chunks:new Map(),errors:rx.errors,lastGood:Date.now()};
-    log($('rxLog'),'Nueva transferencia detectada; reiniciando buffer.');
-  }
-  if(rx.id===null){
-    rx.id=p.tid;rx.total=p.total;
-    log($('rxLog'),`Transferencia ${p.tid.toString(16)} detectada · ${p.total} frames`);
-  }
-  if(!rx.chunks.has(p.index)){
-    rx.chunks.set(p.index,p.chunk);
-    $('rxFrames').textContent=rx.chunks.size;$('rxTotal').textContent=rx.total;
-    $('rxBar').style.width=((rx.chunks.size/rx.total)*100).toFixed(1)+'%';
-    log($('rxLog'),`Frame ${p.index+1}/${p.total} OK`);
-  }
-  rx.lastGood=Date.now();
-  if(rx.chunks.size===rx.total)finishReceive();
-}
-
-function finishReceive(){
-  const parts=[];for(let i=0;i<rx.total;i++){if(!rx.chunks.has(i))return;parts.push(rx.chunks.get(i))}
-  const pkg=concat(...parts), ml=readU16(pkg,0);
-  if(ml<=0||ml>pkg.length-2){log($('rxLog'),'Metadata inválida.');return}
-  let meta;
-  try{meta=JSON.parse(dec.decode(pkg.slice(2,2+ml)))}catch{log($('rxLog'),'No se pudo leer metadata.');return}
-  const data=pkg.slice(2+ml,2+ml+meta.size), blob=new Blob([data],{type:meta.type||'application/octet-stream'}), url=URL.createObjectURL(blob);
-  const box=$('receivedBox');box.style.display='block';
-  box.innerHTML=`<b>✓ Archivo reconstruido</b><br><span class="mono">${escapeHtml(meta.name)}</span><br><span class="small">${fmtBytes(data.length)} · ${escapeHtml(meta.type)}</span><br><br><a class="btn good" style="display:inline-block;text-decoration:none" href="${url}" download="${escapeAttr(meta.name)}">Guardar archivo</a>`;
-  log($('rxLog'),`COMPLETO: ${meta.name} · ${fmtBytes(data.length)}`);
-}
+function acceptFrame(p){if(rx.id!==null&&rx.id!==p.tid){rx={id:p.tid,total:p.total,chunks:new Map(),errors:rx.errors,lastGood:Date.now()};log($('rxLog'),'Nueva transferencia detectada; reiniciando buffer.');}if(rx.id===null){rx.id=p.tid;rx.total=p.total;log($('rxLog'),`Transferencia ${p.tid.toString(16)} detectada · ${p.total} frames`);}if(!rx.chunks.has(p.index)){rx.chunks.set(p.index,p.chunk);$('rxFrames').textContent=rx.chunks.size;$('rxTotal').textContent=rx.total;$('rxBar').style.width=((rx.chunks.size/rx.total)*100).toFixed(1)+'%';log($('rxLog'),`Frame ${p.index+1}/${p.total} OK`);}rx.lastGood=Date.now();if(rx.chunks.size===rx.total)finishReceive();}
+function finishReceive(){const parts=[];for(let i=0;i<rx.total;i++){if(!rx.chunks.has(i))return;parts.push(rx.chunks.get(i));}const pkg=concat(...parts),ml=readU16(pkg,0);if(ml<=0||ml>pkg.length-2){log($('rxLog'),'Metadata inválida.');return}let meta;try{meta=JSON.parse(dec.decode(pkg.slice(2,2+ml)))}catch{log($('rxLog'),'No se pudo leer metadata.');return}const data=pkg.slice(2+ml,2+ml+meta.size),blob=new Blob([data],{type:meta.type||'application/octet-stream'}),url=URL.createObjectURL(blob),box=$('receivedBox');box.style.display='block';box.innerHTML=`<b>✓ Archivo reconstruido</b><br><span class="mono">${escapeHtml(meta.name)}</span><br><span class="small">${fmtBytes(data.length)} · ${escapeHtml(meta.type)}</span><br><br><a class="btn good" style="display:inline-block;text-decoration:none" href="${url}" download="${escapeAttr(meta.name)}">Guardar archivo</a>`;log($('rxLog'),`COMPLETO: ${meta.name} · ${fmtBytes(data.length)}`);}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function escapeAttr(s){return String(s).replace(/"/g,'')}
 
-async function startCamera(){
-  try{
-    cameraStream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:1280}},audio:false
-    });
-    $('video').srcObject=cameraStream; await $('video').play();
-    $('cameraBtn').disabled=true;$('stopCameraBtn').disabled=false;
-    log($('rxLog'),'Cámara activa. Usa Safe Mode: alinea el borde blanco exactamente con el cuadro cyan.');
-    scanTimer=setInterval(tryDecode,180);
-  }catch(e){
-    log($('rxLog'),'Error de cámara: '+e.message);
-    alert('No se pudo abrir la cámara. En iPhone/iPad debe ejecutarse desde HTTPS o como PWA instalada.');
-  }
-}
-function stopCamera(){
-  if(scanTimer){clearInterval(scanTimer);scanTimer=null}
-  if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}
-  $('video').srcObject=null;$('cameraBtn').disabled=false;$('stopCameraBtn').disabled=true;setQuality(0,'DETENIDO');
-}
+async function startCamera(){try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:1280}},audio:false});$('video').srcObject=cameraStream;await $('video').play();$('cameraBtn').disabled=true;$('stopCameraBtn').disabled=false;trackedH=null;trackAge=0;log($('rxLog'),'Cámara activa. AutoLock buscará los 4 marcadores; no necesitas encuadrar perfectamente.');scanTimer=setInterval(tryDecode,180);}catch(e){log($('rxLog'),'Error de cámara: '+e.message);alert('No se pudo abrir la cámara. En iPhone/iPad debe ejecutarse desde HTTPS o como PWA instalada.');}}
+function stopCamera(){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}$('video').srcObject=null;$('cameraBtn').disabled=false;$('stopCameraBtn').disabled=true;trackedH=null;const c=$('guideCanvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);setQuality(0,'BUSCANDO 0/4');}
 
-$('prepareBtn').onclick=prepare;
-$('sendBtn').onclick=startSend;
-$('closeStream').onclick=stopSend;
-$('cameraBtn').onclick=startCamera;
-$('stopCameraBtn').onclick=stopCamera;
+$('prepareBtn').onclick=prepare;$('sendBtn').onclick=startSend;$('closeStream').onclick=stopSend;$('cameraBtn').onclick=startCamera;$('stopCameraBtn').onclick=stopCamera;
 $('gridSize').onchange=()=>{$('capacity').textContent=payloadCapacity(+$('gridSize').value)+' B';$('sendBtn').disabled=true;};
 $('capacity').textContent=payloadCapacity(+$('gridSize').value)+' B';
-$('cameraChip').textContent=navigator.mediaDevices?.getUserMedia?'● Cámara: disponible':'○ Cámara: no disponible';
-$('cameraChip').className='chip '+(navigator.mediaDevices?.getUserMedia?'on':'off');
-$('wakeChip').textContent='wakeLock'in navigator?'● Wake Lock: disponible':'○ Wake Lock: no disponible';
-$('wakeChip').className='chip '+('wakeLock'in navigator?'on':'off');
-if('serviceWorker'in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+$('cameraChip').textContent=navigator.mediaDevices?.getUserMedia?'● Cámara: disponible':'○ Cámara: no disponible';$('cameraChip').className='chip '+(navigator.mediaDevices?.getUserMedia?'on':'off');
+$('wakeChip').textContent='wakeLock'in navigator?'● Wake Lock: disponible':'○ Wake Lock: no disponible';$('wakeChip').className='chip '+('wakeLock'in navigator?'on':'off');
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
