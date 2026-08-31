@@ -6,23 +6,24 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=042" />
+<link rel="stylesheet" href="styles.css?v=043" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
-    <div class="badge">MVP v0.4.2 · Color Assist</div>
+    <div class="badge">MVP v0.4.3 · Pass Hold</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HopperLink Transport Layer</h2>
-    <div class="sub">HPS4 hace una pasada, invierte pantalla/cámara, recibe ACK/NACK óptico y retransmite solo los frames faltantes. Color Assist normaliza los fiduciales para compensar exposición y balance de blancos.</div>
+    <div class="sub">HPS4 hace una pasada, retiene manualmente el último DATA para asegurar su lectura, después publica PASS_END con guarda extendida y continúa con ACK/NACK óptico y reparación selectiva.</div>
     <div class="transport">
       <span class="chip on">● PixelStream AutoLock</span>
       <span class="chip on">● HPS4 ARQ bidireccional</span>
       <span class="chip on">● NACK manual</span>
       <span class="chip on">● Color Assist adaptativo</span>
+      <span class="chip on">● Last Frame Hold</span>
       <span class="chip" id="phaseStatus">HPS4 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -32,7 +33,7 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Selecciona un archivo. Tras cada pasada, este dispositivo abre su cámara y espera el NACK o COMPLETE del receptor.</div>
+      <div class="sub">Selecciona un archivo. Al terminar cada pasada, HopperLink mantiene el último frame en pantalla sin límite de tiempo hasta que tú confirmes que el receptor lo alcanzó.</div>
       <div class="filebox"><input id="fileInput" type="file" /></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
@@ -56,14 +57,15 @@
         <button class="btn primary" id="repairStartBtn" style="display:none">Iniciar reparación</button>
       </div>
       <div class="small" id="speedHint" style="margin-top:10px">Lenta: máxima estabilidad · 1 frame nuevo/segundo.</div>
-      <div class="small" style="margin-top:5px">Al leer un NACK, Color Assist corrige automáticamente variaciones de cyan, magenta, amarillo y verde producidas por la cámara.</div>
+      <div class="small" style="margin-top:5px">Al llegar al último frame aparecerá “Último frame recibido · Continuar”. Déjalo visible hasta comprobar que el contador del receptor lo recibió.</div>
+      <div class="small" style="margin-top:5px">Al pulsar Continuar, PASS_END queda visible varios segundos y luego el emisor abre su cámara para leer el NACK persistente.</div>
       <div class="small" style="margin-top:5px">Cuando el emisor lea un NACK, espera a que el receptor pulse “NACK leído · continuar” y vuelva a cámara. Después pulsa “Iniciar reparación”.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / canal de retorno</h2>
-      <div class="sub">Primero recibe los datos. Al detectar fin de pasada muestra un NACK compacto con los frames faltantes o COMPLETE si ya tiene todo. El NACK no se cierra solo.</div>
+      <div class="sub">Primero recibe los datos. El último frame puede permanecer fijo todo el tiempo necesario. Después detecta PASS_END, genera el NACK compacto con faltantes o COMPLETE, y espera la reparación.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
@@ -86,7 +88,7 @@
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.4.2 · HPS4 · Color Assist adaptativo · fiduciales ampliados · NACK manual · reparación selectiva · COMPLETE con CRC · 1×/2×/4×/8×.</div>
+  <div class="footer">PixelStream v0.4.3 · HPS4 · último DATA retenido manualmente · PASS_END con guarda de 3 s · Color Assist · NACK manual · reparación selectiva · COMPLETE con CRC · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
@@ -104,11 +106,12 @@
     <span class="finder f-br" aria-hidden="true"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">HPS4 cambia de dirección: datos → NACK/COMPLETE → reparación selectiva.</div>
+  <div class="streamBottom" id="streamBottom">HPS4 cambia de dirección: datos → último frame retenido → PASS_END → NACK/COMPLETE → reparación selectiva.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="manual-arq.js?v=042"></script>
-<script src="color-assist.js?v=042"></script>
-<script src="hps4.js?v=042"></script>
+<script src="manual-arq.js?v=043"></script>
+<script src="color-assist.js?v=043"></script>
+<script src="pass-hold.js?v=043"></script>
+<script src="hps4.js?v=043"></script>
 </body>
 </html>
