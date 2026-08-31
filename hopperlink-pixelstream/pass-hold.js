@@ -1,122 +1,52 @@
 (() => {
 'use strict';
-
-const baseSetInterval = window.setInterval.bind(window);
-const baseSetTimeout = window.setTimeout.bind(window);
-const $ = id => document.getElementById(id);
-
-let heldPass = null;
-let continueBtn = null;
-
-function ensureButton(){
-  if(continueBtn) return continueBtn;
-  const row = document.querySelector('#streamOverlay .streamTop .row');
-  if(!row) return null;
-  continueBtn = document.createElement('button');
-  continueBtn.type = 'button';
-  continueBtn.id = 'passContinueBtn';
-  continueBtn.className = 'btn good';
-  continueBtn.textContent = 'Último frame recibido · Continuar';
-  continueBtn.style.display = 'none';
-  row.insertBefore(continueBtn, row.firstChild);
-  continueBtn.addEventListener('click', continuePass);
-  return continueBtn;
+const baseSetInterval=window.setInterval.bind(window);
+const baseClearInterval=window.clearInterval.bind(window);
+const baseSetTimeout=window.setTimeout.bind(window);
+const $=id=>document.getElementById(id);
+let held=null,btn=null;
+function ensure(){if(btn)return btn;const row=document.querySelector('#streamOverlay .streamTop .row');if(!row)return null;btn=document.createElement('button');btn.type='button';btn.id='passContinueBtn';btn.className='btn good';btn.textContent='Último frame recibido · Continuar';btn.style.display='none';row.insertBefore(btn,row.firstChild);btn.addEventListener('click',resume);return btn;}
+function phase(t){const e=$('phaseStatus');if(e){e.textContent=t;e.className='chip mid';}}
+function show(){const b=ensure();if(b)b.style.display='inline-flex';if($('streamBottom'))$('streamBottom').textContent='Último DATA retenido. Confirma que el receptor lo contó y pulsa Continuar.';phase('ÚLTIMO FRAME · ESPERANDO CONTINUAR');}
+function hide(){const b=ensure();if(b)b.style.display='none';}
+function last(meta){const m=String(meta||'').match(/Frame\s+(\d+)\/(\d+)/i);return !!m&&+m[1]===+m[2];}
+function resume(){if(!held)return;const h=held;held=null;hide();h.active=false;
+  // Reanudar el MISMO intervalo; no ejecutar el callback a mano. Esto preserva
+  // exactamente el estado interno pos/rep/inEnd de HPS4 y garantiza PASS_END.
+  h.resumeRequested=true;
+  if($('streamBottom'))$('streamBottom').textContent='Finalizando último DATA y publicando PASS_END…';phase('FINALIZANDO PASADA');
 }
-
-function setPhaseText(text){
-  const el = $('phaseStatus');
-  if(el){
-    el.textContent = text;
-    el.className = 'chip mid';
-  }
-}
-
-function showHold(){
-  const btn = ensureButton();
-  if(btn) btn.style.display = 'inline-flex';
-  const bottom = $('streamBottom');
-  if(bottom) bottom.textContent = 'Último DATA retenido. Comprueba en el receptor que llegó; luego pulsa “Continuar”. No hay límite de tiempo.';
-  setPhaseText('ÚLTIMO FRAME · ESPERANDO CONTINUAR');
-}
-
-function hideHold(){
-  const btn = ensureButton();
-  if(btn) btn.style.display = 'none';
-}
-
-function isLastDataMeta(meta){
-  const m = String(meta || '').match(/Frame\s+(\d+)\/(\d+)/i);
-  return !!m && Number(m[1]) === Number(m[2]);
-}
-
-function continuePass(){
-  if(!heldPass) return;
-  const current = heldPass;
-  current.active = false;
-  hideHold();
-
-  // Completa las repeticiones pendientes del último DATA y avanza hasta que
-  // HPS4 dibuje PASS_END. El bucle es pequeño porque repeat=3 actualmente.
-  for(let i=0;i<8;i++){
-    try{ current.fn(); }catch(e){ break; }
-    const meta = $('streamMeta')?.textContent || '';
-    if(/^Fin de pasada/i.test(meta)) break;
-  }
-
-  heldPass = null;
-  const bottom = $('streamBottom');
-  if(bottom) bottom.textContent = 'PASS_END visible. El receptor tiene varios segundos para detectarlo; después el emisor abrirá su cámara para leer el NACK.';
-  setPhaseText('PASS_END · SINCRONIZANDO');
-}
-
-// HPS4 crea un setInterval cuyo callback contiene buildDataPacket(idx,round).
-// Lo envolvemos para congelarlo en cuanto aparece por primera vez el último DATA.
-window.setInterval = function(fn, delay, ...args){
-  if(typeof fn === 'function'){
-    const source = Function.prototype.toString.call(fn);
-    if(source.includes('buildDataPacket(idx,round)') && source.includes('inEnd')){
-      let intervalId;
-      const wrapped = (...cbArgs) => {
-        if(heldPass?.intervalId === intervalId && heldPass.active) return;
-        fn(...cbArgs);
-        const meta = $('streamMeta')?.textContent || '';
-        if(!heldPass && isLastDataMeta(meta)){
-          heldPass = {intervalId, fn: () => fn(...cbArgs), active:true};
-          showHold();
-        }
-      };
-      intervalId = baseSetInterval(wrapped, delay, ...args);
-      return intervalId;
+window.setInterval=function(fn,delay,...args){
+ if(typeof fn==='function'){
+  const src=Function.prototype.toString.call(fn);
+  if(src.includes('buildDataPacket(idx,round)')&&src.includes('inEnd')){
+   let id;let localHold=false;let resumeRequested=false;
+   const wrapped=(...cb)=>{
+    if(localHold&&!resumeRequested)return;
+    fn(...cb);
+    const meta=$('streamMeta')?.textContent||'';
+    if(!localHold&&last(meta)){
+      localHold=true;resumeRequested=false;
+      held={intervalId:id,active:true,get resumeRequested(){return resumeRequested},set resumeRequested(v){resumeRequested=v;},};
+      show();return;
     }
-  }
-  return baseSetInterval(fn, delay, ...args);
-};
-
-// HPS4 antes cambiaba a cámara 120 ms después de terminar PASS_END. Extendemos
-// ese periodo para que PASS_END quede visible varios segundos y sea prácticamente
-// imposible perderlo. El NACK ya es persistente en v0.4.1, por lo que puede esperar.
-window.setTimeout = function(fn, delay, ...args){
-  if(typeof fn === 'function'){
-    const source = Function.prototype.toString.call(fn);
-    if(Number(delay) === 120 && source.includes("startCamera('senderAck')")){
-      const meta = $('streamMeta');
-      if(meta) meta.textContent = 'PASS_END · esperando detección del receptor…';
-      setPhaseText('PASS_END · 3s DE GUARDA');
-      return baseSetTimeout(fn, 3000, ...args);
+    if(localHold&&resumeRequested){
+      // Dejar correr ticks hasta que el motor cambie a Fin de pasada.
+      if(/^Fin de pasada/i.test(meta)){
+        localHold=false;resumeRequested=false;hide();
+        if($('streamBottom'))$('streamBottom').textContent='PASS_END visible. El receptor debe detectarlo y generar NACK/COMPLETE.';
+        phase('PASS_END · SINCRONIZANDO');
+      }
     }
+   };
+   id=baseSetInterval(wrapped,delay,...args);return id;
   }
-  return baseSetTimeout(fn, delay, ...args);
+ }
+ return baseSetInterval(fn,delay,...args);
 };
-
-// Si se pulsa Cerrar mientras estamos reteniendo el último DATA, lo tratamos
-// como Continuar para no dejar el protocolo suspendido accidentalmente.
-$('closeStream')?.addEventListener('click', e => {
-  if(!heldPass) return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  continuePass();
-}, true);
-
-window.addEventListener('pagehide', () => { heldPass = null; });
-window.__hopperPassHold = {version:'0.4.3', active:true};
+// El cambio a cámara del emisor se retrasa 4 s DESPUÉS de que HPS4 ya esté en PASS_END.
+window.setTimeout=function(fn,delay,...args){const src=typeof fn==='function'?Function.prototype.toString.call(fn):'';if(Number(delay)===120&&src.includes("startCamera('senderAck')")){if($('streamMeta'))$('streamMeta').textContent='PASS_END · esperando detección del receptor…';phase('PASS_END · 4s DE GUARDA');return baseSetTimeout(fn,4000,...args);}return baseSetTimeout(fn,delay,...args);};
+$('closeStream')?.addEventListener('click',e=>{if(!held)return;e.preventDefault();e.stopImmediatePropagation();resume();},true);
+window.addEventListener('pagehide',()=>{held=null;});
+window.__hopperPassHold={version:'0.4.4',active:true};
 })();
