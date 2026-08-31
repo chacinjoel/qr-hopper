@@ -6,17 +6,17 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=03" />
+<link rel="stylesheet" href="styles.css?v=031" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin librerías externas.</p></div>
-    <div class="badge">MVP v0.3 · AutoLock</div>
+    <div class="badge">MVP v0.3.1 · AutoLock + Speed</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HopperLink Transport Layer</h2><div class="sub">PixelStream v0.3 detecta automáticamente el área transmisora mediante cuatro fiduciales, corrige perspectiva y mantiene tracking entre frames.</div>
+    <h2>HopperLink Transport Layer</h2><div class="sub">PixelStream detecta automáticamente el área transmisora mediante cuatro fiduciales, corrige perspectiva y mantiene tracking entre frames.</div>
     <div class="transport">
       <span class="chip on">● PixelStream AutoLock: disponible</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -33,8 +33,13 @@
       <div class="filebox"><input id="fileInput" type="file" /></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
-        <div><label>FPS</label><br><select id="fps"><option selected>3</option><option>5</option><option>8</option><option>10</option></select></div>
-        <div><label>Repeticiones por frame</label><br><select id="repeat"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></div>
+        <div class="grow"><label>Velocidad de transferencia</label><br>
+          <select id="speedMode" style="width:100%">
+            <option value="slow" selected>Lenta · 1× actual</option>
+            <option value="normal">Normal · 2× actual</option>
+            <option value="fast">Rápida · 4× actual</option>
+          </select>
+        </div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -42,7 +47,8 @@
         <div class="stat"><b id="capacity">—</b><span>Payload/frame</span></div>
       </div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar PixelStream</button><button class="btn good" id="sendBtn" disabled>Emitir</button></div>
-      <div class="small" style="margin-top:10px">Para la primera prueba mantén Grid 32 · 3 FPS · x3. Ya no necesitas colocar el patrón exactamente dentro de la guía del receptor.</div>
+      <div class="small" id="speedHint" style="margin-top:10px">Lenta: máxima estabilidad · 1 frame nuevo/segundo · cada frame se muestra 3 veces.</div>
+      <div class="small" style="margin-top:5px">Ya no necesitas colocar el patrón exactamente dentro de la guía del receptor.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
@@ -66,7 +72,7 @@
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.3 AutoLock · HPS3 · 4 fiduciales de orientación · homografía/proyección · tracking ligero · 4 niveles ópticos · pilotos de luminancia · CRC32. El contenido todavía no está cifrado.</div>
+  <div class="footer">PixelStream v0.3.1 AutoLock · HPS3 · perfiles 1×/2×/4× · 4 fiduciales de orientación · homografía/proyección · tracking ligero · 4 niveles ópticos · pilotos de luminancia · CRC32.</div>
 </div>
 
 <div id="streamOverlay">
@@ -81,6 +87,6 @@
   <div class="streamBottom">Los cuatro marcadores permiten AutoLock incluso con desplazamiento, giro e inclinación moderada. Mantén los cuatro visibles.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="app.js?v=03"></script>
+<script src="app.js?v=031"></script>
 </body>
 </html>
