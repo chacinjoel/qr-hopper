@@ -6,25 +6,26 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=050">
+<link rel="stylesheet" href="styles.css?v=051">
+<link rel="stylesheet" href="fiducial-filter.css?v=051">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube.</p></div>
-    <div class="badge">MVP v0.5 · HPS5 StateFlow</div>
+    <div class="badge">MVP v0.5.1 · Camera Guard</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS5 · ARQ bidireccional determinista</h2>
-    <div class="sub">Sin temporizadores para cambiar de rol. HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos.</div>
+    <div class="sub">Sin temporizadores para cambiar de rol. HELLO, PASS_END, NACK y COMPLETE permanecen visibles hasta que ambos dispositivos estén listos. Camera Guard valida fiduciales por color, forma y geometría.</div>
     <div class="transport">
       <span class="chip on">● HPS5</span>
       <span class="chip on">● Header + payload CRC32</span>
       <span class="chip on">● Session Lock</span>
       <span class="chip on">● NACK bitmap</span>
       <span class="chip on">● Reparación selectiva</span>
-      <span class="chip on">● Color AutoLock</span>
+      <span class="chip on">● Camera Guard geométrico</span>
       <span class="chip" id="phaseStatus">HPS5 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -52,6 +53,7 @@
       </div>
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" style="margin-top:6px"><b>Flujo:</b> Handshake → DATA → PASS_END fijo → leer NACK/COMPLETE → reparación selectiva.</div>
+      <div class="small" style="margin-top:6px">Durante NACK/COMPLETE los controles del overlay son neutros para no confundirse con los cuatro fiduciales ópticos.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
@@ -63,7 +65,7 @@
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">Primero debe aparecer “Sesión bloqueada”. Después mantén visibles los cuatro marcadores hasta PASS_END.</div>
+        <div class="camHint">Camera Guard rechaza botones, objetos rectangulares y falsos colores; prioriza los cuatro marcadores cuadrados con centro oscuro.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -81,14 +83,14 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.5 · HPS5 StateFlow · HELLO / DATA / PASS_END / NACK / COMPLETE · CRC32 integral · reparación selectiva · 1×/2×/4×/8×.</div>
+  <div class="footer">PixelStream v0.5.1 · HPS5 StateFlow · Camera Guard geométrico · HELLO / DATA / PASS_END / NACK / COMPLETE · CRC32 integral · reparación selectiva · 1×/2×/4×/8×.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
     <div class="streamMeta" id="streamMeta">PixelStream HPS5</div>
     <div class="row">
-      <button class="btn good" id="overlayActionBtn" style="display:none"></button>
+      <button class="btn" id="overlayActionBtn" style="display:none"></button>
       <button class="btn danger" id="closeStream">Cancelar</button>
     </div>
   </div>
@@ -99,6 +101,7 @@
   <div class="streamBottom" id="streamBottom">HPS5 StateFlow</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="hps5.js?v=050"></script>
+<script src="fiducial-filter.js?v=051"></script>
+<script src="hps5.js?v=051"></script>
 </body>
 </html>
