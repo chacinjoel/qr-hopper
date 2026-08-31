@@ -6,19 +6,19 @@
 <meta name="theme-color" content="#080b12" />
 <link rel="manifest" href="manifest.json" />
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=02" />
+<link rel="stylesheet" href="styles.css?v=03" />
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin librerías externas.</p></div>
-    <div class="badge">MVP v0.2 · Safe Optical Transport</div>
+    <div class="badge">MVP v0.3 · AutoLock</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HopperLink Transport Layer</h2><div class="sub">El motor detecta canales disponibles. En este MVP PixelStream es el transporte activo; los demás quedan preparados como siguientes adaptadores.</div>
+    <h2>HopperLink Transport Layer</h2><div class="sub">PixelStream v0.3 detecta automáticamente el área transmisora mediante cuatro fiduciales, corrige perspectiva y mantiene tracking entre frames.</div>
     <div class="transport">
-      <span class="chip on">● PixelStream: disponible</span>
+      <span class="chip on">● PixelStream AutoLock: disponible</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
       <span class="chip off">○ BLE: siguiente fase</span>
@@ -29,7 +29,7 @@
 
   <div class="grid">
     <section class="card">
-      <h2>1. Emisor</h2><div class="sub">Selecciona un archivo. Se convierte en frames ópticos con CRC32 y se emite en bucle.</div>
+      <h2>1. Emisor</h2><div class="sub">Selecciona un archivo. HPS3 lo convierte en frames ópticos con pilotos internos, CRC32 y marcadores AutoLock.</div>
       <div class="filebox"><input id="fileInput" type="file" /></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
@@ -42,15 +42,18 @@
         <div class="stat"><b id="capacity">—</b><span>Payload/frame</span></div>
       </div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar PixelStream</button><button class="btn good" id="sendBtn" disabled>Emitir</button></div>
-      <div class="small" style="margin-top:10px">Safe Mode recomendado: Grid 32 · 3 FPS · x3. Brillo del emisor al máximo, 20–40 cm de distancia y pantalla perpendicular a la cámara.</div>
+      <div class="small" style="margin-top:10px">Para la primera prueba mantén Grid 32 · 3 FPS · x3. Ya no necesitas colocar el patrón exactamente dentro de la guía del receptor.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
-      <h2>2. Receptor</h2><div class="sub">Abre la cámara del segundo dispositivo y alinea el cuadrado PixelStream dentro de la guía.</div>
+      <h2>2. Receptor</h2><div class="sub">Apunta aproximadamente hacia PixelStream. AutoLock busca cyan, magenta, amarillo y verde, calcula la perspectiva y encuentra la cuadrícula por sí solo.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
-        <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO · 0%</div><div class="camHint">Alinea las 4 esquinas del borde blanco con el cuadro cyan. No llenes toda la cámara.</div>
+        <canvas id="guideCanvas"></canvas>
+        <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
+        <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
+        <div class="camHint">Solo apunta al patrón. La guía cyan es un fallback manual; AutoLock no exige alineación perfecta.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -63,15 +66,21 @@
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.2 Safe usa 4 niveles ópticos (2 bits/celda), 32 celdas piloto de calibración, tolerancia de alineación, frames repetidos y CRC32. No cifra el contenido todavía: no lo uses con datos sensibles.</div>
+  <div class="footer">PixelStream v0.3 AutoLock · HPS3 · 4 fiduciales de orientación · homografía/proyección · tracking ligero · 4 niveles ópticos · pilotos de luminancia · CRC32. El contenido todavía no está cifrado.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream</div><button class="btn danger" id="closeStream">Cerrar</button></div>
-  <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
-  <div class="streamBottom">Mantén la pantalla estable. El receptor puede empezar en cualquier punto: los frames se repiten en bucle.</div>
+  <div class="pixelFrame">
+    <span class="finder f-tl" aria-hidden="true"></span>
+    <span class="finder f-tr" aria-hidden="true"></span>
+    <span class="finder f-bl" aria-hidden="true"></span>
+    <span class="finder f-br" aria-hidden="true"></span>
+    <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
+  </div>
+  <div class="streamBottom">Los cuatro marcadores permiten AutoLock incluso con desplazamiento, giro e inclinación moderada. Mantén los cuatro visibles.</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="app.js?v=02"></script>
+<script src="app.js?v=03"></script>
 </body>
 </html>
