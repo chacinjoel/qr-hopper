@@ -1,5 +1,5 @@
-const CACHE='hopperlink-pixelstream-v032';
-const ASSETS=['./','./index.html','./styles.css?v=032','./app.js?v=032','./sender-fix.js?v=032','./manifest.json'];
+const CACHE='hopperlink-pixelstream-v033';
+const ASSETS=['./','./index.html','./styles.css?v=033','./app.js?v=033','./sender-fix.js?v=033','./transfer-metrics.js?v=033','./manifest.json'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([
   self.clients.claim(),
