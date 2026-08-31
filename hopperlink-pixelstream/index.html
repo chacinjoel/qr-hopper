@@ -12,7 +12,7 @@
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin librerías externas.</p></div>
-    <div class="badge">MVP v0.1 · Optical Transport</div>
+    <div class="badge">MVP v0.2 · Safe Optical Transport</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
@@ -32,9 +32,9 @@
       <h2>1. Emisor</h2><div class="sub">Selecciona un archivo. Se convierte en frames ópticos con CRC32 y se emite en bucle.</div>
       <div class="filebox"><input id="fileInput" type="file" /></div>
       <div class="row" style="margin-top:12px">
-        <div><label>Grid</label><br><select id="gridSize"><option>32</option><option>40</option><option selected>48</option><option>56</option></select></div>
-        <div><label>FPS</label><br><select id="fps"><option>3</option><option>5</option><option selected>8</option><option>10</option></select></div>
-        <div><label>Repeticiones por frame</label><br><select id="repeat"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
+        <div><label>Grid</label><br><select id="gridSize"><option selected>32</option><option>40</option><option>48</option><option>56</option></select></div>
+        <div><label>FPS</label><br><select id="fps"><option selected>3</option><option>5</option><option>8</option><option>10</option></select></div>
+        <div><label>Repeticiones por frame</label><br><select id="repeat"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -42,7 +42,7 @@
         <div class="stat"><b id="capacity">—</b><span>Payload/frame</span></div>
       </div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar PixelStream</button><button class="btn good" id="sendBtn" disabled>Emitir</button></div>
-      <div class="small" style="margin-top:10px">Para mejor lectura: brillo alto, pantalla perpendicular a la cámara y evita reflejos fuertes.</div>
+      <div class="small" style="margin-top:10px">Safe Mode recomendado: Grid 32 · 3 FPS · x3. Brillo del emisor al máximo, 20–40 cm de distancia y pantalla perpendicular a la cámara.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
@@ -50,7 +50,7 @@
       <h2>2. Receptor</h2><div class="sub">Abre la cámara del segundo dispositivo y alinea el cuadrado PixelStream dentro de la guía.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
-        <div class="aim"></div><div class="camHint">Alinea el borde blanco del emisor con el cuadro cyan.</div>
+        <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO · 0%</div><div class="camHint">Alinea las 4 esquinas del borde blanco con el cuadro cyan. No llenes toda la cámara.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -63,7 +63,7 @@
       <div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.1 usa 4 niveles ópticos (2 bits/celda), frames repetidos y verificación CRC32. No cifra el contenido todavía: no lo uses con datos sensibles.</div>
+  <div class="footer">PixelStream v0.2 Safe usa 4 niveles ópticos (2 bits/celda), 32 celdas piloto de calibración, tolerancia de alineación, frames repetidos y CRC32. No cifra el contenido todavía: no lo uses con datos sensibles.</div>
 </div>
 
 <div id="streamOverlay">
