@@ -5,9 +5,10 @@ const LEVELS=[26,92,164,236];
 const MAGIC=[0x48,0x50,0x53,0x33];
 const VERSION=3, PILOT_CELLS=32;
 const SPEED_PROFILES={
-  slow:{label:'Lenta',mult:1,fps:3,repeat:3,uniqueFps:1},
-  normal:{label:'Normal',mult:2,fps:6,repeat:3,uniqueFps:2},
-  fast:{label:'Rápida',mult:4,fps:12,repeat:3,uniqueFps:4}
+  slow:{label:'Lenta',mult:1,fps:3,repeat:3,uniqueFps:1,hint:'Lenta: máxima estabilidad · 1 frame nuevo/segundo · cada frame se muestra 3 veces.'},
+  normal:{label:'Normal',mult:2,fps:6,repeat:3,uniqueFps:2,hint:'Normal: 2× · 2 frames nuevos/segundo · equilibrio entre velocidad y estabilidad.'},
+  fast:{label:'Rápida',mult:4,fps:12,repeat:3,uniqueFps:4,hint:'Rápida: 4× · 4 frames nuevos/segundo · requiere AutoLock estable.'},
+  ultra:{label:'Experimental',mult:8,fps:24,repeat:3,uniqueFps:8,hint:'Experimental: 8× · 8 frames nuevos/segundo · puede perder frames según cámara, pantalla y movimiento.'}
 };
 let tx=null, txTimer=null, txWake=null;
 const enc=new TextEncoder();
@@ -27,6 +28,7 @@ function makeFrame(tid,index,total,chunk,grid){const h=new Uint8Array(22);h.set(
 function rawToGridSymbols(raw,grid){const total=grid*grid,out=new Uint8Array(total),pilots=pilotMap(grid);for(const [idx,s] of pilots)out[idx]=s;let bp=0,shift=6;for(let i=0;i<total;i++){if(pilots.has(i))continue;if(bp<raw.length){out[i]=(raw[bp]>>shift)&3;shift-=2;if(shift<0){shift=6;bp++;}}else out[i]=0;}return out;}
 function renderFrame(raw,grid){const c=$('pixelCanvas');if(!c)throw new Error('Canvas del emisor no encontrado');const ctx=c.getContext('2d',{alpha:false});if(!ctx)throw new Error('Canvas 2D no disponible');c.width=grid;c.height=grid;const sym=rawToGridSymbols(raw,grid),img=ctx.createImageData(grid,grid);for(let i=0;i<sym.length;i++){const v=LEVELS[sym[i]],p=i*4;img.data[p]=v;img.data[p+1]=v;img.data[p+2]=v;img.data[p+3]=255;}ctx.putImageData(img,0,0);}
 function speedProfile(){return SPEED_PROFILES[$('speedMode')?.value]||SPEED_PROFILES.slow;}
+function updateHint(){const el=$('speedHint');if(el)el.textContent=speedProfile().hint;}
 async function prepareSafe(){
  try{
   stopSafe(false);
@@ -56,10 +58,12 @@ function startSafe(){
  }catch(e){log('ERROR al emitir: '+(e?.message||e));alert('Error al iniciar PixelStream: '+(e?.message||e));}
 }
 function stopSafe(hide=true){if(txTimer){clearInterval(txTimer);txTimer=null;}if(hide&&$('streamOverlay'))$('streamOverlay').style.display='none';document.body.style.overflow='';if(txWake){Promise.resolve(txWake.release?.()).catch(()=>{});txWake=null;}}
-const prep=$('prepareBtn'),send=$('sendBtn'),close=$('closeStream');
+const prep=$('prepareBtn'),send=$('sendBtn'),close=$('closeStream'),speed=$('speedMode');
 if(prep)prep.onclick=prepareSafe;
 if(send)send.onclick=startSafe;
 if(close)close.onclick=()=>stopSafe(true);
+if(speed)speed.onchange=updateHint;
+updateHint();
 window.addEventListener('pagehide',()=>stopSafe(false));
-log('Emisor fail-safe v0.3.2 cargado.');
+log('Emisor fail-safe v0.3.3 cargado.');
 })();
