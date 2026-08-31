@@ -12,6 +12,11 @@ const DATA_MAX = 0.88;
 const MARKER_NORM = {tl:[0.06,0.06],tr:[0.94,0.06],bl:[0.06,0.94],br:[0.94,0.94]};
 const MARKER_KEYS = ['tl','tr','bl','br'];
 const TARGET_HUES = {tl:180,tr:300,bl:60,br:144};
+const SPEED_PROFILES = {
+  slow:   {label:'Lenta',  mult:1, fps:3,  repeat:3, uniqueFps:1, hint:'Lenta: máxima estabilidad · 1 frame nuevo/segundo · cada frame se muestra 3 veces.'},
+  normal: {label:'Normal', mult:2, fps:6,  repeat:3, uniqueFps:2, hint:'Normal: 2× la velocidad actual · 2 frames nuevos/segundo · equilibrio entre velocidad y estabilidad.'},
+  fast:   {label:'Rápida', mult:4, fps:12, repeat:3, uniqueFps:4, hint:'Rápida: 4× la velocidad actual · 4 frames nuevos/segundo · requiere buen AutoLock y poca vibración.'}
+};
 
 let prepared=null,timer=null,wakeLock=null,cameraStream=null,scanTimer=null;
 let trackedH=null,trackAge=0,lastMarkerCount=0;
@@ -28,6 +33,8 @@ function crc32(bytes){let c=0xFFFFFFFF;for(const b of bytes)c=crcTable[(c^b)&255
 function concat(...arrs){const n=arrs.reduce((s,a)=>s+a.length,0),o=new Uint8Array(n);let p=0;for(const a of arrs){o.set(a,p);p+=a.length}return o}
 function randomId(){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]>>>0}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function speedProfile(){return SPEED_PROFILES[$('speedMode')?.value]||SPEED_PROFILES.slow;}
+function updateSpeedHint(){const p=speedProfile();if($('speedHint'))$('speedHint').textContent=p.hint;}
 
 function pilotEntries(grid){const out=[];const add=(row,colStart,pattern)=>{for(let i=0;i<8;i++)out.push([row*grid+colStart+i,pattern[i]])};add(0,0,[0,1,2,3,0,1,2,3]);add(0,grid-8,[3,2,1,0,3,2,1,0]);add(grid-1,0,[1,3,0,2,1,3,0,2]);add(grid-1,grid-8,[2,0,3,1,2,0,3,1]);return out;}
 function pilotMap(grid){return new Map(pilotEntries(grid));}
@@ -38,8 +45,8 @@ function rawToGridSymbols(raw,grid){const total=grid*grid,out=new Uint8Array(tot
 function dataSymbolsToBytes(sym,grid){const pilots=pilotMap(grid),data=[];for(let i=0;i<sym.length;i++)if(!pilots.has(i))data.push(sym[i]);const n=Math.floor(data.length/4),out=new Uint8Array(n);for(let i=0;i<n;i++)out[i]=(data[i*4]<<6)|(data[i*4+1]<<4)|(data[i*4+2]<<2)|data[i*4+3];return out;}
 function renderFrame(raw,grid){const c=$('pixelCanvas');c.width=grid;c.height=grid;const ctx=c.getContext('2d',{alpha:false}),sym=rawToGridSymbols(raw,grid),img=ctx.createImageData(grid,grid);for(let i=0;i<sym.length;i++){const v=LEVELS[sym[i]],p=i*4;img.data[p]=v;img.data[p+1]=v;img.data[p+2]=v;img.data[p+3]=255;}ctx.putImageData(img,0,0);}
 
-async function prepare(){const f=$('fileInput').files[0];if(!f){alert('Selecciona un archivo.');return}const grid=+$('gridSize').value,cap=payloadCapacity(grid);if(cap<32){alert('Grid demasiado pequeño.');return}const fileBytes=new Uint8Array(await f.arrayBuffer());const meta=enc.encode(JSON.stringify({name:f.name,type:f.type||'application/octet-stream',size:f.size,lastModified:f.lastModified}));if(meta.length>65535){alert('Metadata demasiado grande.');return}const pkg=concat(new Uint8Array(u16(meta.length)),meta,fileBytes),total=Math.ceil(pkg.length/cap),tid=randomId(),frames=[];for(let i=0;i<total;i++){const chunk=pkg.slice(i*cap,Math.min(pkg.length,(i+1)*cap));frames.push(makeFrame(tid,i,total,chunk,grid));}prepared={f,grid,cap,tid,total,frames};$('fileSize').textContent=fmtBytes(f.size);$('frameCount').textContent=total;$('capacity').textContent=cap+' B';$('sendBtn').disabled=false;log($('sendLog'),`Preparado ${f.name} · ${fmtBytes(f.size)} · ${total} frames · HPS3 AutoLock · ${grid}×${grid}`);}
-async function startSend(){if(!prepared)return;const fps=+$('fps').value,repeat=+$('repeat').value;let i=0,r=0;$('streamOverlay').style.display='flex';try{if('wakeLock'in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch{}const tick=()=>{renderFrame(prepared.frames[i],prepared.grid);$('streamMeta').textContent=`Frame ${i+1}/${prepared.total} · HPS3 AutoLock · ${fps} FPS · x${repeat}`;r++;if(r>=repeat){r=0;i=(i+1)%prepared.total;}};tick();timer=setInterval(tick,1000/fps);}
+async function prepare(){const f=$('fileInput').files[0];if(!f){alert('Selecciona un archivo.');return}const grid=+$('gridSize').value,cap=payloadCapacity(grid);if(cap<32){alert('Grid demasiado pequeño.');return}const fileBytes=new Uint8Array(await f.arrayBuffer());const meta=enc.encode(JSON.stringify({name:f.name,type:f.type||'application/octet-stream',size:f.size,lastModified:f.lastModified}));if(meta.length>65535){alert('Metadata demasiado grande.');return}const pkg=concat(new Uint8Array(u16(meta.length)),meta,fileBytes),total=Math.ceil(pkg.length/cap),tid=randomId(),frames=[];for(let i=0;i<total;i++){const chunk=pkg.slice(i*cap,Math.min(pkg.length,(i+1)*cap));frames.push(makeFrame(tid,i,total,chunk,grid));}prepared={f,grid,cap,tid,total,frames};$('fileSize').textContent=fmtBytes(f.size);$('frameCount').textContent=total;$('capacity').textContent=cap+' B';$('sendBtn').disabled=false;const sp=speedProfile();log($('sendLog'),`Preparado ${f.name} · ${fmtBytes(f.size)} · ${total} frames · HPS3 AutoLock · ${grid}×${grid} · ${sp.label} ${sp.mult}×`);}
+async function startSend(){if(!prepared)return;const sp=speedProfile(),fps=sp.fps,repeat=sp.repeat;let i=0,r=0;$('streamOverlay').style.display='flex';try{if('wakeLock'in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch{}const tick=()=>{renderFrame(prepared.frames[i],prepared.grid);$('streamMeta').textContent=`Frame ${i+1}/${prepared.total} · ${sp.label} ${sp.mult}× · ${sp.uniqueFps} frame${sp.uniqueFps===1?'':'s'} nuevo${sp.uniqueFps===1?'':'s'}/s`;r++;if(r>=repeat){r=0;i=(i+1)%prepared.total;}};tick();timer=setInterval(tick,1000/fps);}
 function stopSend(){if(timer){clearInterval(timer);timer=null}$('streamOverlay').style.display='none';if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}}
 
 function parseFrame(bytes){if(bytes.length<26)return null;for(let i=0;i<4;i++)if(bytes[i]!==MAGIC[i])return null;if(bytes[4]!==VERSION)return null;const grid=bytes[5],tid=readU32(bytes,6),index=readU32(bytes,10),total=readU32(bytes,14),len=readU16(bytes,18),expected=readU32(bytes,22);if(total===0||index>=total||len>bytes.length-26)return null;const chunk=bytes.slice(26,26+len);if(crc32(chunk)!==expected)return {bad:true};return {grid,tid,index,total,chunk};}
@@ -66,12 +73,14 @@ function finishReceive(){const parts=[];for(let i=0;i<rx.total;i++){if(!rx.chunk
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function escapeAttr(s){return String(s).replace(/"/g,'')}
 
-async function startCamera(){try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:1280}},audio:false});$('video').srcObject=cameraStream;await $('video').play();$('cameraBtn').disabled=true;$('stopCameraBtn').disabled=false;trackedH=null;trackAge=0;log($('rxLog'),'Cámara activa. AutoLock buscará los 4 marcadores; no necesitas encuadrar perfectamente.');scanTimer=setInterval(tryDecode,180);}catch(e){log($('rxLog'),'Error de cámara: '+e.message);alert('No se pudo abrir la cámara. En iPhone/iPad debe ejecutarse desde HTTPS o como PWA instalada.');}}
+async function startCamera(){try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:1280}},audio:false});$('video').srcObject=cameraStream;await $('video').play();$('cameraBtn').disabled=true;$('stopCameraBtn').disabled=false;trackedH=null;trackAge=0;log($('rxLog'),'Cámara activa. AutoLock buscará los 4 marcadores; no necesitas encuadrar perfectamente.');scanTimer=setInterval(tryDecode,120);}catch(e){log($('rxLog'),'Error de cámara: '+e.message);alert('No se pudo abrir la cámara. En iPhone/iPad debe ejecutarse desde HTTPS o como PWA instalada.');}}
 function stopCamera(){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null}$('video').srcObject=null;$('cameraBtn').disabled=false;$('stopCameraBtn').disabled=true;trackedH=null;const c=$('guideCanvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);setQuality(0,'BUSCANDO 0/4');}
 
 $('prepareBtn').onclick=prepare;$('sendBtn').onclick=startSend;$('closeStream').onclick=stopSend;$('cameraBtn').onclick=startCamera;$('stopCameraBtn').onclick=stopCamera;
 $('gridSize').onchange=()=>{$('capacity').textContent=payloadCapacity(+$('gridSize').value)+' B';$('sendBtn').disabled=true;};
+if($('speedMode'))$('speedMode').onchange=updateSpeedHint;
 $('capacity').textContent=payloadCapacity(+$('gridSize').value)+' B';
+updateSpeedHint();
 $('cameraChip').textContent=navigator.mediaDevices?.getUserMedia?'● Cámara: disponible':'○ Cámara: no disponible';$('cameraChip').className='chip '+(navigator.mediaDevices?.getUserMedia?'on':'off');
 $('wakeChip').textContent='wakeLock'in navigator?'● Wake Lock: disponible':'○ Wake Lock: no disponible';$('wakeChip').className='chip '+('wakeLock'in navigator?'on':'off');
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
