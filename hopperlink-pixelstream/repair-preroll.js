@@ -219,5 +219,5 @@ function install(){
 }
 
 install();
-window.__hopperRepairPreroll={version:'0.5.4',active:true,mode:'adaptive-repair-burst',firstFrameHoldMs:3000,passes:{lte100:3,lte300:2,gt300:1}};
+window.__hopperRepairPreroll={version:'0.5.5',active:true,mode:'adaptive-repair-burst',firstFrameHoldMs:3000,passes:{lte100:3,lte300:2,gt300:1}};
 })();
