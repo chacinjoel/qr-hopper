@@ -6,20 +6,20 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=096">
-<link rel="stylesheet" href="photometric-lock.css?v=096">
-<link rel="stylesheet" href="binary-stage.css?v=096">
+<link rel="stylesheet" href="styles.css?v=097">
+<link rel="stylesheet" href="photometric-lock.css?v=097">
+<link rel="stylesheet" href="binary-stage.css?v=097">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.6 · Auto Hybrid Control</div>
+    <div class="badge">MVP v0.9.7 · HAC5 Reliable Control</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Data Plane + Control seleccionable</h2>
-    <div class="sub">DATA sigue siendo óptico. El modo automático ya no intenta transportar el NACK completo por sonido: audio solo avisa READY y la selfie del emisor lee automáticamente el NACK/COMPLETE visual robusto del receptor.</div>
+    <div class="sub">DATA sigue siendo óptico. HAC5 devuelve NACK/COMPLETE por audio DTMF robusto en bloques con CRC16, compresión delta/rangos/Rice y paridad; el flash trasero del receptor se usa como FlashSync opcional hacia la selfie del emisor.</div>
     <div class="transport">
       <span class="chip on">● HPS7 ARQ</span>
       <span class="chip on">● Binary Tags Direct Geometry</span>
@@ -28,7 +28,7 @@
       <span class="chip on">● 372 B / bloque</span>
       <span class="chip on">● Closing Burst ≤500 ×3</span>
       <span class="chip on">● NACK Manual</span>
-      <span class="chip on">● Auto Hybrid</span>
+      <span class="chip on">● HAC5 Reliable</span>
       <span class="chip" id="controlChannelStatus">NACK MANUAL</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -39,13 +39,13 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">En Auto Hybrid, Preparar autoriza micrófono + selfie una sola vez. Al PASS_END el emisor espera un tono READY, abre la selfie, lee el control visual y arranca Repair automáticamente.</div>
+      <div class="sub">Elige el canal NACK antes de Preparar. En HAC5 se autoriza el micrófono y, si es posible, la selfie para detectar FlashSync; la lista exacta de faltantes viaja por audio y Repair comienza automáticamente.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="color3" selected>Stable Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option><option value="auto4">Experimental Color · 4-bit · 16 símbolos</option></select></div>
         <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Premium Stable · 12 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
-        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">Auto Hybrid · audio READY + selfie visual</option></select></div>
+        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">HAC5 Reliable · audio + FlashSync opcional</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -61,23 +61,23 @@
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
       <div class="small" style="margin-top:8px"><b>NACK manual:</b> conserva exactamente el flujo visual actual.</div>
-      <div class="small" style="margin-top:5px"><b>Auto Hybrid:</b> el receptor muestra el mismo NACK gris robusto y emite un tono READY corto. El emisor abre su selfie automáticamente y lo lee sin mover los teléfonos.</div>
-      <div class="small" style="margin-top:5px"><b>Cámara continua:</b> el receptor no apaga su cámara trasera mientras muestra el NACK. En cuanto el emisor termina de leerlo y muestra Repair, el receptor ya está listo para capturarlo.</div>
-      <div class="small" style="margin-top:5px"><b>Auto Repair:</b> al completar la lectura visual del NACK, el botón manual se omite y comienza Repair automáticamente.</div>
-      <div class="small" style="margin-top:5px"><b>Fallback:</b> si no se detecta READY, puedes continuar con el NACK visual manual sin perder bloques.</div>
+      <div class="small" style="margin-top:5px"><b>HAC5 Reliable:</b> usa tonos DTMF de banda de voz, comprime la lista de faltantes y la divide en bloques fijos protegidos con CRC16. Un bloque de paridad puede reconstruir un bloque de control perdido.</div>
+      <div class="small" style="margin-top:5px"><b>FlashSync:</b> si el navegador expone torch, el receptor pulsa su flash trasero al iniciar el control. La selfie del emisor lo detecta como sincronización auxiliar; HAC5 sigue funcionando por audio si torch no está disponible.</div>
+      <div class="small" style="margin-top:5px"><b>Auto Repair:</b> al validar sesión + ronda + CRC32 del NACK, el emisor inicia Repair automáticamente.</div>
+      <div class="small" style="margin-top:5px"><b>Fallback:</b> si HAC5 expira o no reconstruye el control, puedes continuar con NACK manual sin perder los bloques recibidos.</div>
       <div class="small" style="margin-top:5px"><b>Closing Burst:</b> si quedan 1–500 bloques, se hacen 3 ciclos normal → invertido → intercalado antes del siguiente PASS_END.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">En Auto Hybrid, el receptor mantiene la cámara trasera viva, muestra NACK/COMPLETE en su pantalla y emite únicamente la señal READY.</div>
+      <div class="sub">En HAC5 el receptor mantiene la cámara trasera apuntando a la pantalla del emisor mientras su bocina devuelve el NACK. No hay que voltear ni mover ningún teléfono.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div>
-        <div class="camHint">Busca TAGS 4/4 · IDs OK · ESTABLE. En Auto Hybrid no muevas los teléfonos durante NACK/Repair.</div>
+        <div class="camHint">Busca TAGS 4/4 · IDs OK · ESTABLE. En HAC5 no muevas los teléfonos durante NACK/Repair.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -95,26 +95,26 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.9.6 · Auto Hybrid audio READY + selfie visual control · 3-bit · 12 img/s.</div>
+  <div class="footer">PixelStream v0.9.7 · HAC5 Reliable DTMF + optional FlashSync · 3-bit · 12 img/s.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream Hybrid Control</div>
+    <div class="streamMeta" id="streamMeta">PixelStream HAC5 Control</div>
     <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">Auto Hybrid Control</div>
+  <div class="streamBottom" id="streamBottom">HAC5 Reliable Control</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=096"></script>
-<script src="binary-tag-bridge.js?v=096"></script>
-<script src="binary-tag-status.js?v=096"></script>
-<script src="safe-color-constellation.js?v=096"></script>
-<script src="hybrid-control.js?v=096"></script>
-<script src="hps7-runtime.js?v=096"></script>
+<script src="runtime-syntax-guard.js?v=097"></script>
+<script src="binary-tag-bridge.js?v=097"></script>
+<script src="binary-tag-status.js?v=097"></script>
+<script src="safe-color-constellation.js?v=097"></script>
+<script src="hac5-control.js?v=097"></script>
+<script src="hps7-runtime-hac5.js?v=097"></script>
 </body>
 </html>
