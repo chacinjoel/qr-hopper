@@ -63,8 +63,9 @@ jobs:
           const testBytes=new Uint8Array(1024*1024+321);for(let i=0;i<testBytes.length;i+=4096)testBytes[i]=i&255;
           els.fileInput.files=[{name:'prepare-smoke.bin',type:'application/octet-stream',size:testBytes.length,lastModified:Date.now(),arrayBuffer:async()=>testBytes.buffer.slice(0)}];
           const listeners={};
-          const doc={readyState:'complete',documentElement:{classList:new ClassList()},getElementById:id=>els[id]||null,querySelectorAll:()=>[],createElement:tag=>mk(tag),head:{appendChild(){}}};
-          const ctx={console,document:doc,navigator:{mediaDevices:{getUserMedia:async()=>{throw Error('camera not used in prepare smoke')}}},location:{protocol:'file:'},TextEncoder,TextDecoder,crypto:webcrypto,performance,CustomEvent:CE,MutationObserver:class{observe(){}},alert:()=>{},confirm:()=>true,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},requestAnimationFrame:cb=>setTimeout(()=>cb(performance.now()),0)};
+          const doc={readyState:'complete',body:{style:{}},documentElement:{classList:new ClassList()},getElementById:id=>els[id]||null,querySelectorAll:()=>[],createElement:tag=>mk(tag),head:{appendChild(){}}};
+          const ctxSetTimeout=(fn,ms,...args)=>ms>5000?0:setTimeout(fn,ms,...args);
+          const ctx={console,document:doc,navigator:{mediaDevices:{getUserMedia:async()=>{throw Error('camera not used in prepare smoke')}}},location:{protocol:'file:'},TextEncoder,TextDecoder,crypto:webcrypto,performance,CustomEvent:CE,MutationObserver:class{observe(){}},alert:()=>{},confirm:()=>true,setTimeout:ctxSetTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},requestAnimationFrame:cb=>setTimeout(()=>cb(performance.now()),0)};
           ctx.window=ctx;ctx.globalThis=ctx;ctx.addEventListener=(type,fn)=>(listeners[type]||(listeners[type]=[])).push(fn);ctx.dispatchEvent=e=>{for(const fn of listeners[e.type]||[])fn(e);return true};
           vm.createContext(ctx);
           const bad="else showNack(p.round,suggest);}}}\nfunction controlPayloadNack",good="else showNack(p.round,suggest);}}\nfunction controlPayloadNack",runnable=patched.includes(bad)?patched.replace(bad,good):patched;
