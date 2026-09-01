@@ -32,7 +32,6 @@ jobs:
           const core = fs.readFileSync(`${path}/hps7.js`, 'utf8');
           const acoustic = fs.readFileSync(`${path}/acoustic-control.js`, 'utf8');
 
-          // Extract only replaceOne + patchCore from the runtime; do not boot the browser app.
           const a = runtime.indexOf('function replaceOne');
           const b = runtime.indexOf('function loadScript');
           if (a < 0 || b < 0 || b <= a) throw new Error('Could not locate patchCore in runtime');
@@ -42,15 +41,13 @@ jobs:
           vm.runInContext(patchSnippet, patchCtx, { filename: 'runtime-patch-extract.js' });
           const patched = patchCtx.__patchCore(core);
 
-          // Raw generated source is useful diagnostically. If it compiles, great; otherwise the guard must repair it.
           let rawError = null;
           try { new Function(patched); } catch (e) { rawError = e; }
           console.log('Raw patched core:', rawError ? `needs guard (${rawError.message})` : 'compiles directly');
 
-          // Install only the one-shot guard section from acoustic-control.js.
           const guardEnd = acoustic.indexOf('const VERSION=1');
           if (guardEnd < 0) throw new Error('Could not locate acoustic syntax guard');
-          const guardCode = acoustic.slice(0, guardEnd);
+          const guardCode = acoustic.slice(0, guardEnd) + '\n})();';
           const events = [];
           const windowObj = {
             Function,
@@ -76,7 +73,6 @@ jobs:
           }
           console.log('Guarded HPS7 compile: PASS');
 
-          // Static protocol invariants for acoustic mode.
           for (const needle of [
             "controlMode==='acoustic'",
             'listenForAcousticControl',
