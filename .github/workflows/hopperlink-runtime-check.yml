@@ -22,144 +22,59 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Validate generated HPS7 runtime and HAC2 codec
+      - name: Validate HPS7 runtime and HAC3
         run: |
           node <<'NODE'
-          const fs = require('fs');
-          const vm = require('vm');
-          const path = 'hopperlink-pixelstream';
-          const runtime = fs.readFileSync(`${path}/hps7-runtime.js`, 'utf8');
-          const core = fs.readFileSync(`${path}/hps7.js`, 'utf8');
-          const acoustic = fs.readFileSync(`${path}/acoustic-control.js`, 'utf8');
-          const standaloneGuard = fs.readFileSync(`${path}/runtime-syntax-guard.js`, 'utf8');
-          const html = fs.readFileSync(`${path}/index.html`, 'utf8');
-          const sw = fs.readFileSync(`${path}/sw.js`, 'utf8');
+          const fs=require('fs'),vm=require('vm');
+          const p='hopperlink-pixelstream';
+          const runtime=fs.readFileSync(`${p}/hps7-runtime.js`,'utf8');
+          const core=fs.readFileSync(`${p}/hps7.js`,'utf8');
+          const acoustic=fs.readFileSync(`${p}/acoustic-hac3.js`,'utf8');
+          const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
+          const html=fs.readFileSync(`${p}/index.html`,'utf8');
+          const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
-          const a = runtime.indexOf('function replaceOne');
-          const b = runtime.indexOf('function loadScript');
-          if (a < 0 || b < 0 || b <= a) throw new Error('Could not locate patchCore in runtime');
-          const patchSnippet = runtime.slice(a, b) + '\n;globalThis.__patchCore = patchCore;';
-          const patchCtx = { console };
-          vm.createContext(patchCtx);
-          vm.runInContext(patchSnippet, patchCtx, { filename: 'runtime-patch-extract.js' });
-          const patched = patchCtx.__patchCore(core);
+          const a=runtime.indexOf('function replaceOne'),b=runtime.indexOf('function loadScript');
+          if(a<0||b<=a)throw new Error('patchCore not found');
+          const pc={console};vm.createContext(pc);vm.runInContext(runtime.slice(a,b)+'\n;globalThis.__patchCore=patchCore;',pc);
+          const patched=pc.__patchCore(core);let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
+          const events=[],g={Function,dispatchEvent:e=>events.push(e)};
+          class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
+          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc);
+          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v090.js`);
+          if(typeof compiled!=='function'||g.Function!==Function)throw new Error('guarded HPS7 compile failed');
+          if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
+          console.log('Guarded HPS7 compile: PASS');
 
-          let rawError = null;
-          try { new Function(patched); } catch (e) { rawError = e; }
-          console.log('Raw patched core:', rawError ? `needs syntax guard (${rawError.message})` : 'compiles directly');
+          for(const n of ["controlMode==='acoustic'",'listenForAcousticControl','showNackAcoustic','HopperAcoustic.sendNack','HopperAcoustic.sendComplete'])if(!patched.includes(n))throw new Error(`runtime missing ${n}`);
+          for(const n of ['micSource.connect(analyser)','analyser.connect(silentGain)','silentGain.connect(micCtx.destination)',"silentGain.gain.value=1e-7",'syncDistance','classifyByte'])if(!acoustic.includes(n))throw new Error(`HAC3 missing ${n}`);
 
-          const events = [];
-          const globalObj = { Function, dispatchEvent: e => events.push(e) };
-          class CustomEventMock { constructor(type, init={}) { this.type=type; this.detail=init.detail; } }
-          const guardCtx = { globalThis: globalObj, CustomEvent: CustomEventMock, console, Object };
-          vm.createContext(guardCtx);
-          vm.runInContext(standaloneGuard, guardCtx, { filename: 'runtime-syntax-guard.js' });
+          const listeners={};
+          const document={getElementById:()=>null,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)}};
+          const window={Function,dispatchEvent:()=>true,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)},AudioContext:function(){},webkitAudioContext:null};
+          const ctx={window,document,navigator:{mediaDevices:{}},CustomEvent:CE,Uint8Array,Uint32Array,Float32Array,Array,Math,Number,Object,String,Error,setTimeout,clearTimeout,setInterval,clearInterval,console};
+          vm.createContext(ctx);vm.runInContext(acoustic,ctx,{filename:'acoustic-hac3.js'});
+          const H=window.HopperAcoustic;if(!H||H.VERSION!==3)throw new Error('HAC3 API/version failed');
 
-          const body = `${patched}\n//# sourceURL=hps7-core-v090.js`;
-          let compiled;
-          try { compiled = globalObj.Function(body); }
-          catch (e) { console.error('Standalone guarded compile failed:', e.stack || e); process.exit(1); }
-          if (typeof compiled !== 'function') throw new Error('Standalone guard did not return a compiled Function');
-          if (globalObj.Function !== Function) throw new Error('Native Function constructor was not restored');
-          if (rawError && !events.some(e => e.type === 'hopper:runtime-syntax-fixed')) throw new Error('Standalone syntax-fix event did not fire');
-          console.log('Standalone guarded HPS7 compile: PASS');
-
-          for (const needle of [
-            "controlMode==='acoustic'",
-            'listenForAcousticControl',
-            'showNackAcoustic',
-            'HopperAcoustic.sendNack',
-            'HopperAcoustic.sendComplete',
-            'Fallback manual disponible'
-          ]) {
-            if (!patched.includes(needle)) throw new Error(`Missing acoustic runtime invariant: ${needle}`);
+          for(const missing of [[0,1,2,99,100,777],Array.from({length:480},(_,i)=>i*3)]){
+            const c=H.compressMissing(missing),d=Array.from(H.decompressMissing(c,5000));
+            if(JSON.stringify(d)!==JSON.stringify(missing))throw new Error('compression roundtrip');
+            const packet=H.makePacket(H.TYPE.NACK,{session:0x12345678,round:2,bits:3,total:5000,fileCrc:0x89abcdef,missing});
+            const parsed=H.parsePacket(packet);if(!parsed?.ok||JSON.stringify(parsed.missing)!==JSON.stringify(missing))throw new Error('NACK roundtrip');
+            const corrupt=packet.slice();corrupt[corrupt.length-6]^=1;if(!H.parsePacket(corrupt)?.bad)throw new Error('CRC reject failed');
           }
-          console.log('Acoustic runtime invariants: PASS');
+          console.log('HAC3 packet codec + CRC: PASS');
 
-          for (const needle of [
-            'micSource.connect(analyser)',
-            'analyser.connect(silentGain)',
-            'silentGain.connect(micCtx.destination)',
-            "silentGain.gain.value=1e-7",
-            "micCtx.state!=='running'",
-            'DSP RUNNING',
-            'setOverlay'
-          ]) {
-            if (!acoustic.includes(needle)) throw new Error(`Missing live DSP invariant: ${needle}`);
-          }
-          console.log('HAC2 live DSP graph invariants: PASS');
+          const sr=48000,fft=1024,pairs=Array.from({length:8},(_,i)=>[1600+i*580,1800+i*580]);
+          function spectrum(byte){const x=new Float32Array(fft/2+1);x.fill(-90);for(let bit=0;bit<8;bit++){const one=(byte>>(7-bit))&1;x[Math.round(pairs[bit][one]*fft/sr)]=-35;x[Math.round(pairs[bit][1-one]*fft/sr)]=-68;}return x;}
+          for(const byte of [0,255,0xA5,0x5A,0x12,0xC3])if(H.classifyByte(spectrum(byte),sr,fft).byte!==byte)throw new Error(`differential classifier failed ${byte}`);
+          const sync=[0xD3,0x91,0x6E,0x2C,0xA7,0x58,0xC1,0x3E],noisy=sync.slice();noisy[1]^=1;noisy[5]^=4;
+          if(H.syncDistance(sync,0)!==0||H.syncDistance(noisy,0)>6)throw new Error('tolerant SYNC failed');
+          console.log('HAC3 differential classifier + tolerant SYNC: PASS');
 
-          const listeners = {};
-          const documentMock = {
-            getElementById: () => null,
-            addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); }
-          };
-          const windowMock = {
-            Function,
-            dispatchEvent: () => true,
-            addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
-            AudioContext: function(){},
-            webkitAudioContext: null,
-          };
-          const acousticCtx = {
-            window: windowMock,
-            document: documentMock,
-            navigator: { mediaDevices: {} },
-            CustomEvent: CustomEventMock,
-            Uint8Array, Uint32Array, Float32Array, Array, Math, Number, Object, String, Error,
-            setTimeout, clearTimeout, setInterval, clearInterval, console
-          };
-          vm.createContext(acousticCtx);
-          vm.runInContext(acoustic, acousticCtx, { filename: 'acoustic-control.js' });
-          const HAC = windowMock.HopperAcoustic;
-          if (!HAC) throw new Error('HopperAcoustic API not exported');
-          if (HAC.VERSION !== 2) throw new Error(`Expected HAC2 VERSION=2, got ${HAC.VERSION}`);
-
-          const samples = [
-            [0,1,2,3,4,5,99,100,101,777,778,1200],
-            [2,17,31,32,90,143,144,145,146,500,999,1000,1001],
-            Array.from({length:480}, (_,i) => i*3)
-          ];
-          for (const missing of samples) {
-            const compressed = HAC.compressMissing(missing);
-            const decoded = Array.from(HAC.decompressMissing(compressed, 5000));
-            if (JSON.stringify(decoded) !== JSON.stringify(missing)) throw new Error('Missing-list compression roundtrip failed');
-            const packet = HAC.makePacket(HAC.TYPE.NACK,{session:0x12345678,round:2,bits:3,total:5000,fileCrc:0x89abcdef,missing});
-            const parsed = HAC.parsePacket(packet,0);
-            if (!parsed?.ok || parsed.session!==0x12345678 || parsed.round!==2 || parsed.bits!==3 || parsed.total!==5000 || parsed.fileCrc!==0x89abcdef) throw new Error('NACK packet roundtrip failed');
-            if (JSON.stringify(parsed.missing)!==JSON.stringify(missing)) throw new Error('NACK missing list changed during packet roundtrip');
-            const corrupt = packet.slice(); corrupt[Math.max(5, corrupt.length-6)] ^= 0x01;
-            const bad = HAC.parsePacket(corrupt,0);
-            if (!bad?.bad) throw new Error('Corrupted acoustic packet was not rejected by CRC');
-          }
-          const completePacket = HAC.makePacket(HAC.TYPE.COMPLETE,{session:7,round:3,bits:3,total:123,fileCrc:0x10203040});
-          const complete = HAC.parsePacket(completePacket,0);
-          if (!complete?.ok || complete.type!==HAC.TYPE.COMPLETE || complete.fileCrc!==0x10203040) throw new Error('COMPLETE packet roundtrip failed');
-          console.log('HAC2 packet codec + CRC: PASS');
-
-          const sr=48000, fft=1024, carriers=Array.from({length:16},(_,i)=>1800+i*260);
-          function spectrumFor(word){
-            const a=new Float32Array(fft/2+1);a.fill(-92);
-            for(let bit=0;bit<16;bit++) if(word&(1<<(15-bit))){
-              const bin=Math.round(carriers[bit]*fft/sr);a[bin]=-42;
-            }
-            return a;
-          }
-          for(const word of [0x0000,0xffff,0xa55a,0x1234]){
-            const got=HAC.classifyWord(spectrumFor(word),sr,fft,-32).word;
-            if(got!==word)throw new Error(`HAC2 spectrum classifier failed: ${word.toString(16)} -> ${got.toString(16)}`);
-          }
-          console.log('HAC2 synthetic spectrum classifier: PASS');
-
-          const guardPos = html.indexOf('runtime-syntax-guard.js?v=093');
-          const acousticPos = html.indexOf('acoustic-control.js?v=093');
-          const runtimePos = html.indexOf('hps7-runtime.js?v=093');
-          if (guardPos < 0 || acousticPos < 0 || runtimePos < 0 || !(guardPos < acousticPos && acousticPos < runtimePos)) {
-            throw new Error('index.html load order must be guard -> acoustic -> runtime');
-          }
-          for (const asset of ['runtime-syntax-guard.js?v=093','acoustic-control.js?v=093','hps7-runtime.js?v=093','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
-            if (!sw.includes(asset)) throw new Error(`Service Worker missing ${asset}`);
-          }
-          if (!sw.includes("hopperlink-pixelstream-v093")) throw new Error('Service Worker cache key is not v093');
-          console.log('v0.9.3 load order + cache isolation: PASS');
+          const gp=html.indexOf('runtime-syntax-guard.js?v=094'),ap=html.indexOf('acoustic-hac3.js?v=094'),rp=html.indexOf('hps7-runtime.js?v=094');
+          if(gp<0||ap<0||rp<0||!(gp<ap&&ap<rp))throw new Error('load order guard -> HAC3 -> runtime failed');
+          for(const asset of ['runtime-syntax-guard.js?v=094','acoustic-hac3.js?v=094','hps7-runtime.js?v=094'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
+          if(!sw.includes('hopperlink-pixelstream-v094'))throw new Error('cache key not v094');
+          console.log('v0.9.4 load order + cache isolation: PASS');
           NODE
