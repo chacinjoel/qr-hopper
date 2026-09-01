@@ -6,29 +6,29 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=081">
-<link rel="stylesheet" href="photometric-lock.css?v=081">
-<link rel="stylesheet" href="binary-stage.css?v=081">
+<link rel="stylesheet" href="styles.css?v=082">
+<link rel="stylesheet" href="photometric-lock.css?v=082">
+<link rel="stylesheet" href="binary-stage.css?v=082">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.8.1 · Stable Color</div>
+    <div class="badge">MVP v0.8.2 · Closing Burst + Telemetry</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Data Plane + Binary Stage</h2>
-    <div class="sub">Primero buscamos estabilidad real. La navegación usa tags binarios TL/TR/BL/BR y el perfil recomendado baja a 3-bit / 8 símbolos para aumentar la tasa de frames válidos sin volver al gris 2-bit.</div>
+    <div class="sub">Perfil estable de 3-bit con navegación binaria. El cierre ahora insiste tres ciclos cuando quedan menos de 500 bloques y registra telemetría detallada para medir velocidad real, repairs y eficiencia.</div>
     <div class="transport">
       <span class="chip on">● HPS7 ARQ</span>
       <span class="chip on">● Binary Tags TL/TR/BL/BR</span>
       <span class="chip on">● Stable Color 3-bit</span>
-      <span class="chip on">● 12 img/s</span>
+      <span class="chip on">● Stable+ 13 img/s</span>
+      <span class="chip on">● Closing Burst &lt;500 ×3</span>
+      <span class="chip on">● Live Telemetry</span>
       <span class="chip on">● DATA Geometry 12%–88%</span>
       <span class="chip on">● Safe Color Constellation</span>
-      <span class="chip on">● Color Training</span>
-      <span class="chip on">● Adaptive Repair</span>
       <span class="chip on">● CRC32 integral</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -39,12 +39,12 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Perfil recomendado: Grid 56 + Stable Color 3-bit + Balanceado 12 img/s. Cada imagen permanece ≈83 ms, suficiente para 2–3 capturas de una cámara de 30 fps, y todavía transporta más información que el antiguo 2-bit.</div>
+      <div class="sub">Perfil recomendado: Grid 56 + Stable Color 3-bit + Stable+ 13 img/s. Es un aumento moderado sobre 12 img/s, manteniendo un tiempo por imagen suficientemente amplio para cámaras de 30 fps.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="color3" selected>Stable Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option><option value="auto4">Experimental Color · 4-bit · 16 símbolos</option></select></div>
-        <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Balanceado · 12 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
+        <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Stable+ · 13 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -59,22 +59,21 @@
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:7px"><b>Objetivo de esta versión:</b> que los DATA válidos superen claramente a los descartados. Después subiremos 12 → 15 img/s manteniendo 3-bit antes de volver a experimentar con 4-bit.</div>
-      <div class="small" style="margin-top:5px"><b>3-bit:</b> 8 símbolos con más distancia óptica entre sí; Grid 56 puede agrupar hasta 3 bloques lógicos de 360 B por imagen.</div>
-      <div class="small" style="margin-top:5px"><b>Binary Stage:</b> los cuatro tags siguen siendo independientes del color DATA y la geometría física coincide exactamente con el decoder 12%–88%.</div>
-      <div class="small" style="margin-top:5px"><b>Inicio:</b> HELLO → Color Training → primer DATA fijo → secuencia → PASS_END/NACK/Repair.</div>
+      <div class="small" style="margin-top:7px"><b>Closing Burst:</b> si un NACK reporta 1–499 bloques faltantes, el emisor recorre esa misma lista 3 veces antes del siguiente PASS_END. Si ya quedó completa, el receptor responde COMPLETE; si aún falta algo, genera un nuevo NACK reducido.</div>
+      <div class="small" style="margin-top:5px"><b>Objetivo:</b> reducir cambios de rol y rounds finales, que fueron una parte importante de los 14 minutos observados en la transferencia de 6.8 MB.</div>
+      <div class="small" style="margin-top:5px"><b>Binary Stage:</b> los cuatro tags siguen independientes del color DATA y la geometría coincide exactamente con el decoder 12%–88%.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">Primero confirma TAGS 4/4 · IDs OK. Después observa la relación entre bloques válidos y descartados. Con Stable Color cada DATA dura más y usa una constelación de solo 8 símbolos.</div>
+      <div class="sub">Primero confirma TAGS 4/4 · IDs OK. La nueva telemetría separa velocidad actual, pico, aceptación de paquetes, rondas y métricas finales verificadas por CRC.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div>
-        <div class="camHint">Mantén visibles los cuatro tags binarios y un poco del fondo gris. La prioridad ahora es estabilidad: 3-bit + 12 img/s.</div>
+        <div class="camHint">Mantén visibles los cuatro tags binarios y un poco del fondo gris. Perfil recomendado: 3-bit + 13 img/s.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -84,7 +83,7 @@
         <div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div>
         <div class="stat"><b id="rxEta">—</b><span>Restante</span></div>
         <div class="stat"><b id="rxRate">—</b><span>Velocidad real</span></div>
-        <div class="stat"><b id="rxErrors">0</b><span>Descartados</span></div>
+        <div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div>
       </div>
       <div class="progress"><div class="bar" id="rxBar"></div></div>
       <div id="receivedBox" class="received" style="display:none"></div>
@@ -92,25 +91,24 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.8.1 · Stable Color 3-bit · 12 img/s · HPS7 Data Plane · Binary Stage Navigation · exact 12%–88% geometry.</div>
+  <div class="footer">PixelStream v0.8.2 · Stable Color 3-bit · Stable+ 13 img/s · Binary Stage · Closing Burst &lt;500 ×3 · Live Telemetry.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream Stable Color</div>
+    <div class="streamMeta" id="streamMeta">PixelStream Stable+</div>
     <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">Stable Color · Binary Stage</div>
+  <div class="streamBottom" id="streamBottom">Stable+ · Closing Burst</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="binary-tag-bridge.js?v=081"></script>
-<script src="binary-tag-status.js?v=081"></script>
-<script src="safe-color-constellation.js?v=081"></script>
-<script src="hps7.js?v=081"></script>
-<script src="color-warmup.js?v=081"></script>
+<script src="binary-tag-bridge.js?v=082"></script>
+<script src="binary-tag-status.js?v=082"></script>
+<script src="safe-color-constellation.js?v=082"></script>
+<script src="hps7-runtime.js?v=082"></script>
 </body>
 </html>
