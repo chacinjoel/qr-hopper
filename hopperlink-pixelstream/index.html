@@ -6,30 +6,29 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=060">
-<link rel="stylesheet" href="fiducial-filter.css?v=060">
+<link rel="stylesheet" href="styles.css?v=070">
+<link rel="stylesheet" href="photometric-lock.css?v=070">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline entre pantallas y cámaras. Sin servidor. Sin nube. Sin red.</p></div>
-    <div class="badge">MVP v0.6 · HPS6 Optical Turbo</div>
+    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
+    <div class="badge">MVP v0.7 · HPS7 Adaptive Optical Modem</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HPS6 · Optical Turbo</h2>
-    <div class="sub">El canal de control permanece en grid 56 para máxima robustez. Solo los DATA pesados suben a 64/72/80 y el receptor procesa cada frame real de cámara con seguimiento rápido de geometría.</div>
+    <h2>HPS7 · modulación óptica adaptativa</h2>
+    <div class="sub">Control robusto en gris 2-bit. Los DATA pueden usar 4, 8 o 16 símbolos y cada frame calibra su propia paleta para compensar brillo, exposición y balance de blancos.</div>
     <div class="transport">
-      <span class="chip on">● HPS6</span>
+      <span class="chip on">● HPS7</span>
       <span class="chip on">● 100% óptico</span>
-      <span class="chip on">● Control Grid 56</span>
-      <span class="chip on">● DATA Grid hasta 80</span>
-      <span class="chip on">● Decoder frame-synced</span>
-      <span class="chip on">● Fast Homography Track</span>
-      <span class="chip on">● Camera Fallback</span>
+      <span class="chip on">● 2 / 3 / 4 bits por celda</span>
+      <span class="chip on">● Auto Repair 4→3→2</span>
+      <span class="chip on">● Bloques lógicos 360 B</span>
+      <span class="chip on">● Photometric AutoLock</span>
+      <span class="chip on">● Corner Memory</span>
       <span class="chip on">● CRC32 integral</span>
-      <span class="chip on">● Adaptive Repair Burst</span>
-      <span class="chip" id="phaseStatus">HPS6 LISTO</span>
+      <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
     </div>
@@ -38,42 +37,44 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Para empezar prueba Grid 72 + Turbo. Si el receptor pierde demasiados DATA, baja a 64 o Balanceado. Grid 80 es el modo agresivo.</div>
+      <div class="sub">Recomendado para empezar: Grid 56 + Adaptive Color 4-bit + Turbo. Si la primera pasada pierde demasiado, HPS7 puede bajar solo la reparación a 3 o 2 bits sin reiniciar el archivo.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
-        <div><label>Grid DATA</label><br><select id="gridSize"><option>32</option><option>40</option><option>48</option><option>56</option><option>64</option><option selected>72</option><option>80</option></select></div>
-        <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 6 fps / repeat 2</option><option value="balanced">Balanceado · 10 DATA/s</option><option value="turbo" selected>Turbo · 15 DATA/s</option><option value="optical">Ultra Optical · 18 DATA/s</option></select></div>
+        <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
+        <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="auto4" selected>Adaptive Color · 4-bit · 16 símbolos</option><option value="color3">Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option></select></div>
+        <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced">Balanceado · 12 img/s</option><option value="turbo" selected>Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
-        <div class="stat"><b id="frameCount">—</b><span>DATA</span></div>
-        <div class="stat"><b id="capacity">—</b><span>Payload/DATA</span></div>
+        <div class="stat"><b id="frameCount">—</b><span>Bloques lógicos</span></div>
+        <div class="stat"><b id="capacity">—</b><span>Bloque base</span></div>
       </div>
       <div class="row">
-        <button class="btn primary grow" id="prepareBtn">Preparar HPS6</button>
+        <button class="btn primary grow" id="prepareBtn">Preparar HPS7</button>
         <button class="btn good" id="sendBtn" disabled>Mostrar HELLO</button>
         <button class="btn primary" id="txRepairBtn" style="display:none">Enviar Repair Burst</button>
       </div>
       <div class="small" id="speedHint" style="margin-top:10px"></div>
-      <div class="small" id="throughputHint" style="margin-top:6px"></div>
-      <div class="small" style="margin-top:6px"><b>Nuevo flujo:</b> HELLO 56 → DATA 64/72/80 → PASS_END 56 → NACK/COMPLETE 56 → Repair Burst.</div>
-      <div class="small" style="margin-top:6px">En reparación se mantiene el primer faltante 3 s; ≤100 faltantes hacen 3 pasadas internas, 101–300 hacen 2, y >300 una sola.</div>
+      <div class="small" id="modulationHint" style="margin-top:5px"></div>
+      <div class="small" id="throughputHint" style="margin-top:5px"></div>
+      <div class="small" style="margin-top:7px"><b>Adaptive 4-bit:</b> cada imagen puede transportar hasta 4 bloques de 360 B en Grid 56. Un NACK puede ordenar que solo la reparación baje a 3-bit o 2-bit.</div>
+      <div class="small" style="margin-top:5px"><b>Repair:</b> primer paquete fijo 3 s + Repair Burst interno; no se pierden los bloques que el receptor ya obtuvo.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
-      <h2>2. Receptor / canal óptico</h2>
-      <div class="sub">HPS6 intenta hasta 1920×1080 @ 30 fps y, si la cámara no lo acepta, cae automáticamente a 1280×720 o al perfil ambiental disponible.</div>
+      <h2>2. Receptor / AutoLock fotométrico</h2>
+      <div class="sub">El detector se adapta a cámaras oscuras, sobreexpuestas o con HDR/WB distintos. No elige la esquina solo por color: valida contraste centro/borde, forma, cuadrante, perspectiva y continuidad temporal.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">HELLO, PASS_END, NACK y COMPLETE siempre usan grid 56. Cuando aparece LOCK FAST, HPS6 reutiliza la geometría y evita recalcular los fiduciales en cada frame.</div>
+        <div class="camHint">El indicador muestra L = brillo medio y C = contraste. TRACK HOLD mantiene la geometría durante cambios breves de exposición; LOCK RECOVER recupera una esquina sin saltar de cuadrante.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
-        <div class="stat"><b id="rxFrames">0</b><span>DATA únicos</span></div>
+        <div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div>
         <div class="stat"><b id="rxTotal">—</b><span>Total esperado</span></div>
         <div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div>
         <div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div>
@@ -87,26 +88,21 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.6 · HPS6 Optical Turbo · Control 56 · DATA 32–80 · frame-synced decoder · Fast Homography Track · Camera Fallback · Adaptive Repair Burst.</div>
+  <div class="footer">PixelStream v0.7 · HPS7 Adaptive Optical Modem · 2/3/4-bit · Photometric AutoLock · logical-chunk ARQ · adaptive repair · frame-synced decoder.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream HPS6</div>
-    <div class="row">
-      <button class="btn" id="overlayActionBtn" style="display:none"></button>
-      <button class="btn danger" id="closeStream">Cancelar</button>
-    </div>
+    <div class="streamMeta" id="streamMeta">PixelStream HPS7</div>
+    <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">HPS6 Optical Turbo</div>
+  <div class="streamBottom" id="streamBottom">HPS7 Adaptive Optical Modem</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="camera-fallback.js?v=060"></script>
-<script src="fiducial-filter.js?v=060"></script>
-<script src="hps6.js?v=060"></script>
+<script src="hps7.js?v=070"></script>
 </body>
 </html>
