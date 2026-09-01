@@ -1,0 +1,110 @@
+(() => {
+'use strict';
+
+const CORE_URL='./hps7.js?v=090core';
+const MANUAL_RUNTIME_URL='./hps7-manual-max.js?v=098';
+
+function replaceOne(src,label,from,to){
+  if(!src.includes(from)) throw new Error(`DualLane patch missing: ${label}`);
+  const out=src.replace(from,to);
+  if(out===src) throw new Error(`DualLane patch failed: ${label}`);
+  return out;
+}
+function replaceRegex(src,label,re,to){
+  if(!re.test(src)) throw new Error(`DualLane regex missing: ${label}`);
+  re.lastIndex=0;
+  const out=src.replace(re,to);
+  if(out===src) throw new Error(`DualLane regex failed: ${label}`);
+  return out;
+}
+function extractManualPatch(runtimeText){
+  const a=runtimeText.indexOf('function replaceOne'),b=runtimeText.indexOf('function loadScript');
+  if(a<0||b<=a)throw new Error('No se pudo extraer Manual Max patchCore');
+  return new Function(`${runtimeText.slice(a,b)}; return patchCore;`)();
+}
+
+function patchDual(src){
+  src=replaceOne(src,'layout-helpers',
+    "function repairPrerollMs(bits){return bits===2?700:bits===3?1200:1800;}",
+    "function repairPrerollMs(bits){return bits===2?700:bits===3?1200:1800;}\nfunction tallSelected(){return $('streamShape')?.value==='tall2';}\nfunction applyStageLayout(tall){document.documentElement.classList.toggle('stream-tall',!!tall);}\nfunction laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]:[DATA_MIN,DATA_MAX];}"
+  );
+
+  src=replaceOne(src,'tx-tall-flag',
+    "tx={session:randomId(),grid,preferredBits:mod.bits,activeBits:mod.bits,autoMod:mod.auto,f,fileBytes,fileCrc:crc32(fileBytes),chunks,total:chunks.length,round:0,pendingMissing:null,repairBits:mod.bits};",
+    "tx={session:randomId(),grid,preferredBits:mod.bits,activeBits:mod.bits,autoMod:mod.auto,tall:tallSelected(),f,fileBytes,fileCrc:crc32(fileBytes),chunks,total:chunks.length,round:0,pendingMissing:null,repairBits:mod.bits};"
+  );
+  src=replaceOne(src,'hello-layout-flag',
+    "function helloPayload(){return concat(new Uint8Array([tx.grid,tx.preferredBits,tx.autoMod?1:0]),new Uint8Array(u16(BASE_CHUNK)),new Uint8Array(u32(tx.fileCrc)),new Uint8Array(u32(tx.fileBytes.length)));}",
+    "function helloPayload(){return concat(new Uint8Array([tx.grid,tx.preferredBits,tx.autoMod?1:0,tx.tall?1:0]),new Uint8Array(u16(BASE_CHUNK)),new Uint8Array(u32(tx.fileCrc)),new Uint8Array(u32(tx.fileBytes.length)));}"
+  );
+  src=replaceOne(src,'hello-square-stage',
+    "function showHello(){if(!tx)return;stopCamera();getWake();txState=TXS.HELLO;",
+    "function showHello(){if(!tx)return;applyStageLayout(false);stopCamera();getWake();txState=TXS.HELLO;"
+  );
+
+  src=replaceOne(src,'fresh-rx-tall',
+    "roundStartedAt:0,lastDataRound:-1,roundStats:[]};}",
+    "roundStartedAt:0,lastDataRound:-1,roundStats:[],tall:false};}"
+  );
+
+  src=replaceRegex(src,'handle-hello-tall',/function handleHello\(p\)\{.*?\}\nfunction handleData/s,
+`function handleHello(p){if(cameraMode!=='receiverData'||p.grid!==CONTROL_GRID||p.bits!==2||p.payload.length<14)return;const dataGrid=p.payload[0],bits=p.payload[1],autoMod=!!p.payload[2],tall=!!p.payload[3],base=readU16(p.payload,4),fileCrc=readU32(p.payload,6),fileSize=readU32(p.payload,10);if(!DATA_GRIDS.includes(dataGrid)||!BITS_OPTIONS.includes(bits)||base!==BASE_CHUNK)return;if(rx.session===null){resetRxSession(p.session,p.total,dataGrid,bits,false,fileCrc,fileSize);rx.tall=tall;rxState=RXS.LOCKED;rx.passStartCount=0;rlog(\`HPS7 sesión bloqueada · \${p.total} bloques · grid \${dataGrid} · \${bits}-bit · \${tall?'DualLane vertical':'Square'}.\`);setPhase(\`RECEPTOR · LOCK \${bits}-BIT · \${tall?'DUAL':'SQUARE'}\`,'on');emitMetric('hello',{session:p.session,total:p.total,fileSize,dataGrid,bits,autoMod:false,baseChunk:BASE_CHUNK,controlMode:'manual',layout:tall?'dual-vertical':'square'});}else if(rx.session!==p.session)rlog('HELLO de otra sesión ignorado.');}
+function handleData`);
+
+  src=replaceRegex(src,'render-functions',/function renderPacket\(raw,grid,bits\)\{.*?\}\nfunction openOverlay/s,
+`function symbolsImage(sym,grid,bits,rows=grid){const pal=palette(bits);if(bits===2){const w=grid,h=rows,img=new ImageData(w,h);for(let i=0;i<sym.length;i++){const rgb=pal[sym[i]]||pal[0],p=i*4;img.data[p]=rgb[0];img.data[p+1]=rgb[1];img.data[p+2]=rgb[2];img.data[p+3]=255;}return img;}const S=8,P=1,w=grid*S,h=rows*S,img=new ImageData(w,h),d=img.data;for(let p=0;p<d.length;p+=4){d[p]=58;d[p+1]=58;d[p+2]=58;d[p+3]=255;}for(let gy=0;gy<rows;gy++)for(let gx=0;gx<grid;gx++){const rgb=pal[sym[gy*grid+gx]]||pal[0],x0=gx*S+P,y0=gy*S+P;for(let y=y0;y<(gy+1)*S-P;y++)for(let x=x0;x<(gx+1)*S-P;x++){const p=(y*w+x)*4;d[p]=rgb[0];d[p+1]=rgb[1];d[p+2]=rgb[2];}}return img;}
+function renderPacket(raw,grid,bits){applyStageLayout(false);const c=$('pixelCanvas'),sym=rawToSymbols(raw,grid,bits),img=symbolsImage(sym,grid,bits,grid);c.width=img.width;c.height=img.height;c.getContext('2d',{alpha:false}).putImageData(img,0,0);}
+function renderDualPackets(rawA,rawB,grid,bits){applyStageLayout(true);const a=rawToSymbols(rawA,grid,bits),b=rawToSymbols(rawB,grid,bits),sym=new Uint8Array(grid*grid*2);sym.set(a,0);sym.set(b,grid*grid);const c=$('pixelCanvas'),img=symbolsImage(sym,grid,bits,grid*2);c.width=img.width;c.height=img.height;c.getContext('2d',{alpha:false}).putImageData(img,0,0);}
+function openOverlay`);
+
+  src=replaceRegex(src,'send-data-duallane',/async function sendDataPass\(indices,round,isRepair,bits\)\{.*?\}\nfunction showPassEnd/s,
+`async function sendDataPass(indices,round,isRepair,bits){if(!tx||!indices.length)return;const token=++txRunToken;closeOverlay();stopCamera();getWake();txState=TXS.SENDING;tx.round=round;tx.activeBits=bits;const sp=speedProfile(),passes=isRepair?repairPasses(indices.length):1,frameMs=Math.max(45,Math.round(1000/sp.fps)),groups=bundleGroups(indices,bits),dual=!!tx.tall;applyStageLayout(dual);openOverlay(\`HPS7 · R\${round+1} · \${bits}-bit · \${dual?'DUAL ×2':'SQUARE'}\`,'Transmitiendo símbolos ópticos calibrados…',null,null);setPhase(isRepair?\`EMISOR · REPAIR \${bits}-BIT \${dual?'DUAL':''}\`:\`EMISOR · DATA \${bits}-BIT \${dual?'DUAL':''}\`,'on');const showPair=(g1,g2)=>{const r1=makePacket(TYPE.DATA,tx.session,round,g1.first,tx.total,g1.payload,tx.grid,bits);if(dual){const gg=g2||g1,r2=makePacket(TYPE.DATA,tx.session,round,gg.first,tx.total,gg.payload,tx.grid,bits);renderDualPackets(r1,r2,tx.grid,bits);}else renderPacket(r1,tx.grid,bits);};if(isRepair){showPair(groups[0],groups[1]);const pre=repairPrerollMs(bits);$('streamMeta').textContent=\`REPAIR \${bits}-bit · lock inicial \${(pre/1000).toFixed(1)}s · \${dual?'DualLane':'Square'}\`;$('streamBottom').textContent=dual?'Dos paquetes DATA simultáneos mientras la cámara recupera geometría/exposición.':'Primer paquete fijo mientras la cámara recupera exposición/foco.';await opticalHold(pre);if(token!==txRunToken)return;}for(let pass=1;pass<=passes;pass++){const passGroups=pass===1?groups:(pass===2?groups.slice().reverse():groups.filter((_,i)=>i%2===0).concat(groups.filter((_,i)=>i%2===1)));if(isRepair&&passes===3){slog(\`Closing Burst \${pass}/3 · \${indices.length} faltantes · \${pass===1?'normal':pass===2?'invertido':'intercalado'} · SIN NACK intermedio.\`);emitMetric('closing-cycle',{cycle:pass,cycles:3,missing:indices.length,bits});}const step=dual?2:1,totalVisual=Math.ceil(passGroups.length/step);for(let gi=0,vi=0;gi<passGroups.length;gi+=step,vi++){if(token!==txRunToken)return;const g1=passGroups[gi],g2=dual?passGroups[gi+1]:null;showPair(g1,g2);const logical=g1.count+(g2&&g2!==g1?g2.count:0);$('streamMeta').textContent=isRepair?\`REPAIR \${pass}/\${passes} · \${vi+1}/\${totalVisual} · \${bits}-bit · \${dual?'DUAL':'SQUARE'}\`:\`DATA \${vi+1}/\${totalVisual} · \${bits}-bit · \${dual?'DUAL':'SQUARE'}\`;$('streamBottom').textContent=\`Grid \${tx.grid} · \${bits} bits/celda · \${logical} bloque(s)/imagen física · \${sp.fps} img/s\`;await opticalHold(frameMs);}}if(token!==txRunToken)return;showPassEnd(round,bits);}
+function showPassEnd`);
+
+  src=replaceOne(src,'passend-square-stage',
+    "function showPassEnd(round,bits){txState=TXS.PASS_END;",
+    "function showPassEnd(round,bits){applyStageLayout(false);txState=TXS.PASS_END;"
+  );
+
+  src=replaceRegex(src,'sample-grid-lanes',/function sampleGridRGB\(frame,grid,H\)\{.*?return out;\}/s,
+`function sampleGridRGB(frame,grid,H,lane=-1){const yr=laneY(lane),y0n=yr[0],y1n=yr[1],a=mapPoint(H,DATA_MIN,y0n),b=mapPoint(H,DATA_MAX,y0n),c=mapPoint(H,DATA_MIN,y1n),d=mapPoint(H,DATA_MAX,y1n),cell=(dist(a,b)+dist(c,d)+dist(a,c)+dist(b,d))/(4*grid),rad=Math.max(0,Math.min(2,Math.floor(cell*.16))),out=new Float32Array(grid*grid*3);let k=0;for(let y=0;y<grid;y++)for(let x=0;x<grid;x++){const nx=DATA_MIN+(x+.5)*(DATA_MAX-DATA_MIN)/grid,ny=y0n+(y+.5)*(y1n-y0n)/grid,p=mapPoint(H,nx,ny),rgb=rgbAt(frame,p.x,p.y,rad);out[k++]=rgb[0];out[k++]=rgb[1];out[k++]=rgb[2];}return out;}`);
+
+  src=replaceRegex(src,'decode-two-lanes',/function decodeWithH\(frame,H\)\{.*?return null;\}/s,
+`function decodeWithH(frame,H){const found=[];for(const m of expectedModes()){const specs=[];const tallData=cameraMode==='receiverData'&&!!rx?.tall&&rx.session!==null&&m.grid===rx.dataGrid;if(tallData){specs.push(0,1);if(m.bits===2)specs.push(-1);}else specs.push(-1);for(const lane of specs){const samples=sampleGridRGB(frame,m.grid,H,lane),ds=m.bits===2?decodeGray(samples,m.grid):decodeColor(samples,m.grid,m.bits);if(!ds)continue;const p=parsePacket(ds.bytes);if(p?.bad){rx.errors++;updateErrors();continue;}if(!p)continue;if(lane>=0&&p.type!==TYPE.DATA)continue;if(lane<0&&rx?.tall&&cameraMode==='receiverData'&&p.type===TYPE.DATA)continue;found.push({p,q:ds.quality,lane});if(lane<0)break;}}if(!found.length)return null;return{p:found[0].p,q:Math.round(found.reduce((s,z)=>s+z.q,0)/found.length),all:found};}`);
+
+  src=replaceOne(src,'dispatch-all-fast',"dispatchPacket(r.p);if(trackedSuccess%30===0){","for(const z of (r.all||[r]))dispatchPacket(z.p);if(trackedSuccess%30===0){");
+  src=replaceOne(src,'dispatch-all-recover',"setQuality(r2.q,'LOCK RECOVER');dispatchPacket(r2.p);return;","setQuality(r2.q,'LOCK RECOVER');for(const z of (r2.all||[r2]))dispatchPacket(z.p);return;");
+  src=replaceOne(src,'dispatch-all-lock',"setQuality(Math.round((r.q+(det.quality||60))/2),'LOCK');dispatchPacket(r.p);return;","setQuality(Math.round((r.q+(det.quality||60))/2),'LOCK');for(const z of (r.all||[r]))dispatchPacket(z.p);return;");
+
+  src=replaceOne(src,'mode-hint-dual',
+    "if($('capacity'))$('capacity').textContent=`${BASE_CHUNK} B lógico`;}",
+    "if($('capacity'))$('capacity').textContent=`${BASE_CHUNK} B lógico`;const dual=tallSelected();if($('layoutHint'))$('layoutHint').textContent=dual?`DualLane vertical · 2 grids ${grid}×${grid} simultáneos · ${chunks*2} bloques por imagen física.`:`Square · 1 grid ${grid}×${grid} · ${chunks} bloques por imagen física.`;}"
+  );
+  src=replaceOne(src,'shape-change-handler',
+    "$('speedMode').onchange=updateModeHint;$('modulationMode').onchange=()=>{updateModeHint();",
+    "$('speedMode').onchange=updateModeHint;if($('streamShape'))$('streamShape').onchange=()=>{updateModeHint();if(txState===TXS.PREPARED){$('sendBtn').disabled=true;tx=null;txState=TXS.IDLE;}};$('modulationMode').onchange=()=>{updateModeHint();"
+  );
+
+  return src;
+}
+
+function loadScript(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error(`No se pudo cargar ${src}`));document.head.appendChild(s);});}
+async function boot(){
+  try{
+    const [coreRes,manualRes]=await Promise.all([fetch(CORE_URL,{cache:'no-store'}),fetch(MANUAL_RUNTIME_URL,{cache:'no-store'})]);
+    if(!coreRes.ok||!manualRes.ok)throw new Error(`HTTP core ${coreRes.status} / manual ${manualRes.status}`);
+    const [original,manualText]=await Promise.all([coreRes.text(),manualRes.text()]);
+    const manualPatch=extractManualPatch(manualText);
+    const manualCore=manualPatch(original);
+    const patched=patchDual(manualCore);
+    new Function(`${patched}\n//# sourceURL=hps7-core-v099-duallane.js`)();
+    window.__hopperRuntime={...(window.__hopperRuntime||{}),version:'0.9.9',manualMax:true,dualLane:true,lanes:2,baseChunk:367,closingBurstThreshold:500,closingBurstCycles:3};
+    await loadScript('./color-warmup.js?v=099');
+    await loadScript('./transfer-telemetry.js?v=099');
+    window.dispatchEvent(new CustomEvent('hopper:runtime-ready',{detail:window.__hopperRuntime}));
+  }catch(err){
+    console.error(err);const phase=document.getElementById('phaseStatus');if(phase){phase.textContent='ERROR DUAL LANE';phase.className='chip off';}const log=document.getElementById('sendLog');if(log)log.textContent=`ERROR v0.9.9: ${err.message}\n`+log.textContent;
+  }
+}
+boot();
+})();
