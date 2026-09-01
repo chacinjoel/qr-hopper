@@ -18,5 +18,9 @@ function tick(){
     e.className='lock '+(s.motionNorm<.10?'good':'mid');
   }else{e.textContent=`TAGS · ${s.found||0}/4 · buscando IDs`;e.className='lock '+((s.found||0)>=3?'mid':'');}
 }
-setInterval(tick,100);tick();
+function loadRepairReacquisition(){
+  if(window.__hopperRepairReacquisition||document.querySelector('script[data-hopper-repair-lock]'))return;
+  const s=document.createElement('script');s.src='./repair-reacquisition.js?v=0910';s.dataset.hopperRepairLock='1';s.async=false;document.head.appendChild(s);
+}
+setInterval(tick,100);tick();loadRepairReacquisition();
 })();
