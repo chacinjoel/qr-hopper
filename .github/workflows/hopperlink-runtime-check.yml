@@ -40,7 +40,6 @@ jobs:
           const payload=b=>Math.floor((56*56-32)*b/8)-28,lane=b=>Math.max(1,Math.floor((payload(b)-1)/(367+6))),per=[2,3,4].map(b=>lane(b)*2),streams=per.map(n=>Math.ceil(4603/n));if(JSON.stringify(per)!=='[4,6,8]'||JSON.stringify(streams)!=='[1151,768,576]')throw Error('packing/projection');
           for(const s of ['dataSec=streams*sp.repeat/sp.fps','bps=perPhysical*BASE_CHUNK*sp.fps/sp.repeat','Configuración seleccionada'])if(!projection.includes(s))throw Error(`projection missing ${s}`);
 
-          // Regression guard for the WebKit freeze found in v0.9.14.
           if(!premium.includes("attributeFilter:['disabled']"))throw Error('premium must observe send.disabled only');
           if(premium.includes("attributeFilter:['disabled','style','class']"))throw Error('premium reintroduced style/class observer feedback loop');
           for(const s of ['setDisplay(el,value)','el.style.display!==value','runtimeReady','Inicializando HPS7'])if(!premium.includes(s))throw Error(`premium stability missing ${s}`);
@@ -56,8 +55,6 @@ jobs:
           for(const s of ['runtime-stability.js?v=0915','hps7-duallane-v2.js?v=0915','premium-flow-ui.js?v=0915','hps7-projection.js?v=0915'])if(!sw.includes(s))throw Error(`SW missing ${s}`);
           if(!sw.includes('hopperlink-pixelstream-v0915'))throw Error('cache key not v0915');
 
-          // Execute the generated core and the Stability Guard with a minimal DOM,
-          // then invoke the real Prepare HPS7 handler with an in-memory file.
           class ClassList{constructor(){this.s=new Set()}add(...x){x.forEach(v=>this.s.add(v))}remove(...x){x.forEach(v=>this.s.delete(v))}contains(x){return this.s.has(x)}toggle(x,on){if(on===undefined)on=!this.s.has(x);on?this.s.add(x):this.s.delete(x);return on}}
           const mk=(id)=>({id,textContent:'',className:'',disabled:false,value:'',style:{display:''},classList:new ClassList(),files:[],srcObject:null,onclick:null,onchange:null,selectedOptions:[{textContent:''}],addEventListener(){},scrollIntoView(){}});
           const ids=['prepareBtn','sendBtn','txRepairBtn','cameraBtn','stopCameraBtn','overlayActionBtn','closeStream','gridSize','speedMode','modulationMode','streamShape','speedHint','modulationHint','layoutHint','throughputHint','capacity','cameraChip','wakeChip','phaseStatus','sendLog','rxLog','streamOverlay','streamMeta','streamBottom','video','receiverPanel','capture','pixelCanvas','rxFrames','rxTotal','rxMissing','rxBar','receivedBox','rxErrors','rxElapsed','rxRate','rxEta','guideCanvas','lockQuality','fileInput','fileSize','frameCount'];
@@ -67,7 +64,7 @@ jobs:
           els.fileInput.files=[{name:'prepare-smoke.bin',type:'application/octet-stream',size:testBytes.length,lastModified:Date.now(),arrayBuffer:async()=>testBytes.buffer.slice(0)}];
           const listeners={};
           const doc={readyState:'complete',documentElement:{classList:new ClassList()},getElementById:id=>els[id]||null,querySelectorAll:()=>[],createElement:tag=>mk(tag),head:{appendChild(){}}};
-          const ctx={console,document:doc,navigator:{mediaDevices:{getUserMedia:async()=>{throw Error('camera not used in prepare smoke')} }},location:{protocol:'file:'},TextEncoder,TextDecoder,crypto:webcrypto,performance,CustomEvent:CE,MutationObserver:class{observe(){}},alert:()=>{},confirm:()=>true,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},requestAnimationFrame:cb=>setTimeout(()=>cb(performance.now()),0)};
+          const ctx={console,document:doc,navigator:{mediaDevices:{getUserMedia:async()=>{throw Error('camera not used in prepare smoke')}}},location:{protocol:'file:'},TextEncoder,TextDecoder,crypto:webcrypto,performance,CustomEvent:CE,MutationObserver:class{observe(){}},alert:()=>{},confirm:()=>true,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},requestAnimationFrame:cb=>setTimeout(()=>cb(performance.now()),0)};
           ctx.window=ctx;ctx.globalThis=ctx;ctx.addEventListener=(type,fn)=>(listeners[type]||(listeners[type]=[])).push(fn);ctx.dispatchEvent=e=>{for(const fn of listeners[e.type]||[])fn(e);return true};
           vm.createContext(ctx);
           const bad="else showNack(p.round,suggest);}}}\nfunction controlPayloadNack",good="else showNack(p.round,suggest);}}\nfunction controlPayloadNack",runnable=patched.includes(bad)?patched.replace(bad,good):patched;
@@ -76,10 +73,12 @@ jobs:
           vm.runInContext(stability,ctx,{timeout:1000,filename:'runtime-stability-smoke.js'});
           ctx.dispatchEvent(new CE('hopper:runtime-ready',{detail:ctx.__hopperRuntime}));
           if(els.prepareBtn.disabled)throw Error('Prepare remained disabled after runtime-ready');
-          await Promise.race([els.prepareBtn.onclick(),new Promise((_,rej)=>setTimeout(()=>rej(Error('Prepare HPS7 smoke timed out')),3500))]);
-          const total=Number(els.frameCount.textContent);if(!Number.isFinite(total)||total<1000)throw Error(`Prepare produced invalid total ${els.frameCount.textContent}`);
-          if(els.sendBtn.disabled)throw Error('Prepare did not enable HELLO');
-          if(ctx.__hopperPrepareBusy)throw Error('Prepare busy guard did not clear');
-          console.log(`Real Prepare HPS7 smoke: PASS · ${total} logical blocks · HELLO enabled`);
-          console.log('v0.9.15 Stability Pass invariants: PASS');
+
+          Promise.race([els.prepareBtn.onclick(),new Promise((_,rej)=>setTimeout(()=>rej(Error('Prepare HPS7 smoke timed out')),3500))]).then(()=>{
+            const total=Number(els.frameCount.textContent);if(!Number.isFinite(total)||total<1000)throw Error(`Prepare produced invalid total ${els.frameCount.textContent}`);
+            if(els.sendBtn.disabled)throw Error('Prepare did not enable HELLO');
+            if(ctx.__hopperPrepareBusy)throw Error('Prepare busy guard did not clear');
+            console.log(`Real Prepare HPS7 smoke: PASS · ${total} logical blocks · HELLO enabled`);
+            console.log('v0.9.15 Stability Pass invariants: PASS');
+          }).catch(e=>{console.error(e);process.exitCode=1;});
           NODE
