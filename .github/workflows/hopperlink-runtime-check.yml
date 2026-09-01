@@ -59,7 +59,7 @@ jobs:
             'SIN NACK intermedio',
             'repairPrerollMs(bits)',
             'trackedSuccess%30===0',
-            'binaryTagBridge?.last'
+            'window.__hopperBinaryTagBridge?.last'
           ]) if(!patched.includes(n))throw new Error(`Missing manual-max invariant: ${n}`);
 
           const HEADER=28,PILOT=32,GRID=56,BASE=367;
