@@ -2,7 +2,7 @@
 'use strict';
 
 const $=id=>document.getElementById(id);
-const state={hello:null,currentBps:0,peakBps:0,errors:0,validPackets:0,duplicateBlocks:0,rounds:[],nacks:0,completed:null,motionSum:0,motionCount:0,motionPeak:0,camera:null};
+const state={hello:null,currentBps:0,peakBps:0,errors:0,validPackets:0,duplicateBlocks:0,rounds:[],nacks:0,completed:null,motionSum:0,motionCount:0,motionPeak:0,camera:null,acousticRx:0,acousticTx:0,acousticFallbacks:0};
 
 function fmtBytes(n){if(!Number.isFinite(n))return'—';if(n<1024)return`${Math.round(n)} B`;if(n<1048576)return`${(n/1024).toFixed(1)} KiB`;return`${(n/1048576).toFixed(2)} MiB`;}
 function fmtRate(n){return Number.isFinite(n)&&n>0?`${(n/1024).toFixed(2)} KiB/s`:'—';}
@@ -35,15 +35,11 @@ function inject(){
     </div>
     <div id="finalTelemetry" style="display:none;margin-top:12px;padding:16px;border:1px solid #0f766e;border-radius:16px;background:#06201c"></div>`;
   rxLog.parentNode.insertBefore(panel,rxLog);
-
-  const opt=document.querySelector('#speedMode option[value="balanced"]');if(opt)opt.textContent='Stable Premium · 12 img/s';
-  const badge=document.querySelector('.badge');if(badge)badge.textContent='MVP v0.8.3 · Premium Stable Optical';
-  const footer=document.querySelector('.footer');if(footer)footer.textContent='PixelStream v0.8.3 · 3-bit · 12 img/s VSync · 372 B blocks · Binary Direct Geometry · Micro Cell Guard · Closing Burst ×3.';
 }
 
 function reset(d){
-  state.hello=d;state.currentBps=0;state.peakBps=0;state.errors=0;state.validPackets=0;state.duplicateBlocks=0;state.rounds=[];state.nacks=0;state.completed=null;state.motionSum=0;state.motionCount=0;state.motionPeak=0;state.camera=null;
-  set('telemetryStatus','RECIBIENDO');set('tmCurrent','—');set('tmPeak','—');set('tmEfficiency','—');set('tmValid','0');set('tmReject','0');set('tmDup','0');set('tmMotion','—');set('tmMotionPeak','—');set('tmCamera','Auto');set('tmRounds',`Archivo: ${fmtBytes(d.fileSize)} · ${d.total} bloques · ${d.baseChunk||372} B/bloque · grid ${d.dataGrid} · ${d.bits}-bit`);
+  state.hello=d;state.currentBps=0;state.peakBps=0;state.errors=0;state.validPackets=0;state.duplicateBlocks=0;state.rounds=[];state.nacks=0;state.completed=null;state.motionSum=0;state.motionCount=0;state.motionPeak=0;state.camera=null;state.acousticRx=0;state.acousticTx=0;state.acousticFallbacks=0;
+  set('telemetryStatus','RECIBIENDO');set('tmCurrent','—');set('tmPeak','—');set('tmEfficiency','—');set('tmValid','0');set('tmReject','0');set('tmDup','0');set('tmMotion','—');set('tmMotionPeak','—');set('tmCamera','Auto');set('tmRounds',`Archivo: ${fmtBytes(d.fileSize)} · ${d.total} bloques · ${d.baseChunk||372} B/bloque · grid ${d.dataGrid} · ${d.bits}-bit · control ${d.controlMode||'manual'}`);
   const f=$('finalTelemetry');if(f)f.style.display='none';
 }
 
@@ -54,9 +50,10 @@ function renderLive(d){
 
 function renderRounds(){
   const e=$('tmRounds');if(!e)return;
-  const head=state.hello?`Archivo: ${fmtBytes(state.hello.fileSize)} · ${state.hello.total} bloques · ${state.hello.baseChunk||372} B/bloque<br>`:'';
+  const head=state.hello?`Archivo: ${fmtBytes(state.hello.fileSize)} · ${state.hello.total} bloques · ${state.hello.baseChunk||372} B/bloque · control ${state.hello.controlMode||'manual'}<br>`:'';
   const body=state.rounds.map(r=>`R${r.round}: +${r.gained} · faltan ${r.missing} · ${r.bits}-bit · ${fmtTime(r.roundMs)}`).join('<br>');
-  e.innerHTML=head+(body||'Esperando primer PASS_END…');
+  const ac=(state.acousticTx||state.acousticRx||state.acousticFallbacks)?`<br>HAC1: TX ${state.acousticTx} · RX ${state.acousticRx} · fallback ${state.acousticFallbacks}`:'';
+  e.innerHTML=head+(body||'Esperando primer PASS_END…')+ac;
 }
 
 function loadRuns(){try{return JSON.parse(localStorage.getItem('hopperlink.telemetry.runs')||'[]');}catch{return[];}}
@@ -71,7 +68,7 @@ function renderComplete(d){
   const roundRows=(d.roundStats||[]).map(r=>`<tr><td>R${r.round}</td><td>+${r.gained}</td><td>${r.missing}</td><td>${r.bits}-bit</td><td>${fmtTime(r.roundMs)}</td></tr>`).join('');
   const box=$('finalTelemetry');if(box){box.style.display='block';box.innerHTML=`
     <div style="font-size:18px;font-weight:900">✓ Descarga completada y verificada</div>
-    <div class="small" style="margin-top:5px">CRC ${Number(d.crc>>>0).toString(16).padStart(8,'0')} · ${fmtBytes(d.fileSize)} · Grid ${d.grid} · ${d.bits}-bit · ${d.baseChunk||372} B/bloque</div>
+    <div class="small" style="margin-top:5px">CRC ${Number(d.crc>>>0).toString(16).padStart(8,'0')} · ${fmtBytes(d.fileSize)} · Grid ${d.grid} · ${d.bits}-bit · ${d.baseChunk||372} B/bloque · control ${d.controlMode||'manual'}</div>
     <div class="stats" style="margin-top:12px">
       <div class="stat"><b>${fmtTime(d.dataMs)}</b><span>Tiempo de descarga</span></div>
       <div class="stat"><b>${fmtTime(d.sessionMs)}</b><span>Sesión total</span></div>
@@ -83,16 +80,12 @@ function renderComplete(d){
       <div class="stat"><b>${motionText(state.motionPeak)}</b><span>Movimiento pico</span></div>
       <div class="stat"><b>${state.camera?.exposureCompensation??'Auto'}</b><span>Compensación exposición</span></div>
     </div>
-    <div class="small"><b>Paquetes:</b> ${d.validPackets} válidos · ${d.errors} rechazados · ${d.duplicateBlocks} bloques duplicados.${comparison}</div>
+    <div class="small"><b>Paquetes:</b> ${d.validPackets} válidos · ${d.errors} rechazados · ${d.duplicateBlocks} bloques duplicados. <b>HAC1:</b> TX ${state.acousticTx} · RX ${state.acousticRx} · fallback ${state.acousticFallbacks}.${comparison}</div>
     ${roundRows?`<div style="overflow:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr><th>Ronda</th><th>Ganados</th><th>Faltan</th><th>Modo</th><th>Duración</th></tr></thead><tbody>${roundRows}</tbody></table></div>`:''}`;}
-  saveRun({at:Date.now(),fileSize:d.fileSize,dataMs:d.dataMs,sessionMs:d.sessionMs,avgBps:d.avgBps,peakBps:d.peakBps,repairs:d.repairs,errors:d.errors,validPackets:d.validPackets,bits:d.bits,grid:d.grid,motionAvg,motionPeak:state.motionPeak,baseChunk:d.baseChunk||372});
+  saveRun({at:Date.now(),fileSize:d.fileSize,dataMs:d.dataMs,sessionMs:d.sessionMs,avgBps:d.avgBps,peakBps:d.peakBps,repairs:d.repairs,errors:d.errors,validPackets:d.validPackets,bits:d.bits,grid:d.grid,motionAvg,motionPeak:state.motionPeak,baseChunk:d.baseChunk||372,controlMode:d.controlMode||'manual',acousticTx:state.acousticTx,acousticRx:state.acousticRx,acousticFallbacks:state.acousticFallbacks});
 }
 
-function sampleMotion(){
-  const s=window.__hopperBinaryTagBridge?.last;if(!s?.valid||!Number.isFinite(s.motionNorm))return;
-  state.motionSum+=s.motionNorm;state.motionCount++;state.motionPeak=Math.max(state.motionPeak,s.motionNorm);
-  set('tmMotion',`${motionText(s.motionNorm)} · ${(s.motionNorm*100).toFixed(1)}%`);set('tmMotionPeak',`${(state.motionPeak*100).toFixed(1)}%`);
-}
+function sampleMotion(){const s=window.__hopperBinaryTagBridge?.last;if(!s?.valid||!Number.isFinite(s.motionNorm))return;state.motionSum+=s.motionNorm;state.motionCount++;state.motionPeak=Math.max(state.motionPeak,s.motionNorm);set('tmMotion',`${motionText(s.motionNorm)} · ${(s.motionNorm*100).toFixed(1)}%`);set('tmMotionPeak',`${(state.motionPeak*100).toFixed(1)}%`);}
 
 window.addEventListener('hopper:hello',e=>reset(e.detail));
 window.addEventListener('hopper:metrics',e=>renderLive(e.detail));
@@ -102,7 +95,10 @@ window.addEventListener('hopper:closing-cycle',e=>{const d=e.detail;set('telemet
 window.addEventListener('hopper:camera-tuned',e=>{state.camera=e.detail||{};const x=e.detail?.exposureCompensation;set('tmCamera',x==null?'Auto':`${x.toFixed?.(1)??x} EV`);});
 window.addEventListener('hopper:complete',e=>renderComplete(e.detail));
 window.addEventListener('hopper:reject',e=>{state.errors=e.detail.errors||state.errors;set('tmReject',String(state.errors));set('tmEfficiency',pct(state.validPackets,state.validPackets+state.errors));});
+window.addEventListener('hopper:acoustic-tx-start',()=>{state.acousticTx++;set('telemetryStatus','HAC1 · TRANSMITIENDO CONTROL');renderRounds();});
+window.addEventListener('hopper:acoustic-rx-ok',()=>{state.acousticRx++;set('telemetryStatus','HAC1 · CONTROL VALIDADO');renderRounds();});
+window.addEventListener('hopper:acoustic-fallback',()=>{state.acousticFallbacks++;set('telemetryStatus','HAC1 · FALLBACK MANUAL');renderRounds();});
 
 inject();setInterval(sampleMotion,120);
-window.__hopperTelemetry={version:'0.8.3',active:true,closingBurst:{threshold:500,cycles:3,orders:['normal','reverse','interleaved']},history:true,motionTelemetry:true};
+window.__hopperTelemetry={version:'0.9.0',active:true,closingBurst:{threshold:500,cycles:3,orders:['normal','reverse','interleaved']},history:true,motionTelemetry:true,acousticTelemetry:true};
 })();
