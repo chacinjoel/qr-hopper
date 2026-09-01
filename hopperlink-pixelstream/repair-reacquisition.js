@@ -1,8 +1,7 @@
 (() => {
 'use strict';
 
-// v1.2 · Clean Repair Target + dynamic repetition budget.
-// n = max(1, floor(1500 / missing)). No NACK/PASS_END between internal cycles.
+// v1.3 · Clean Repair Target + dynamic repetition budget + premium bottom dock.
 const REPAIR_BUDGET=1500;
 const nativeFetch=window.fetch.bind(window);
 let repairPolicyArmed=true;
@@ -15,35 +14,24 @@ function patchManualRuntimeSource(text){
     ['closingBurst:missing>0&&missing<=500,cycles:missing>0&&missing<=500?3:1','closingBurst:repairPasses(missing)>1,cycles:repairPasses(missing)'],
     ['Closing Burst ≤500 ×3 sin NACK intermedio.','Repair Burst dinámico · n=floor(1500/faltantes) · sin NACK intermedio.']
   ];
-  for(const [from,to] of replacements){
-    if(!out.includes(from))throw new Error(`Repair policy patch missing: ${from}`);
-    out=out.replace(from,to);
-  }
+  for(const [from,to] of replacements){if(!out.includes(from))throw new Error(`Repair policy patch missing: ${from}`);out=out.replace(from,to);}
   return out;
 }
 window.fetch=async function(input,init){
-  const url=typeof input==='string'?input:(input?.url||'');
-  const response=await nativeFetch(input,init);
+  const url=typeof input==='string'?input:(input?.url||''),response=await nativeFetch(input,init);
   if(!repairPolicyArmed||!url.includes('hps7-manual-max.js'))return response;
-  const text=await response.text(),patched=patchManualRuntimeSource(text);
-  repairPolicyArmed=false;window.fetch=nativeFetch;
+  const text=await response.text(),patched=patchManualRuntimeSource(text);repairPolicyArmed=false;window.fetch=nativeFetch;
   try{window.dispatchEvent(new CustomEvent('hopper:repair-policy-ready',{detail:{budget:REPAIR_BUDGET,formula:'max(1,floor(1500/missing))'}}));}catch{}
   return new Response(patched,{status:response.status,statusText:response.statusText,headers:response.headers});
 };
-window.__hopperRepairCyclePolicy={version:'0.9.12',budget:REPAIR_BUDGET,formula:'max(1,floor(1500/missing))'};
+window.__hopperRepairCyclePolicy={version:'0.9.14',budget:REPAIR_BUDGET,formula:'max(1,floor(1500/missing))'};
 
 const $=id=>document.getElementById(id);
 let installed=false,targetActive=false,starting=false,originalRepair=null,observer=null,startBtn=null,lastPlan=null;
-
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function selectedBits(){const v=$('modulationMode')?.value||'color3';return v==='gray2'?2:v==='color3'?3:4;}
 function tallSelected(){return $('streamShape')?.value==='tall2';}
-function palette(bits){
-  if(bits===2)return [[26,26,26],[92,92,92],[164,164,164],[236,236,236]];
-  const bases=[[1,.14,.07],[.07,1,.16],[.07,.24,1],[1,.07,.70]],levels=bits===3?[.58,.94]:[.48,.64,.80,.96],out=[];
-  for(const s of levels)for(const b of bases)out.push(b.map(v=>Math.round(clamp(v*s*255,0,255))));
-  return out;
-}
+function palette(bits){if(bits===2)return[[26,26,26],[92,92,92],[164,164,164],[236,236,236]];const bases=[[1,.14,.07],[.07,1,.16],[.07,.24,1],[1,.07,.70]],levels=bits===3?[.58,.94]:[.48,.64,.80,.96],out=[];for(const s of levels)for(const b of bases)out.push(b.map(v=>Math.round(clamp(v*s*255,0,255))));return out;}
 function setPhase(text,kind='mid'){const e=$('phaseStatus');if(e){e.textContent=text;e.className='chip '+kind;}}
 function log(msg){const e=$('sendLog');if(!e)return;const t=new Date().toLocaleTimeString();e.textContent=`[${t}] REPAIR LOCK · ${msg}\n`+e.textContent.slice(0,9000);}
 function emit(name,detail={}){try{window.dispatchEvent(new CustomEvent('hopper:'+name,{detail}));}catch{}}
@@ -53,13 +41,9 @@ function ensureCleanStyle(){
   const s=document.createElement('style');s.id='repairTargetCleanStyle';s.textContent=`
     html.repair-target-clean #streamOverlay .streamTop,
     html.repair-target-clean #streamOverlay .streamBottom{display:none!important}
-    html.repair-target-clean #streamOverlay{padding:0!important}
-    #repairReacquireStart{
-      position:fixed!important;left:50%!important;bottom:max(8px,env(safe-area-inset-bottom))!important;
-      transform:translateX(-50%)!important;z-index:90!important;display:none;
-      min-height:42px!important;padding:9px 16px!important;border-radius:12px!important;
-      white-space:nowrap!important;font-size:13px!important;box-shadow:0 5px 18px rgba(0,0,0,.42)!important
-    }
+    html.repair-target-clean #streamActions .btn:not(#repairReacquireStart){display:none!important}
+    html.repair-target-clean #streamActions{display:flex!important;justify-content:center!important}
+    html.repair-target-clean #repairReacquireStart{display:inline-flex!important;min-width:min(320px,88vw)!important;justify-content:center!important}
   `;document.head.appendChild(s);
 }
 function renderTarget(){
@@ -80,40 +64,31 @@ function renderTarget(){
 }
 function ensureStartButton(){
   if(startBtn?.isConnected)return startBtn;
-  const overlay=$('streamOverlay');if(!overlay)return null;
+  const dock=$('streamActions')||$('streamOverlay');if(!dock)return null;
   startBtn=document.createElement('button');startBtn.id='repairReacquireStart';startBtn.className='btn good';startBtn.textContent='Iniciar Repair';startBtn.style.display='none';
   startBtn.addEventListener('click',async()=>{
     if(starting||!targetActive||typeof originalRepair!=='function')return;
-    starting=true;startBtn.disabled=true;const bits=selectedBits(),tall=tallSelected();
-    setPhase(`EMISOR · REPAIR START · ${bits}-BIT ${tall?'DUAL':''}`,'on');
-    log(`Receptor confirmado · iniciando Repair ${lastPlan?`×${lastPlan.cycles} · `:''}${bits}-bit · ${tall?'DualLane':'Square'}.`);
-    emit('repair-reacquired',{bits,layout:tall?'dual-vertical':'square',...lastPlan});
+    starting=true;startBtn.disabled=true;const b=selectedBits(),t=tallSelected();setPhase(`EMISOR · REPAIR START · ${b}-BIT ${t?'DUAL':''}`,'on');
+    log(`LOCK confirmado · Repair ${lastPlan?`×${lastPlan.cycles} · `:''}${b}-bit · ${t?'DualLane':'Square'}.`);emit('repair-reacquired',{bits:b,layout:t?'dual-vertical':'square',...lastPlan});
     targetActive=false;document.documentElement.classList.remove('repair-target-clean');startBtn.style.display='none';startBtn.disabled=false;
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     try{originalRepair.call($('txRepairBtn'));}finally{starting=false;}
   });
-  overlay.appendChild(startBtn);return startBtn;
+  dock.insertBefore(startBtn,dock.firstChild);return startBtn;
 }
 function showTarget(){
   if(targetActive||starting)return;
   const repair=$('txRepairBtn'),overlay=$('streamOverlay');if(!repair||!overlay||getComputedStyle(repair).display==='none')return;
-  const info=renderTarget();if(!info)return;
-  targetActive=true;ensureCleanStyle();document.documentElement.classList.add('repair-target-clean');overlay.style.display='flex';document.body.style.overflow='hidden';
+  const info=renderTarget();if(!info)return;targetActive=true;ensureCleanStyle();document.documentElement.classList.add('repair-target-clean');overlay.style.display='flex';document.body.style.overflow='hidden';
   const btn=ensureStartButton();if(btn){btn.textContent=lastPlan?.cycles>1?`Iniciar Repair ×${lastPlan.cycles}`:'Iniciar Repair';btn.style.display='inline-flex';btn.disabled=false;}
-  setPhase('EMISOR · REPAIR TARGET · ESPERANDO LOCK','mid');
-  log(`Target limpio · ${info.bits}-bit · ${info.tall?'DualLane':'Square'} · sin datos válidos${lastPlan?` · ${lastPlan.missing} faltantes → ${lastPlan.cycles} ciclos`:''}.`);
-  emit('repair-target',{bits:info.bits,layout:info.tall?'dual-vertical':'square',...lastPlan});
+  setPhase('EMISOR · REPAIR TARGET · ESPERANDO LOCK','mid');log(`Target limpio · ${info.bits}-bit · ${info.tall?'DualLane':'Square'}${lastPlan?` · ${lastPlan.missing} faltantes → ${lastPlan.cycles} ciclos`:''}.`);emit('repair-target',{bits:info.bits,layout:info.tall?'dual-vertical':'square',...lastPlan});
 }
 function resetTarget(){targetActive=false;starting=false;document.documentElement.classList.remove('repair-target-clean');if(startBtn)startBtn.style.display='none';}
 function install(){
   if(installed)return;const repair=$('txRepairBtn');if(!repair||typeof repair.onclick!=='function')return;
-  installed=true;originalRepair=repair.onclick;ensureCleanStyle();
-  observer=new MutationObserver(()=>{if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);else if(!starting)resetTarget();});
-  observer.observe(repair,{attributes:true,attributeFilter:['style','class']});
-  if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);
-  window.addEventListener('pagehide',resetTarget);log('Repair Reacquisition limpio instalado · presupuesto dinámico 1500.');
+  installed=true;originalRepair=repair.onclick;ensureCleanStyle();observer=new MutationObserver(()=>{if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);else if(!starting)resetTarget();});observer.observe(repair,{attributes:true,attributeFilter:['style','class']});if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);window.addEventListener('pagehide',resetTarget);log('Clean Repair Target listo · dock inferior premium · presupuesto 1500.');
 }
 window.addEventListener('hopper:nack',e=>{const missing=Number(e.detail?.missing||0);if(missing>0)lastPlan={missing,cycles:repairCycles(missing),budget:REPAIR_BUDGET};});
 window.addEventListener('hopper:runtime-ready',()=>setTimeout(install,0),{once:true});setTimeout(install,700);
-window.__hopperRepairReacquisition={version:'1.2',active:true,mode:'clean-static-target-before-real-repair',repairBudget:REPAIR_BUDGET,repairCycles};
+window.__hopperRepairReacquisition={version:'1.3',active:true,mode:'clean-target-bottom-dock',repairBudget:REPAIR_BUDGET,repairCycles};
 })();
