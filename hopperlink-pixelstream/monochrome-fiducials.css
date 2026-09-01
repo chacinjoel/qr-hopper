@@ -1,0 +1,26 @@
+/* PixelStream v0.7.4 · Monochrome Fiducial Isolation */
+/* El canal de navegación (fiduciales) es acromático; el canal DATA puede usar color sin colisiones. */
+.finder{
+  width:10.5%!important;
+  height:10.5%!important;
+  background:#f4f4f4!important;
+  border:3px solid #050505!important;
+  box-shadow:0 0 0 3px #fff,0 0 0 6px #000!important;
+}
+.finder:after{
+  inset:26%!important;
+  background:#020202!important;
+  border:3px solid #fff!important;
+  box-shadow:0 0 0 2px #000!important;
+}
+.f-tl,.f-tr,.f-bl,.f-br{background:#f4f4f4!important}
+
+/* Guard band óptico: DATA ya no toca visualmente los fiduciales. */
+.pixelFrame{background:#151515!important}
+.pixelShell{
+  inset:13.5%!important;
+  background:#0b0b0b!important;
+  box-shadow:0 0 0 5px #050505,0 0 0 7px #9ca3af!important;
+}
+
+/* El guide del receptor puede conservar colores de diagnóstico: no forma parte de la imagen transmitida. */
