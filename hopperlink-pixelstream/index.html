@@ -6,32 +6,32 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0914">
-<link rel="stylesheet" href="photometric-lock.css?v=0914">
-<link rel="stylesheet" href="binary-stage.css?v=0914">
+<link rel="stylesheet" href="styles.css?v=0915">
+<link rel="stylesheet" href="photometric-lock.css?v=0915">
+<link rel="stylesheet" href="binary-stage.css?v=0915">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.14 · Premium Flow</div>
+    <div class="badge">MVP v0.9.15 · Stability Pass</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>Manual Max · Vertical DualLane</h2>
-    <div class="sub">Flujo guiado, controles inferiores, Repair Target limpio y proyección física real. El área óptica queda separada de botones e información de interfaz.</div>
-    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Repair dinámico 1500</span><span class="chip on">● Orden/lane diversity</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <div class="sub">Flujo guiado, controles inferiores, Repair Target limpio, proyección física real y guardas de estabilidad para evitar bloqueos silenciosos.</div>
+    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Repair dinámico 1500</span><span class="chip on">● Stability Guard</span><span class="chip" id="phaseStatus">INICIALIZANDO HPS7</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
     <section class="card" id="senderCard">
       <h2>1. Emisor</h2>
-      <div class="senderIntro sub">Configura una vez. Después, HopperLink te indica la siguiente acción y mantiene todos los controles del emisor en la zona inferior.</div>
+      <div class="senderIntro sub">Configura una vez. HopperLink valida el runtime antes de habilitar Preparar y después te indica la siguiente acción.</div>
 
       <div class="flowStepper" aria-label="Progreso del flujo">
         <div class="flowStep active">1 · Preparar</div><div class="flowStep">2 · HELLO</div><div class="flowStep">3 · DATA</div><div class="flowStep">4 · Repair</div><div class="flowStep">5 · Listo</div>
       </div>
-      <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Prepara la transferencia</b><span id="flowCoachDetail">Selecciona un archivo y configura HPS7.</span></div>
+      <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Inicializando HPS7</b><span id="flowCoachDetail">Espera un instante mientras se carga y valida el módem óptico.</span></div>
 
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
@@ -46,18 +46,18 @@
       <div class="small" id="speedHint"></div><div class="small" id="modulationHint" style="margin-top:4px"></div><div class="small" id="layoutHint" style="margin-top:4px"></div><div class="small" id="throughputHint" style="margin-top:4px"></div>
 
       <details class="techDetails">
-        <summary>Detalles técnicos y reglas</summary>
+        <summary>Detalles técnicos y diagnóstico</summary>
         <div class="techDetailsBody">
-          <div class="small"><b>DualLane:</b> cada mitad conserva un grid completo. La densidad se expresa siempre como bloques/lane × lanes = bloques/stream físico.</div>
+          <div class="small"><b>DualLane:</b> cada mitad conserva un grid completo. La densidad se expresa como bloques/lane × lanes = bloques/stream físico.</div>
           <div class="small" style="margin-top:6px"><b>Repair Target:</b> no contiene DATA válido. Mantén el patrón hasta que el receptor muestre TAGS 4/4 / LOCK.</div>
-          <div class="small" style="margin-top:6px"><b>Repair dinámico:</b> n = floor(1500 / faltantes), mínimo 1. Los ciclos alternan orden y posición de lanes para reducir errores sistemáticos.</div>
-          <div class="small" style="margin-top:6px"><b>Finalizar ronda:</b> durante un Repair puedes terminar los ciclos restantes si el receptor ya muestra 0 faltantes.</div>
+          <div class="small" style="margin-top:6px"><b>Repair dinámico:</b> n = floor(1500 / faltantes), mínimo 1. Los ciclos alternan orden y posición de lanes.</div>
+          <div class="small" style="margin-top:6px"><b>Stability Guard:</b> bloquea doble preparación, valida handlers, detecta errores JS y evita habilitar acciones antes de que el runtime esté listo.</div>
           <div class="log" id="sendLog" style="margin-top:10px"></div>
         </div>
       </details>
 
       <div id="senderActionDock" class="actionDock senderDock" aria-label="Acciones del emisor">
-        <button class="btn primary grow" id="prepareBtn">Preparar HPS7</button>
+        <button class="btn primary grow" id="prepareBtn" disabled>Inicializando HPS7…</button>
         <button class="btn good grow" id="sendBtn" disabled style="display:none">Mostrar HELLO</button>
         <button class="btn primary internalRepairTrigger" id="txRepairBtn" style="display:none">Enviar Repair Burst</button>
       </div>
@@ -73,7 +73,7 @@
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.14 · Premium Flow · Vertical DualLane · Clean Repair · Dynamic Budget 1500 · 367 B.</div>
+  <div class="footer">PixelStream v0.9.15 · Stability Pass · Premium Flow · Vertical DualLane · Dynamic Budget 1500 · 367 B.</div>
 </div>
 
 <div id="streamOverlay">
@@ -83,13 +83,14 @@
   <div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0914"></script>
-<script src="binary-tag-bridge-fast.js?v=0914"></script>
-<script src="binary-tag-status.js?v=0914"></script>
-<script src="safe-color-constellation.js?v=0914"></script>
-<script src="premium-flow-ui.js?v=0914"></script>
-<script src="hps7-projection.js?v=0914"></script>
-<script src="repair-reacquisition.js?v=0914"></script>
-<script src="hps7-duallane-v2.js?v=0914fix1"></script>
+<script src="runtime-syntax-guard.js?v=0915"></script>
+<script src="binary-tag-bridge-fast.js?v=0915"></script>
+<script src="binary-tag-status.js?v=0915"></script>
+<script src="safe-color-constellation.js?v=0915"></script>
+<script src="premium-flow-ui.js?v=0915"></script>
+<script src="hps7-projection.js?v=0915"></script>
+<script src="repair-reacquisition.js?v=0915"></script>
+<script src="hps7-duallane-v2.js?v=0915"></script>
+<script src="runtime-stability.js?v=0915"></script>
 </body>
 </html>
