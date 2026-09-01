@@ -76,6 +76,19 @@ jobs:
           }
           console.log('Acoustic runtime invariants: PASS');
 
+          for (const needle of [
+            'micSource.connect(analyser)',
+            'analyser.connect(silentGain)',
+            'silentGain.connect(micCtx.destination)',
+            "silentGain.gain.value=1e-7",
+            "micCtx.state!=='running'",
+            'DSP RUNNING',
+            'setOverlay'
+          ]) {
+            if (!acoustic.includes(needle)) throw new Error(`Missing live DSP invariant: ${needle}`);
+          }
+          console.log('HAC2 live DSP graph invariants: PASS');
+
           const listeners = {};
           const documentMock = {
             getElementById: () => null,
@@ -124,7 +137,6 @@ jobs:
           if (!complete?.ok || complete.type!==HAC.TYPE.COMPLETE || complete.fileCrc!==0x10203040) throw new Error('COMPLETE packet roundtrip failed');
           console.log('HAC2 packet codec + CRC: PASS');
 
-          // Synthetic spectrum classifier: verify dense and sparse 16-bit symbols.
           const sr=48000, fft=1024, carriers=Array.from({length:16},(_,i)=>1800+i*260);
           function spectrumFor(word){
             const a=new Float32Array(fft/2+1);a.fill(-92);
@@ -139,15 +151,15 @@ jobs:
           }
           console.log('HAC2 synthetic spectrum classifier: PASS');
 
-          const guardPos = html.indexOf('runtime-syntax-guard.js?v=092');
-          const acousticPos = html.indexOf('acoustic-control.js?v=092');
-          const runtimePos = html.indexOf('hps7-runtime.js?v=092');
+          const guardPos = html.indexOf('runtime-syntax-guard.js?v=093');
+          const acousticPos = html.indexOf('acoustic-control.js?v=093');
+          const runtimePos = html.indexOf('hps7-runtime.js?v=093');
           if (guardPos < 0 || acousticPos < 0 || runtimePos < 0 || !(guardPos < acousticPos && acousticPos < runtimePos)) {
             throw new Error('index.html load order must be guard -> acoustic -> runtime');
           }
-          for (const asset of ['runtime-syntax-guard.js?v=092','acoustic-control.js?v=092','hps7-runtime.js?v=092','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
+          for (const asset of ['runtime-syntax-guard.js?v=093','acoustic-control.js?v=093','hps7-runtime.js?v=093','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
             if (!sw.includes(asset)) throw new Error(`Service Worker missing ${asset}`);
           }
-          if (!sw.includes("hopperlink-pixelstream-v092")) throw new Error('Service Worker cache key is not v092');
-          console.log('v0.9.2 load order + cache isolation: PASS');
+          if (!sw.includes("hopperlink-pixelstream-v093")) throw new Error('Service Worker cache key is not v093');
+          console.log('v0.9.3 load order + cache isolation: PASS');
           NODE
