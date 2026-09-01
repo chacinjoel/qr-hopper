@@ -1,6 +1,33 @@
 (() => {
 'use strict';
 
+// v0.9.0c: one-shot syntax guard for the dynamically patched HPS7 core.
+// The acoustic PASS_END patch in v0.9.0 accidentally left one extra closing brace
+// before controlPayloadNack(). Because this module loads before hps7-runtime.js,
+// intercept the single HPS7 core compilation, repair the exact sequence, then
+// immediately restore the native Function constructor.
+const NativeFunction = window.Function;
+let syntaxGuardArmed = true;
+function GuardedFunction(...args){
+  const last = args.length - 1;
+  if(syntaxGuardArmed && last >= 0 && typeof args[last] === 'string' && args[last].includes('hps7-core-v090.js')){
+    const bad = "else showNack(p.round,suggest);}}}\nfunction controlPayloadNack";
+    const good = "else showNack(p.round,suggest);}}\nfunction controlPayloadNack";
+    if(args[last].includes(bad)){
+      args[last] = args[last].replace(bad, good);
+      syntaxGuardArmed = false;
+      try{ window.dispatchEvent(new CustomEvent('hopper:runtime-syntax-fixed',{detail:{version:'0.9.0c'}})); }catch{}
+    }
+    window.Function = NativeFunction;
+  }
+  return NativeFunction(...args);
+}
+try{
+  Object.setPrototypeOf(GuardedFunction, NativeFunction);
+  GuardedFunction.prototype = NativeFunction.prototype;
+  window.Function = GuardedFunction;
+}catch{}
+
 const VERSION=1, MAGIC=[0x48,0x41,0x43,0x31]; // HAC1
 const TYPE={NACK:1,COMPLETE:2};
 const CARRIERS=Array.from({length:24},(_,i)=>1700+i*210);
@@ -45,5 +72,5 @@ document.addEventListener('change',e=>{if(e.target?.id==='controlMode')setStatus
 document.addEventListener('click',e=>{if(e.target?.id==='cameraBtn')unlockSpeaker().catch(()=>{});},{capture:true});
 window.addEventListener('pagehide',()=>stopMic());
 window.HopperAcoustic={VERSION,TYPE,mode,unlockSpeaker,ensureSenderMic,stopMic,sendNack,sendComplete,listenControl,compressMissing,decompressMissing,makePacket,parsePacket};
-window.__hopperAcoustic={version:'0.9.0',mode:'HAC1 multitone',carriers:24,symbolMs:SYMBOL_MS,estimatedBytesPerSecond:3/(SYMBOL_MS/1000)};
+window.__hopperAcoustic={version:'0.9.0c',mode:'HAC1 multitone',carriers:24,symbolMs:SYMBOL_MS,estimatedBytesPerSecond:3/(SYMBOL_MS/1000),syntaxGuard:true};
 })();
