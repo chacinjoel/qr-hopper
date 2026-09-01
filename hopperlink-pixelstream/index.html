@@ -6,31 +6,30 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=083">
-<link rel="stylesheet" href="photometric-lock.css?v=083">
-<link rel="stylesheet" href="binary-stage.css?v=083">
+<link rel="stylesheet" href="styles.css?v=090">
+<link rel="stylesheet" href="photometric-lock.css?v=090">
+<link rel="stylesheet" href="binary-stage.css?v=090">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.8.3 · Premium Stable Optical</div>
+    <div class="badge">MVP v0.9.0 · Dual NACK Control</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HPS7 Data Plane + Binary Stage</h2>
-    <div class="sub">Optimización centrada en throughput efectivo: 3-bit estable, 12 img/s sincronizados al repaint, bloques lógicos densos de 372 B, geometría directa desde tags, micro-guard por celda, muestreo robusto y Closing Burst explícito.</div>
+    <h2>HPS7 Data Plane + Control seleccionable</h2>
+    <div class="sub">El canal DATA sigue siendo óptico. Ahora puedes elegir cómo vuelve el NACK/COMPLETE: visual/manual como hasta ahora, o acústico automático HAC1 por bocina → micrófono.</div>
     <div class="transport">
       <span class="chip on">● HPS7 ARQ</span>
       <span class="chip on">● Binary Tags Direct Geometry</span>
       <span class="chip on">● Stable Color 3-bit</span>
       <span class="chip on">● VSync 12 img/s</span>
       <span class="chip on">● 372 B / bloque</span>
-      <span class="chip on">● Micro Cell Guard</span>
-      <span class="chip on">● Median Sampling</span>
       <span class="chip on">● Closing Burst ≤500 ×3</span>
-      <span class="chip on">● Motion Telemetry</span>
-      <span class="chip on">● CRC32 integral</span>
+      <span class="chip on">● NACK Manual</span>
+      <span class="chip on">● HAC1 Acoustic</span>
+      <span class="chip" id="controlChannelStatus">NACK MANUAL</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
       <span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
@@ -40,12 +39,13 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Perfil recomendado: Grid 56 + Stable Color 3-bit + Premium 12 img/s. No subimos fps: aumentamos bytes útiles por imagen y reducimos errores causados por transición de pantalla, blur y mezcla entre celdas.</div>
+      <div class="sub">Elige el canal NACK antes de Preparar. El modo elegido viaja dentro del HELLO, así el receptor se configura automáticamente para esa sesión.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="color3" selected>Stable Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option><option value="auto4">Experimental Color · 4-bit · 16 símbolos</option></select></div>
         <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Premium Stable · 12 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
+        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">NACK acústico · automático HAC1</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -60,22 +60,23 @@
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:7px"><b>Closing Burst real:</b> el primer NACK es necesario para decirle al emisor qué bloques faltan. Si quedan 1–500, después de leer ese NACK se hacen 3 ciclos internos: normal → invertido → intercalado. Solo entonces vuelve PASS_END.</div>
-      <div class="small" style="margin-top:5px"><b>Más datos sin más fps:</b> el bloque lógico sube de 360 a 372 B, prácticamente el máximo para 3 bloques por imagen en Grid 56/3-bit.</div>
-      <div class="small" style="margin-top:5px"><b>Micro Cell Guard:</b> cada celda color tiene un núcleo cromático y un borde gris fino para reducir contaminación por movimiento/desenfoque entre celdas vecinas.</div>
-      <div class="small" style="margin-top:5px"><b>VSync:</b> los cambios de imagen se hacen alineados al repaint del display en vez de un temporizador arbitrario.</div>
+      <div class="small" style="margin-top:8px"><b>NACK manual:</b> conserva exactamente el flujo actual. PASS_END → receptor muestra NACK/COMPLETE → el emisor lo lee con cámara.</div>
+      <div class="small" style="margin-top:5px"><b>NACK acústico:</b> al preparar, el emisor habilita su micrófono. Tras PASS_END, el receptor comprime la lista de faltantes y la envía automáticamente por su bocina. El emisor valida sesión + CRC y arranca Repair sin interacción.</div>
+      <div class="small" style="margin-top:5px"><b>HAC1:</b> usa un módem multibanda audible con 24 portadoras, paquete CRC32 propio y compresión delta/rangos. Para NACK pequeños se repite automáticamente para mejorar confiabilidad.</div>
+      <div class="small" style="margin-top:5px"><b>Fallback:</b> si el audio no se valida o expira, aparece “Usar NACK manual” sin perder los bloques ya recibidos.</div>
+      <div class="small" style="margin-top:5px"><b>Closing Burst:</b> si quedan 1–500 bloques, después del NACK se hacen 3 ciclos internos normal → invertido → intercalado antes del siguiente PASS_END.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">HPS7 usa directamente las coordenadas de los tags binarios para la homografía y muestrea cada celda con una mediana de 5 puntos. La telemetría distingue estabilidad óptica, movimiento y temblor.</div>
+      <div class="sub">Inicia la cámara una vez. Ese toque también deja preparado Web Audio. Si el HELLO indica modo acústico, el receptor mantendrá la cámara abierta y responderá por bocina automáticamente después de cada PASS_END.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div>
-        <div class="camHint">Busca TAGS 4/4 · IDs OK · ESTABLE. Si aparece MOVIMIENTO o TEMBLOR, la telemetría cuantificará cuánto afectó la prueba. En cámaras compatibles se aplica compensación de exposición negativa para reducir blur.</div>
+        <div class="camHint">Busca TAGS 4/4 · IDs OK · ESTABLE. En modo acústico no tienes que mover los teléfonos para NACK/Repair.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -93,24 +94,25 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.8.3 · Stable Color 3-bit · 12 img/s VSync · 372 B blocks · Direct Binary Geometry · Micro Cell Guard · Motion Telemetry.</div>
+  <div class="footer">PixelStream v0.9.0 · Optical DATA + selectable Manual/HAC1 Acoustic control · 3-bit · 12 img/s VSync · 372 B blocks.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream Premium Stable</div>
+    <div class="streamMeta" id="streamMeta">PixelStream Dual Control</div>
     <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">Premium Stable · Binary Stage</div>
+  <div class="streamBottom" id="streamBottom">Dual NACK Control</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="binary-tag-bridge.js?v=083"></script>
-<script src="binary-tag-status.js?v=083"></script>
-<script src="safe-color-constellation.js?v=083"></script>
-<script src="hps7-runtime.js?v=083"></script>
+<script src="binary-tag-bridge.js?v=090"></script>
+<script src="binary-tag-status.js?v=090"></script>
+<script src="safe-color-constellation.js?v=090"></script>
+<script src="acoustic-control.js?v=090"></script>
+<script src="hps7-runtime.js?v=090"></script>
 </body>
 </html>
