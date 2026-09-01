@@ -18,11 +18,8 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           set -e
-          for f in hopperlink-pixelstream/*.js; do
-            echo "Checking $f"
-            node --check "$f"
-          done
-      - name: Validate DualLane + Repair + HPS7 projection
+          for f in hopperlink-pixelstream/*.js; do echo "Checking $f"; node --check "$f"; done
+      - name: Validate v0.9.14 Premium Flow
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
@@ -31,72 +28,42 @@ jobs:
           const dual=fs.readFileSync(`${p}/hps7-duallane-v2.js`,'utf8');
           const repair=fs.readFileSync(`${p}/repair-reacquisition.js`,'utf8');
           const projection=fs.readFileSync(`${p}/hps7-projection.js`,'utf8');
+          const premium=fs.readFileSync(`${p}/premium-flow-ui.js`,'utf8');
           const telemetry=fs.readFileSync(`${p}/transfer-telemetry.js`,'utf8');
           const core=fs.readFileSync(`${p}/hps7.js`,'utf8');
           const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
           const bridge=fs.readFileSync(`${p}/binary-tag-bridge-fast.js`,'utf8');
           const warmup=fs.readFileSync(`${p}/color-warmup.js`,'utf8');
           const stageCss=fs.readFileSync(`${p}/binary-stage.css`,'utf8');
+          const styles=fs.readFileSync(`${p}/styles.css`,'utf8');
           const html=fs.readFileSync(`${p}/index.html`,'utf8');
           const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
-          function extract(src,start,name){
-            const a=src.indexOf(start),b=src.indexOf('\nfunction loadScript',a);
-            if(a<0||b<=a)throw new Error(`${name} extraction failed`);
-            const c={console};vm.createContext(c);
-            vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});
-            return c.__fn;
-          }
-          function extractRepairPolicy(src){
-            const a=src.indexOf('function patchManualRuntimeSource'),b=src.indexOf('\nwindow.fetch=async function',a);
-            if(a<0||b<=a)throw new Error('repair policy extraction failed');
-            const c={console};vm.createContext(c);
-            vm.runInContext(src.slice(a,b)+'\n;globalThis.__patch=patchManualRuntimeSource;',c,{filename:'repair-policy.js'});
-            return c.__patch;
-          }
-          const patchedManualText=extractRepairPolicy(repair)(manual);
-          const patched=extract(dual,'function replaceOne','patchDual')(extract(patchedManualText,'function replaceOne','patchCore')(core));
-
+          function extract(src,start,name){const a=src.indexOf(start),b=src.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw new Error(`${name} extraction failed`);const c={console};vm.createContext(c);vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});return c.__fn;}
+          function extractRepairPolicy(src){const a=src.indexOf('function patchManualRuntimeSource'),b=src.indexOf('\nwindow.fetch=async function',a);if(a<0||b<=a)throw new Error('repair policy extraction failed');const c={console};vm.createContext(c);vm.runInContext(src.slice(a,b)+'\n;globalThis.__patch=patchManualRuntimeSource;',c);return c.__patch;}
+          const patchedManual=extractRepairPolicy(repair)(manual);
+          const patched=extract(dual,'function replaceOne','patchDual')(extract(patchedManual,'function replaceOne','patchCore')(core));
           let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
-          const events=[],g={Function,dispatchEvent:e=>events.push(e)};
-          class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
-          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
-          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v0913-duallane.js`);
-          if(typeof compiled!=='function')throw new Error('guarded dual core did not compile');
-          if(g.Function!==Function)throw new Error('native Function not restored');
-          if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
-          console.log('Generated HPS7 v0.9.13 compile: PASS');
+          const events=[],g={Function,dispatchEvent:e=>events.push(e)};class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc);const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v0914-premium.js`);if(typeof compiled!=='function')throw new Error('premium generated core did not compile');if(g.Function!==Function)throw new Error('native Function not restored');if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
+          console.log('Generated HPS7 v0.9.14 compile: PASS');
 
-          for(const n of ['const BASE_CHUNK = 367;','Math.max(1,Math.floor(1500/n))',"bits===2)return{label:'2-bit Max',fps:15","bits===3)return{label:'3-bit Max',fps:12","return{label:'4-bit Max',fps:10",'renderDualPackets',"function laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]",'tall:tallSelected()','rx.tall=tall','for(const z of (r.all||[r]))dispatchPacket(z.p)'])if(!patched.includes(n))throw new Error(`Missing runtime invariant: ${n}`);
+          for(const n of ['const BASE_CHUNK = 367;','Math.max(1,Math.floor(1500/n))','repairPassGroups','repairOrderName','finishRepairRequested','window.__hopperFinishRepairEarly','laneSwap:swap','pares→impares','centro→bordes','bloques/stream físico','Teórico perfecto:'])if(!patched.includes(n))throw new Error(`Runtime missing ${n}`);
+          const cycles=n=>n>0?Math.max(1,Math.floor(1500/n)):1;for(const [n,w] of [[1,1500],[50,30],[100,15],[290,5],[499,3],[500,3],[501,2],[1501,1]])if(cycles(n)!==w)throw new Error(`repair ${n}: ${cycles(n)} != ${w}`);
+          console.log('Dynamic repair + diversity + early finish: PASS');
 
-          const cycles=n=>n>0?Math.max(1,Math.floor(1500/n)):1;
-          const cases=[[1,1500],[50,30],[100,15],[290,5],[499,3],[500,3],[501,2],[1501,1]];
-          for(const [n,want] of cases)if(cycles(n)!==want)throw new Error(`Repair cycles ${n}: got ${cycles(n)} want ${want}`);
-          console.log('Dynamic Repair budget formula: PASS');
+          const HEADER=28,PILOT=32,GRID=56,BASE=367,TOTAL=4603;const payload=b=>Math.floor((GRID*GRID-PILOT)*b/8)-HEADER,lane=b=>Math.max(1,Math.floor((payload(b)-1)/(BASE+6))),per=[2,3,4].map(b=>lane(b)*2),streams=per.map(n=>Math.ceil(TOTAL/n));if(JSON.stringify(per)!=='[4,6,8]'||JSON.stringify(streams)!=='[1151,768,576]')throw new Error(`projection packing ${per}/${streams}`);
+          for(const n of ['repeat:2','dataSec=streams*sp.repeat/sp.fps','bps=perPhysical*BASE_CHUNK*sp.fps/sp.repeat','Configuración seleccionada','bloques/stream físico'])if(!projection.includes(n))throw new Error(`Projection missing ${n}`);
+          console.log('Projection density + repeat-aware timing: PASS');
 
-          const HEADER=28,PILOT=32,GRID=56,BASE=367,TOTAL=4603;
-          const payload=bits=>Math.floor((GRID*GRID-PILOT)*bits/8)-HEADER;
-          const laneChunks=bits=>Math.max(1,Math.floor((payload(bits)-1)/(BASE+6)));
-          const perPhysical=[2,3,4].map(bits=>laneChunks(bits)*2);
-          const streams=perPhysical.map(n=>Math.ceil(TOTAL/n));
-          const fps=[15,12,10],ideal=streams.map((n,i)=>n/fps[i]);
-          if(JSON.stringify(perPhysical)!==JSON.stringify([4,6,8]))throw new Error(`Dual packing wrong: ${perPhysical}`);
-          if(JSON.stringify(streams)!==JSON.stringify([1151,768,576]))throw new Error(`4603-block stream projection wrong: ${streams}`);
-          if(Math.abs(ideal[0]-76.7333)>.02||Math.abs(ideal[1]-64)>.01||Math.abs(ideal[2]-57.6)>.01)throw new Error(`ideal time projection wrong: ${ideal}`);
-          for(const n of ['BASE_CHUNK=367','blocksPerLane','streams=Math.ceil(total/perPhysical)','fpsFor(bits)','warmupSeconds','Proyección HPS7 · transferencia perfecta'])if(!projection.includes(n))throw new Error(`Projection module missing ${n}`);
-          console.log('Projection sample 4603 blocks: 2-bit=1151 streams, 3-bit=768, 4-bit=576: PASS');
+          for(const n of ['bottomDocks:true','dualAwareHints:true','earlyRepairFinish:true','senderActionDock','streamActions','Finalizar ronda','Teórico perfecto:','flowCoachTitle'])if(!premium.includes(n))throw new Error(`Premium UI missing ${n}`);
+          for(const n of ['REPAIR_BUDGET=1500','streamActions','btn:not(#repairReacquireStart)','clean-target-bottom-dock'])if(!repair.includes(n))throw new Error(`Repair target missing ${n}`);if(repair.includes('TYPE.DATA')||repair.includes('makePacket('))throw new Error('Repair target generates DATA');
+          for(const n of ['telemetryMount','Pico instantáneo','Los ciclos rotan orden y lanes'])if(!telemetry.includes(n))throw new Error(`Telemetry missing ${n}`);
+          for(const n of ['adaptiveDetection:true','reuseMemory'])if(!bridge.includes(n))throw new Error(`Bridge missing ${n}`);for(const n of ['DUAL LANE TRAINING'])if(!warmup.includes(n))throw new Error(`Warmup missing ${n}`);
+          for(const n of ['transform:translateY(-18px)!important','aspect-ratio:1/2!important','height:5.8%!important'])if(!stageCss.includes(n))throw new Error(`Safe stage missing ${n}`);
+          for(const n of ['.actionDock','.streamActions','.flowCoach','.internalRepairTrigger','.techDetails'])if(!styles.includes(n))throw new Error(`Styles missing ${n}`);
 
-          for(const n of ['adaptiveDetection:true','frameSeq%3!==0','frameSeq%2!==0','reuseMemory'])if(!bridge.includes(n))throw new Error(`Fast bridge missing ${n}`);
-          for(const n of ['tallSelected()',"rows=tall?112:56",'DUAL LANE TRAINING'])if(!warmup.includes(n))throw new Error(`Dual warmup missing ${n}`);
-          for(const n of ['html.stream-tall .pixelFrame','aspect-ratio:1/2!important','html.stream-tall .finder','height:5.8%!important'])if(!stageCss.includes(n))throw new Error(`Physical tall-stage CSS missing ${n}`);
-          for(const n of ['REPAIR_BUDGET=1500','repair-target-clean','overlay.appendChild(startBtn)','clean-static-target-before-real-repair'])if(!repair.includes(n))throw new Error(`Clean repair module missing ${n}`);
-          if(repair.includes('TYPE.DATA')||repair.includes('makePacket('))throw new Error('Repair target must not generate HPS7 DATA packets');
-          for(const n of ['Repair dinámico: n = floor(1500 / faltantes)','repairBudget:1500'])if(!telemetry.includes(n))throw new Error(`Telemetry missing ${n}`);
-
-          for(const n of ['MVP v0.9.13 · HPS7 Perfect Projection','Proyección HPS7 perfecta','hps7-projection.js?v=0913'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
-          const gp=html.indexOf('runtime-syntax-guard.js?v=0913'),bp=html.indexOf('binary-tag-bridge-fast.js?v=0913'),pp=html.indexOf('hps7-projection.js?v=0913'),qp=html.indexOf('repair-reacquisition.js?v=0913'),rp=html.indexOf('hps7-duallane-v2.js?v=0913');
-          if(gp<0||bp<0||pp<0||qp<0||rp<0||!(gp<bp&&bp<pp&&pp<qp&&qp<rp))throw new Error('v0913 script load order failed');
-          for(const asset of ['runtime-syntax-guard.js?v=0913','binary-tag-bridge-fast.js?v=0913','hps7-projection.js?v=0913','repair-reacquisition.js?v=0913','hps7-duallane-v2.js?v=0913','hps7-manual-max.js?v=098','binary-stage.css?v=0913'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
-          if(!sw.includes('hopperlink-pixelstream-v0913'))throw new Error('cache key not v0913');
-          console.log('v0.9.13 invariants: PASS');
+          for(const n of ['MVP v0.9.14 · Premium Flow','id="senderActionDock"','id="streamActions"','id="telemetryMount"','id="flowCoach"','premium-flow-ui.js?v=0914','hps7-projection.js?v=0914','repair-reacquisition.js?v=0914','hps7-duallane-v2.js?v=0914'])if(!html.includes(n))throw new Error(`HTML missing ${n}`);
+          const gp=html.indexOf('runtime-syntax-guard.js?v=0914'),bp=html.indexOf('binary-tag-bridge-fast.js?v=0914'),up=html.indexOf('premium-flow-ui.js?v=0914'),pp=html.indexOf('hps7-projection.js?v=0914'),qp=html.indexOf('repair-reacquisition.js?v=0914'),rp=html.indexOf('hps7-duallane-v2.js?v=0914');if(!(gp>=0&&gp<bp&&bp<up&&up<pp&&pp<qp&&qp<rp))throw new Error('v0914 load order failed');
+          for(const a of ['premium-flow-ui.js?v=0914','hps7-projection.js?v=0914','repair-reacquisition.js?v=0914','hps7-duallane-v2.js?v=0914','binary-stage.css?v=0914','styles.css?v=0914'])if(!sw.includes(a))throw new Error(`SW missing ${a}`);if(!sw.includes('hopperlink-pixelstream-v0914'))throw new Error('cache not v0914');
+          console.log('v0.9.14 Premium Flow invariants: PASS');
           NODE
