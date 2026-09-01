@@ -33,26 +33,46 @@ jobs:
           const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
           const bridge=fs.readFileSync(`${p}/binary-tag-bridge-fast.js`,'utf8');
           const warmup=fs.readFileSync(`${p}/color-warmup.js`,'utf8');
-          const css=fs.readFileSync(`${p}/styles.css`,'utf8');
+          const stageCss=fs.readFileSync(`${p}/binary-stage.css`,'utf8');
           const html=fs.readFileSync(`${p}/index.html`,'utf8');
           const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
-          function extract(src,start,name){const a=src.indexOf(start),b=src.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw new Error(`${name} extraction failed`);const c={console};vm.createContext(c);vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});return c.__fn;}
+          function extract(src,start,name){
+            const a=src.indexOf(start),b=src.indexOf('\nfunction loadScript',a);
+            if(a<0||b<=a)throw new Error(`${name} extraction failed`);
+            const c={console};vm.createContext(c);
+            vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});
+            return c.__fn;
+          }
           const manualPatch=extract(manual,'function replaceOne','patchCore');
           const dualPatch=extract(dual,'function replaceOne','patchDual');
-          const manualCore=manualPatch(core),patched=dualPatch(manualCore);
+          const patched=dualPatch(manualPatch(core));
 
           let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
           const events=[],g={Function,dispatchEvent:e=>events.push(e)};
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
-          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
-          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v099b-duallane.js`);
+          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);
+          vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
+          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v099c-duallane.js`);
           if(typeof compiled!=='function')throw new Error('guarded dual core did not compile');
           if(g.Function!==Function)throw new Error('native Function not restored');
           if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
           console.log('Generated HPS7 Vertical DualLane compile: PASS');
 
-          for(const n of ['const BASE_CHUNK = 367;','n>0&&n<=500?3:1',"bits===2)return{label:'2-bit Max',fps:15","bits===3)return{label:'3-bit Max',fps:12","return{label:'4-bit Max',fps:10",'renderDualPackets',"function laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]",'tall:tallSelected()','p.payload.length<14','rx.tall=tall','for(const z of (r.all||[r]))dispatchPacket(z.p)','SIN NACK intermedio'])if(!patched.includes(n))throw new Error(`Missing dual-lane invariant: ${n}`);
+          for(const n of [
+            'const BASE_CHUNK = 367;',
+            'n>0&&n<=500?3:1',
+            "bits===2)return{label:'2-bit Max',fps:15",
+            "bits===3)return{label:'3-bit Max',fps:12",
+            "return{label:'4-bit Max',fps:10",
+            'renderDualPackets',
+            "function laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]",
+            'tall:tallSelected()',
+            'p.payload.length<14',
+            'rx.tall=tall',
+            'for(const z of (r.all||[r]))dispatchPacket(z.p)',
+            'SIN NACK intermedio'
+          ]) if(!patched.includes(n))throw new Error(`Missing dual-lane invariant: ${n}`);
 
           const HEADER=28,PILOT=32,GRID=56,BASE=367;
           const payload=bits=>Math.floor((GRID*GRID-PILOT)*bits/8)-HEADER;
@@ -65,11 +85,22 @@ jobs:
 
           for(const n of ['adaptiveDetection:true','frameSeq%3!==0','frameSeq%2!==0','reuseMemory'])if(!bridge.includes(n))throw new Error(`Fast bridge missing ${n}`);
           for(const n of ['tallSelected()',"rows=tall?112:56",'DUAL LANE TRAINING'])if(!warmup.includes(n))throw new Error(`Dual warmup missing ${n}`);
-          for(const n of ['html.stream-tall .pixelFrame','aspect-ratio:1/2','html.stream-tall .finder'])if(!css.includes(n))throw new Error(`Tall CSS missing ${n}`);
-          for(const n of ['MVP v0.9.9 · Vertical DualLane','id="streamShape"','value="tall2" selected','2×56×56'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
-          const gp=html.indexOf('runtime-syntax-guard.js?v=099b'),bp=html.indexOf('binary-tag-bridge-fast.js?v=099b'),rp=html.indexOf('hps7-duallane-v2.js?v=099b');
+
+          // This must be checked in binary-stage.css because it loads AFTER styles.css with !important.
+          for(const n of [
+            'html.stream-tall .pixelFrame',
+            'aspect-ratio:1/2!important',
+            'max-height:88vh!important',
+            'html.stream-tall .finder',
+            'height:5.8%!important',
+            'top:3.1%!important',
+            'bottom:3.1%!important'
+          ]) if(!stageCss.includes(n))throw new Error(`Physical tall-stage CSS missing ${n}`);
+
+          for(const n of ['MVP v0.9.9c · Physical Vertical DualLane','id="streamShape"','value="tall2" selected','2×56×56','Stage físico 1:2'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
+          const gp=html.indexOf('runtime-syntax-guard.js?v=099c'),bp=html.indexOf('binary-tag-bridge-fast.js?v=099c'),rp=html.indexOf('hps7-duallane-v2.js?v=099c');
           if(gp<0||bp<0||rp<0||!(gp<bp&&bp<rp))throw new Error('load order guard -> fast bridge -> dual runtime failed');
-          for(const asset of ['runtime-syntax-guard.js?v=099b','binary-tag-bridge-fast.js?v=099b','hps7-duallane-v2.js?v=099b','hps7-manual-max.js?v=098','color-warmup.js?v=099b','transfer-telemetry.js?v=099b'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
-          if(!sw.includes('hopperlink-pixelstream-v099b'))throw new Error('cache key not v099b');
-          console.log('v0.9.9b Vertical DualLane invariants: PASS');
+          for(const asset of ['runtime-syntax-guard.js?v=099c','binary-tag-bridge-fast.js?v=099c','hps7-duallane-v2.js?v=099c','hps7-manual-max.js?v=098','color-warmup.js?v=099c','transfer-telemetry.js?v=099c','binary-stage.css?v=099c'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
+          if(!sw.includes('hopperlink-pixelstream-v099c'))throw new Error('cache key not v099c');
+          console.log('v0.9.9c Physical Vertical DualLane invariants: PASS');
           NODE
