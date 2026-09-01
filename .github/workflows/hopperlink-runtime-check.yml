@@ -22,84 +22,61 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Validate HPS7 runtime and HAC5
+      - name: Validate Manual Max runtime
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream';
-          const runtime=fs.readFileSync(`${p}/hps7-runtime-hac5.js`,'utf8');
+          const runtime=fs.readFileSync(`${p}/hps7-manual-max.js`,'utf8');
           const core=fs.readFileSync(`${p}/hps7.js`,'utf8');
           const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
-          const hac5=fs.readFileSync(`${p}/hac5-control.js`,'utf8');
+          const bridge=fs.readFileSync(`${p}/binary-tag-bridge-fast.js`,'utf8');
+          const warmup=fs.readFileSync(`${p}/color-warmup.js`,'utf8');
           const html=fs.readFileSync(`${p}/index.html`,'utf8');
           const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
           const a=runtime.indexOf('function replaceOne'),b=runtime.indexOf('function loadScript');
           if(a<0||b<=a)throw new Error('patchCore not found');
-          const pc={console};vm.createContext(pc);vm.runInContext(runtime.slice(a,b)+'\n;globalThis.__patchCore=patchCore;',pc,{filename:'runtime-patch.js'});
+          const pc={console};vm.createContext(pc);vm.runInContext(runtime.slice(a,b)+'\n;globalThis.__patchCore=patchCore;',pc,{filename:'manual-max-patch.js'});
           const patched=pc.__patchCore(core);
+
           let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
           const events=[],g={Function,dispatchEvent:e=>events.push(e)};
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
           const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
-          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v090.js`);
-          if(typeof compiled!=='function'||g.Function!==Function)throw new Error('guarded HPS7 compile failed');
+          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v098.js`);
+          if(typeof compiled!=='function')throw new Error('guarded core did not compile');
+          if(g.Function!==Function)throw new Error('native Function not restored');
           if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
-          console.log('Guarded HPS7 compile: PASS');
+          console.log('Generated HPS7 Manual Max compile: PASS');
 
-          for(const needle of [
-            'window.HopperAcoustic.listenControl',
-            'window.HopperAcoustic.sendNack',
-            'window.HopperAcoustic.sendComplete',
-            'showNackAcoustic',
-            'Closing Burst ciclo',
-            'setTimeout(()=>listenForAcousticControl(round),0)',
-            'sendRepair()'
-          ]) if(!patched.includes(needle)&&!runtime.includes(needle))throw new Error(`Missing HAC5 runtime invariant: ${needle}`);
-          if(runtime.includes('HopperHybrid'))throw new Error('HAC5 runtime must not use old HopperHybrid flow');
-          console.log('HAC5 HPS7 state-machine invariants: PASS');
+          for(const n of [
+            'const BASE_CHUNK = 367;',
+            'n>0&&n<=500?3:1',
+            "bits===2)return{label:'2-bit Max',fps:15",
+            "bits===3)return{label:'3-bit Max',fps:12",
+            "return{label:'4-bit Max',fps:10",
+            'SIN NACK intermedio',
+            'repairPrerollMs(bits)',
+            'trackedSuccess%30===0',
+            'binaryTagBridge?.last'
+          ]) if(!patched.includes(n))throw new Error(`Missing manual-max invariant: ${n}`);
 
-          const listeners={};
-          const document={getElementById:()=>null,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)},createElement:()=>({})};
-          const window={dispatchEvent:()=>true,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)},AudioContext:function(){},webkitAudioContext:null};
-          const ctx={window,document,navigator:{mediaDevices:{}},CustomEvent:CE,Uint8Array,Uint32Array,Float32Array,Array,Math,Number,Object,String,Error,Date,performance:{now:()=>0},setTimeout,clearTimeout,setInterval,clearInterval,console};
-          vm.createContext(ctx);vm.runInContext(hac5,ctx,{filename:'hac5-control.js'});
-          const H=window.HopperAcoustic;if(!H||H.VERSION!==5)throw new Error('HAC5 API/version failed');
+          const HEADER=28,PILOT=32,GRID=56,BASE=367;
+          const payload=bits=>Math.floor((GRID*GRID-PILOT)*bits/8)-HEADER;
+          const chunks=bits=>Math.max(1,Math.floor((payload(bits)-1)/(BASE+6)));
+          const got=[chunks(2),chunks(3),chunks(4)];
+          if(JSON.stringify(got)!==JSON.stringify([2,3,4]))throw new Error(`Grid56 packing wrong: ${got}`);
+          const bps=[2*BASE*15,3*BASE*12,4*BASE*10];
+          console.log('Grid56 packing: 2-bit=2, 3-bit=3, 4-bit=4 blocks/frame · B/s',bps.join(','));
 
-          const samples=[
-            [0,1,2,3,4,5,99,100,101,777,778,1200],
-            Array.from({length:480},(_,i)=>i*3),
-            Array.from({length:420},(_,i)=>500+i)
-          ];
-          for(const missing of samples){
-            const c=H.compressMissing(missing),d=Array.from(H.decompressMissing(c,5000));
-            if(JSON.stringify(d)!==JSON.stringify(missing))throw new Error('HAC5 missing compression roundtrip failed');
-            const packet=H.makePacket(H.TYPE.NACK,{session:0x12345678,round:2,bits:3,total:5000,fileCrc:0x89abcdef,missing});
-            const parsed=H.parsePacket(packet);
-            if(!parsed?.ok||parsed.session!==0x12345678||parsed.round!==2||parsed.fileCrc!==0x89abcdef)throw new Error('HAC5 packet roundtrip failed');
-            if(JSON.stringify(parsed.missing)!==JSON.stringify(missing))throw new Error('HAC5 packet changed missing list');
-            const corrupt=packet.slice();corrupt[corrupt.length-6]^=1;if(!H.parsePacket(corrupt)?.bad)throw new Error('HAC5 CRC32 reject failed');
-          }
-          console.log('HAC5 compression + packet CRC32: PASS');
-
-          const message=H.makePacket(H.TYPE.NACK,{session:0x12345678,round:3,bits:3,total:5000,fileCrc:0x10203040,missing:Array.from({length:300},(_,i)=>i*7)});
-          const rawBlocks=H.buildBlocks(message,{session:0x12345678,round:3,fileCrc:0x10203040});
-          if(rawBlocks.length<3)throw new Error('HAC5 block builder did not create data+parity');
-          for(const b of rawBlocks){const expected=(b[76]<<8)|b[77];if(H.crc16(b.slice(0,76))!==expected)throw new Error('HAC5 block CRC16 invalid');}
-          const map=new Map();let parity=null,meta=null;
-          for(const b of rawBlocks){const obj={idx:b[6],count:b[7],len:b[8],totalLen:(b[9]<<8)|b[10],parity:!!(b[11]&1),payload:b.slice(12,76)};if(!meta)meta={count:obj.count,totalLen:obj.totalLen};if(obj.idx===255)parity=obj;else map.set(obj.idx,obj);}
-          const lost=[...map.keys()][1];map.delete(lost);
-          const recovered=H.assembleBlocks(map,parity,meta);
-          if(!recovered||Buffer.from(recovered).compare(Buffer.from(message))!==0)throw new Error('HAC5 parity recovery failed');
-          console.log('HAC5 CRC16 blocks + single-block parity recovery: PASS');
-
-          for(const needle of ['torch:true','facingMode:{ideal:\'user\'}','monitorFlash','MARK_NIBBLE','BLOCK_PAYLOAD=64'])if(!hac5.includes(needle))throw new Error(`Missing HAC5 physical invariant: ${needle}`);
-          console.log('HAC5 FlashSync + DTMF framing invariants: PASS');
-
-          const gp=html.indexOf('runtime-syntax-guard.js?v=097'),ap=html.indexOf('hac5-control.js?v=097'),rp=html.indexOf('hps7-runtime-hac5.js?v=097');
-          if(gp<0||ap<0||rp<0||!(gp<ap&&ap<rp))throw new Error('load order must be guard -> HAC5 -> runtime');
-          for(const asset of ['runtime-syntax-guard.js?v=097','hac5-control.js?v=097','hps7-runtime-hac5.js?v=097'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
-          if(!sw.includes('hopperlink-pixelstream-v097'))throw new Error('cache key not v097');
-          if(!html.includes('MVP v0.9.7 · HAC5 Reliable Control'))throw new Error('UI badge not v0.9.7');
-          console.log('v0.9.7 load order + cache isolation: PASS');
+          for(const n of ['adaptiveDetection:true','frameSeq%3!==0','frameSeq%2!==0','Math.min(w,h)/200','reuseMemory'])if(!bridge.includes(n))throw new Error(`Fast bridge missing ${n}`);
+          for(const n of ["bits===2){log('2-bit gris: sin warm-up",'bits===3?2:3'])if(!warmup.includes(n))throw new Error(`Warmup invariant missing ${n}`);
+          if(html.includes('HAC5')||html.includes('acoustic'))throw new Error('Manual Max UI still exposes acoustic mode');
+          for(const n of ['MVP v0.9.8 · Manual Max','value="maxcal" selected','Max Gray · 2-bit','Max Color · 3-bit','Max Color · 4-bit'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
+          const gp=html.indexOf('runtime-syntax-guard.js?v=098'),bp=html.indexOf('binary-tag-bridge-fast.js?v=098'),rp=html.indexOf('hps7-manual-max.js?v=098');
+          if(gp<0||bp<0||rp<0||!(gp<bp&&bp<rp))throw new Error('load order guard -> fast bridge -> manual max failed');
+          for(const asset of ['runtime-syntax-guard.js?v=098','binary-tag-bridge-fast.js?v=098','hps7-manual-max.js?v=098','color-warmup.js?v=098','transfer-telemetry.js?v=098'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
+          if(!sw.includes('hopperlink-pixelstream-v098'))throw new Error('cache key not v098');
+          console.log('v0.9.8 Manual Max invariants: PASS');
           NODE
