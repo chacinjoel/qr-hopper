@@ -31,10 +31,10 @@ jobs:
           const runtime = fs.readFileSync(`${path}/hps7-runtime.js`, 'utf8');
           const core = fs.readFileSync(`${path}/hps7.js`, 'utf8');
           const acoustic = fs.readFileSync(`${path}/acoustic-control.js`, 'utf8');
+          const standaloneGuard = fs.readFileSync(`${path}/runtime-syntax-guard.js`, 'utf8');
           const html = fs.readFileSync(`${path}/index.html`, 'utf8');
           const sw = fs.readFileSync(`${path}/sw.js`, 'utf8');
 
-          // 1) Build the dynamically patched HPS7 core exactly from the runtime patcher.
           const a = runtime.indexOf('function replaceOne');
           const b = runtime.indexOf('function loadScript');
           if (a < 0 || b < 0 || b <= a) throw new Error('Could not locate patchCore in runtime');
@@ -48,27 +48,27 @@ jobs:
           try { new Function(patched); } catch (e) { rawError = e; }
           console.log('Raw patched core:', rawError ? `needs syntax guard (${rawError.message})` : 'compiles directly');
 
-          // 2) Install the same one-shot syntax guard that the browser loads before hps7-runtime.js.
-          const guardEnd = acoustic.indexOf('const VERSION=1');
-          if (guardEnd < 0) throw new Error('Could not locate acoustic syntax guard');
-          const guardCode = acoustic.slice(0, guardEnd) + '\n})();';
           const events = [];
-          const windowObj = { Function, dispatchEvent: e => events.push(e) };
+          const globalObj = { Function, dispatchEvent: e => events.push(e) };
           class CustomEventMock { constructor(type, init={}) { this.type=type; this.detail=init.detail; } }
-          const guardCtx = { window: windowObj, CustomEvent: CustomEventMock, console, Object };
+          const guardCtx = {
+            globalThis: globalObj,
+            CustomEvent: CustomEventMock,
+            console,
+            Object
+          };
           vm.createContext(guardCtx);
-          vm.runInContext(guardCode, guardCtx, { filename: 'acoustic-syntax-guard.js' });
+          vm.runInContext(standaloneGuard, guardCtx, { filename: 'runtime-syntax-guard.js' });
 
           const body = `${patched}\n//# sourceURL=hps7-core-v090.js`;
           let compiled;
-          try { compiled = windowObj.Function(body); }
-          catch (e) { console.error('Guarded compile failed:', e.stack || e); process.exit(1); }
-          if (typeof compiled !== 'function') throw new Error('Guard did not return a compiled Function');
-          if (windowObj.Function !== Function) throw new Error('Native Function constructor was not restored');
-          if (rawError && !events.some(e => e.type === 'hopper:runtime-syntax-fixed')) throw new Error('Syntax-fix event did not fire');
-          console.log('Guarded HPS7 compile: PASS');
+          try { compiled = globalObj.Function(body); }
+          catch (e) { console.error('Standalone guarded compile failed:', e.stack || e); process.exit(1); }
+          if (typeof compiled !== 'function') throw new Error('Standalone guard did not return a compiled Function');
+          if (globalObj.Function !== Function) throw new Error('Native Function constructor was not restored');
+          if (rawError && !events.some(e => e.type === 'hopper:runtime-syntax-fixed')) throw new Error('Standalone syntax-fix event did not fire');
+          console.log('Standalone guarded HPS7 compile: PASS');
 
-          // 3) Acoustic runtime invariants must exist in the generated core.
           for (const needle of [
             "controlMode==='acoustic'",
             'listenForAcousticControl',
@@ -81,7 +81,6 @@ jobs:
           }
           console.log('Acoustic runtime invariants: PASS');
 
-          // 4) Load acoustic-control.js in a browser-like VM and test packet codec/CRC without audio hardware.
           const listeners = {};
           const documentMock = {
             getElementById: () => null,
@@ -129,12 +128,15 @@ jobs:
           if (!complete?.ok || complete.type!==HAC.TYPE.COMPLETE || complete.fileCrc!==0x10203040) throw new Error('COMPLETE packet roundtrip failed');
           console.log('HAC1 packet codec + CRC: PASS');
 
-          // 5) Load order/cache invariants. Acoustic must execute before runtime.
-          const acousticPos = html.indexOf('acoustic-control.js');
-          const runtimePos = html.indexOf('hps7-runtime.js');
-          if (acousticPos < 0 || runtimePos < 0 || acousticPos >= runtimePos) throw new Error('index.html does not load acoustic-control before hps7-runtime');
-          for (const asset of ['acoustic-control.js','hps7-runtime.js','hps7.js','transfer-telemetry.js']) {
+          const guardPos = html.indexOf('runtime-syntax-guard.js?v=091');
+          const acousticPos = html.indexOf('acoustic-control.js?v=091');
+          const runtimePos = html.indexOf('hps7-runtime.js?v=091');
+          if (guardPos < 0 || acousticPos < 0 || runtimePos < 0 || !(guardPos < acousticPos && acousticPos < runtimePos)) {
+            throw new Error('index.html load order must be guard -> acoustic -> runtime');
+          }
+          for (const asset of ['runtime-syntax-guard.js?v=091','acoustic-control.js?v=091','hps7-runtime.js?v=091','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
             if (!sw.includes(asset)) throw new Error(`Service Worker missing ${asset}`);
           }
-          console.log('Load order + service-worker assets: PASS');
+          if (!sw.includes("hopperlink-pixelstream-v091")) throw new Error('Service Worker cache key is not v091');
+          console.log('v0.9.1 load order + cache isolation: PASS');
           NODE
