@@ -6,20 +6,20 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=094">
-<link rel="stylesheet" href="photometric-lock.css?v=094">
-<link rel="stylesheet" href="binary-stage.css?v=094">
+<link rel="stylesheet" href="styles.css?v=095">
+<link rel="stylesheet" href="photometric-lock.css?v=095">
+<link rel="stylesheet" href="binary-stage.css?v=095">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.4 · HAC3 Differential Acoustic</div>
+    <div class="badge">MVP v0.9.5 · HAC4 DualTone Acoustic</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Data Plane + Control seleccionable</h2>
-    <div class="sub">DATA sigue siendo óptico. HAC3 cambia el retorno acústico a modulación diferencial: cada bit compara dos frecuencias, evitando depender de umbrales absolutos afectados por la bocina, el micrófono y la ecualización del teléfono.</div>
+    <div class="sub">DATA sigue siendo óptico. HAC4 usa señalización dual-tone estilo DTMF dentro de la banda de voz: cada símbolo combina un tono bajo y uno alto, una técnica mucho más adecuada para bocinas y micrófonos de teléfonos.</div>
     <div class="transport">
       <span class="chip on">● HPS7 ARQ</span>
       <span class="chip on">● Binary Tags Direct Geometry</span>
@@ -28,7 +28,7 @@
       <span class="chip on">● 372 B / bloque</span>
       <span class="chip on">● Closing Burst ≤500 ×3</span>
       <span class="chip on">● NACK Manual</span>
-      <span class="chip on">● HAC3 Differential8</span>
+      <span class="chip on">● HAC4 DualTone16</span>
       <span class="chip" id="controlChannelStatus">NACK MANUAL</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -39,13 +39,13 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Elige el canal NACK antes de Preparar. En acústico, el micrófono queda listo desde ese toque y al llegar PASS_END el AudioContext se reanuda/verifica antes de decodificar.</div>
+      <div class="sub">Elige el canal NACK antes de Preparar. En acústico el micrófono queda listo desde ese toque y al llegar PASS_END se reanuda/verifica el DSP antes de decodificar.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="color3" selected>Stable Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option><option value="auto4">Experimental Color · 4-bit · 16 símbolos</option></select></div>
         <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Premium Stable · 12 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
-        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">NACK acústico · automático HAC3</option></select></div>
+        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">NACK acústico · automático HAC4</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -61,9 +61,9 @@
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
       <div class="small" style="margin-top:8px"><b>NACK manual:</b> conserva exactamente el flujo visual actual.</div>
-      <div class="small" style="margin-top:5px"><b>NACK acústico HAC3:</b> cada byte usa 8 pares de frecuencias; cada bit se decide comparando cuál frecuencia del par llega más fuerte. Esto compensa la respuesta irregular de bocinas y micrófonos.</div>
-      <div class="small" style="margin-top:5px"><b>SYNC tolerante:</b> antes de cada paquete se transmite una secuencia larga que puede reconocerse incluso con varios bits erróneos; después sesión + ronda + CRC deben coincidir.</div>
-      <div class="small" style="margin-top:5px"><b>Diagnóstico en PASS_END:</b> muestra DSP, señal, símbolos/bytes, SYNC encontrados, CRC y timeout.</div>
+      <div class="small" style="margin-top:5px"><b>NACK acústico HAC4:</b> usa pares de frecuencias tipo DTMF entre ~697 y 1633 Hz. Cada combinación representa 4 bits y se detecta por el tono dominante de cada grupo, evitando los tonos altos que fallaron en HAC3.</div>
+      <div class="small" style="margin-top:5px"><b>SYNC tolerante:</b> antes de cada paquete se transmite una secuencia larga de símbolos; después sesión + ronda + CRC deben coincidir.</div>
+      <div class="small" style="margin-top:5px"><b>Diagnóstico en PASS_END:</b> muestra TONO OK/DÉBIL/SIN TONO, símbolos, bytes, SYNC, CRC y SNR.</div>
       <div class="small" style="margin-top:5px"><b>Fallback:</b> si el audio no se valida, puedes continuar con NACK manual sin perder bloques.</div>
       <div class="small" style="margin-top:5px"><b>Closing Burst:</b> si quedan 1–500 bloques, después del NACK se hacen 3 ciclos internos normal → invertido → intercalado antes del siguiente PASS_END.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
@@ -95,7 +95,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.9.4 · HAC3 Differential8 · Optical DATA + Manual/Acoustic control · 3-bit · 12 img/s.</div>
+  <div class="footer">PixelStream v0.9.5 · HAC4 DualTone16 · Optical DATA + Manual/Acoustic control · 3-bit · 12 img/s.</div>
 </div>
 
 <div id="streamOverlay">
@@ -110,11 +110,11 @@
   <div class="streamBottom" id="streamBottom">Dual NACK Control</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=094"></script>
-<script src="binary-tag-bridge.js?v=094"></script>
-<script src="binary-tag-status.js?v=094"></script>
-<script src="safe-color-constellation.js?v=094"></script>
-<script src="acoustic-hac3.js?v=094"></script>
-<script src="hps7-runtime.js?v=094"></script>
+<script src="runtime-syntax-guard.js?v=095"></script>
+<script src="binary-tag-bridge.js?v=095"></script>
+<script src="binary-tag-status.js?v=095"></script>
+<script src="safe-color-constellation.js?v=095"></script>
+<script src="acoustic-hac4.js?v=095"></script>
+<script src="hps7-runtime.js?v=095"></script>
 </body>
 </html>
