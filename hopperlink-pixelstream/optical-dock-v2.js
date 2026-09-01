@@ -3,7 +3,7 @@
 
 const KEYS=['tl','tr','bl','br'];
 const priorGetImageData=CanvasRenderingContext2D.prototype.getImageData;
-let dockMemory=null,lastSignature=null,lastSignatureTs=0,stableFrames=0;
+let dockMemory=null,lastSignature=null,lastSignatureTs=0,stableFrames=0,lastStableImage=null,lastStableBridge=null,lastStableTs=0,heldFrames=0;
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function luma(d,p){return(d[p]+d[p+1]+d[p+2])/3;}
@@ -35,6 +35,7 @@ function photometricRails(img,w,h,markers){const d=img.data,top=[],bottom=[];for
 function frameSignature(img,w,h,markers){const d=img.data,out=[];for(const ny of [.18,.31,.44,.56,.69,.82])for(const nx of [.20,.35,.50,.65,.80]){const p=stagePoint(markers,nx,ny);const rgb=sampleRGB(d,w,h,p.x,p.y,0);out.push((rgb[0]+rgb[1]+rgb[2])/3);}return out;}
 function signatureDelta(a,b){if(!a||!b||a.length!==b.length)return Infinity;let s=0;for(let i=0;i<a.length;i++)s+=Math.abs(a[i]-b[i]);return s/a.length;}
 function extrapolate(mem,now){const dt=now-mem.ts;if(dt>420)return null;const scale=dt/Math.max(1,mem.sampleDt||33),out={};for(const k of KEYS)out[k]={x:mem.markers[k].x+(mem.vx||0)*scale,y:mem.markers[k].y+(mem.vy||0)*scale};return out;}
+function cloneBridge(b){if(!b)return null;const markers=b.markers?Object.fromEntries(KEYS.map(k=>[k,b.markers[k]?{x:b.markers[k].x,y:b.markers[k].y}:null])):null;return{...b,markers,decoded:Array.isArray(b.decoded)?b.decoded.slice():[]};}
 
 function analyze(img,w,h){
   const now=performance.now(),bridge=window.__hopperBinaryTagBridge?.last||null,contour=findContour(img,w,h),contourMarkers=markersFromContour(contour);let markers=null,source='none',quality=0;
@@ -57,9 +58,18 @@ function renderDock(){
   const frame=document.querySelector('.pixelFrame');if(!frame||frame.querySelector('.opticalDockV2'))return;const root=document.createElement('div');root.className='opticalDockV2';root.setAttribute('aria-hidden','true');for(const pos of ['top','right','bottom','left']){const a=document.createElement('div');a.className='dockAnchor dock-'+pos;a.innerHTML='<i></i><i></i><i></i>';root.appendChild(a);}for(const pos of ['top','bottom']){const r=document.createElement('div');r.className='photoRail rail-'+pos;root.appendChild(r);}frame.appendChild(root);updateRails();}
 function updateRails(){const p=dockPalette();document.querySelectorAll('.photoRail').forEach((r,ri)=>{r.innerHTML='';const arr=ri?p.slice().reverse():p;for(const c of arr){const s=document.createElement('i');s.style.background=c;r.appendChild(s);}});}
 
-CanvasRenderingContext2D.prototype.getImageData=function(...args){const img=priorGetImageData.apply(this,args);if(this.canvas?.id!=='capture')return img;try{const last=analyze(img,this.canvas.width,this.canvas.height);window.__hopperOpticalDockV2.last=last;if(window.__hopperBinaryTagBridge){const b=window.__hopperBinaryTagBridge.last||{};if(last.valid&&(!b.valid||last.source==='contour'||last.source==='track'))window.__hopperBinaryTagBridge.last={...b,...last,found:b.found||0,decoded:b.decoded||[]};else if(b.valid)window.__hopperBinaryTagBridge.last={...b,dock:last,stableForDecode:last.stableForDecode,frameDelta:last.frameDelta,rails:last.rails,photometricOK:last.photometricOK};}}catch{}return img;};
+CanvasRenderingContext2D.prototype.getImageData=function(...args){
+  const img=priorGetImageData.apply(this,args);if(this.canvas?.id!=='capture')return img;
+  try{
+    const now=performance.now(),last=analyze(img,this.canvas.width,this.canvas.height);window.__hopperOpticalDockV2.last=last;let currentBridge=window.__hopperBinaryTagBridge?.last||null;
+    if(window.__hopperBinaryTagBridge){const b=currentBridge||{};if(last.valid&&(!b.valid||last.source==='contour'||last.source==='track'))window.__hopperBinaryTagBridge.last={...b,...last,found:b.found||0,decoded:b.decoded||[]};else if(b.valid)window.__hopperBinaryTagBridge.last={...b,dock:last,stableForDecode:last.stableForDecode,frameDelta:last.frameDelta,rails:last.rails,photometricOK:last.photometricOK};currentBridge=window.__hopperBinaryTagBridge.last;}
+    if(last.valid&&last.stableForDecode){lastStableImage=img;lastStableBridge=cloneBridge(currentBridge);lastStableTs=now;heldFrames=0;return img;}
+    if(last.valid&&!last.stableForDecode&&lastStableImage&&now-lastStableTs<220&&lastStableImage.width===img.width&&lastStableImage.height===img.height){heldFrames++;last.held=true;last.heldFrames=heldFrames;if(window.__hopperBinaryTagBridge&&lastStableBridge)window.__hopperBinaryTagBridge.last=cloneBridge(lastStableBridge);return lastStableImage;}
+  }catch{}
+  return img;
+};
 
 function install(){renderDock();for(const id of ['modulationMode','streamShape'])document.getElementById(id)?.addEventListener('change',updateRails);window.addEventListener('hopper:runtime-ready',()=>{renderDock();updateRails();});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__hopperOpticalDockV2={version:'0.9.16',active:true,last:null,contourLock:true,temporalTracking:true,photometricRails:true,stableFrameGate:true,findContour,markersFromContour,analyze};
+window.__hopperOpticalDockV2={version:'0.9.16',active:true,last:null,contourLock:true,temporalTracking:true,photometricRails:true,stableFrameGate:true,frameFreezeOnTransition:true,findContour,markersFromContour,analyze};
 })();
