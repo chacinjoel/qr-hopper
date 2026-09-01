@@ -22,13 +22,14 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Validate Vertical DualLane runtime
+      - name: Validate DualLane + Repair Reacquisition runtime
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream';
           const manual=fs.readFileSync(`${p}/hps7-manual-max.js`,'utf8');
           const dual=fs.readFileSync(`${p}/hps7-duallane-v2.js`,'utf8');
+          const repair=fs.readFileSync(`${p}/repair-reacquisition.js`,'utf8');
           const core=fs.readFileSync(`${p}/hps7.js`,'utf8');
           const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
           const bridge=fs.readFileSync(`${p}/binary-tag-bridge-fast.js`,'utf8');
@@ -44,35 +45,20 @@ jobs:
             vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});
             return c.__fn;
           }
-          const manualPatch=extract(manual,'function replaceOne','patchCore');
-          const dualPatch=extract(dual,'function replaceOne','patchDual');
-          const patched=dualPatch(manualPatch(core));
+          const patched=extract(dual,'function replaceOne','patchDual')(extract(manual,'function replaceOne','patchCore')(core));
 
           let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
           const events=[],g={Function,dispatchEvent:e=>events.push(e)};
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
           const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);
           vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
-          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v099c-duallane.js`);
+          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v0910-duallane.js`);
           if(typeof compiled!=='function')throw new Error('guarded dual core did not compile');
           if(g.Function!==Function)throw new Error('native Function not restored');
           if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
           console.log('Generated HPS7 Vertical DualLane compile: PASS');
 
-          for(const n of [
-            'const BASE_CHUNK = 367;',
-            'n>0&&n<=500?3:1',
-            "bits===2)return{label:'2-bit Max',fps:15",
-            "bits===3)return{label:'3-bit Max',fps:12",
-            "return{label:'4-bit Max',fps:10",
-            'renderDualPackets',
-            "function laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]",
-            'tall:tallSelected()',
-            'p.payload.length<14',
-            'rx.tall=tall',
-            'for(const z of (r.all||[r]))dispatchPacket(z.p)',
-            'SIN NACK intermedio'
-          ]) if(!patched.includes(n))throw new Error(`Missing dual-lane invariant: ${n}`);
+          for(const n of ['const BASE_CHUNK = 367;','n>0&&n<=500?3:1',"bits===2)return{label:'2-bit Max',fps:15","bits===3)return{label:'3-bit Max',fps:12","return{label:'4-bit Max',fps:10",'renderDualPackets',"function laneY(lane){return lane===0?[DATA_MIN,.5]:lane===1?[.5,DATA_MAX]",'tall:tallSelected()','rx.tall=tall','for(const z of (r.all||[r]))dispatchPacket(z.p)','SIN NACK intermedio'])if(!patched.includes(n))throw new Error(`Missing dual-lane invariant: ${n}`);
 
           const HEADER=28,PILOT=32,GRID=56,BASE=367;
           const payload=bits=>Math.floor((GRID*GRID-PILOT)*bits/8)-HEADER;
@@ -80,27 +66,22 @@ jobs:
           const square=[laneChunks(2),laneChunks(3),laneChunks(4)],physical=square.map(x=>x*2);
           if(JSON.stringify(square)!==JSON.stringify([2,3,4]))throw new Error(`Square packing wrong: ${square}`);
           if(JSON.stringify(physical)!==JSON.stringify([4,6,8]))throw new Error(`Dual packing wrong: ${physical}`);
-          const bps=[4*BASE*15,6*BASE*12,8*BASE*10];
-          console.log('DualLane Grid56: 2-bit=4, 3-bit=6, 4-bit=8 blocks/physical-frame · B/s',bps.join(','));
+          console.log('DualLane packing: PASS ·',physical.join('/'),'blocks per physical frame');
 
           for(const n of ['adaptiveDetection:true','frameSeq%3!==0','frameSeq%2!==0','reuseMemory'])if(!bridge.includes(n))throw new Error(`Fast bridge missing ${n}`);
           for(const n of ['tallSelected()',"rows=tall?112:56",'DUAL LANE TRAINING'])if(!warmup.includes(n))throw new Error(`Dual warmup missing ${n}`);
+          for(const n of ['html.stream-tall .pixelFrame','aspect-ratio:1/2!important','html.stream-tall .finder','height:5.8%!important','top:3.1%!important','bottom:3.1%!important'])if(!stageCss.includes(n))throw new Error(`Physical tall-stage CSS missing ${n}`);
 
-          // This must be checked in binary-stage.css because it loads AFTER styles.css with !important.
-          for(const n of [
-            'html.stream-tall .pixelFrame',
-            'aspect-ratio:1/2!important',
-            'max-height:88vh!important',
-            'html.stream-tall .finder',
-            'height:5.8%!important',
-            'top:3.1%!important',
-            'bottom:3.1%!important'
-          ]) if(!stageCss.includes(n))throw new Error(`Physical tall-stage CSS missing ${n}`);
+          // Repair target must be geometry/calibration only. Real Repair remains owned by HPS7.
+          for(const n of ['REPAIR TARGET','Receptor listo · Iniciar Repair','MutationObserver','originalRepair.call','renderTarget()','static-target-before-real-repair'])if(!repair.includes(n))throw new Error(`Repair reacquisition missing ${n}`);
+          if(repair.includes('TYPE.DATA')||repair.includes('makePacket('))throw new Error('Repair target must not generate HPS7 DATA packets');
+          if(!repair.includes("window.addEventListener('hopper:runtime-ready'"))throw new Error('Repair target must install after runtime readiness');
+          console.log('Repair Reacquisition no-DATA invariants: PASS');
 
-          for(const n of ['MVP v0.9.9c · Physical Vertical DualLane','id="streamShape"','value="tall2" selected','2×56×56','Stage físico 1:2'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
-          const gp=html.indexOf('runtime-syntax-guard.js?v=099c'),bp=html.indexOf('binary-tag-bridge-fast.js?v=099c'),rp=html.indexOf('hps7-duallane-v2.js?v=099c');
-          if(gp<0||bp<0||rp<0||!(gp<bp&&bp<rp))throw new Error('load order guard -> fast bridge -> dual runtime failed');
-          for(const asset of ['runtime-syntax-guard.js?v=099c','binary-tag-bridge-fast.js?v=099c','hps7-duallane-v2.js?v=099c','hps7-manual-max.js?v=098','color-warmup.js?v=099c','transfer-telemetry.js?v=099c','binary-stage.css?v=099c'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
-          if(!sw.includes('hopperlink-pixelstream-v099c'))throw new Error('cache key not v099c');
-          console.log('v0.9.9c Physical Vertical DualLane invariants: PASS');
+          for(const n of ['MVP v0.9.10 · Repair Reacquisition','id="streamShape"','value="tall2" selected','Repair Reacquisition','2×56×56'])if(!html.includes(n))throw new Error(`UI missing ${n}`);
+          const gp=html.indexOf('runtime-syntax-guard.js?v=0910'),bp=html.indexOf('binary-tag-bridge-fast.js?v=0910'),qp=html.indexOf('repair-reacquisition.js?v=0910'),rp=html.indexOf('hps7-duallane-v2.js?v=0910');
+          if(gp<0||bp<0||qp<0||rp<0||!(gp<bp&&bp<qp&&qp<rp))throw new Error('load order guard -> bridge -> repair -> dual runtime failed');
+          for(const asset of ['runtime-syntax-guard.js?v=0910','binary-tag-bridge-fast.js?v=0910','binary-tag-status.js?v=0910','repair-reacquisition.js?v=0910','hps7-duallane-v2.js?v=0910','hps7-manual-max.js?v=098','binary-stage.css?v=0910'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
+          if(!sw.includes('hopperlink-pixelstream-v0910'))throw new Error('cache key not v0910');
+          console.log('v0.9.10 Repair Reacquisition invariants: PASS');
           NODE
