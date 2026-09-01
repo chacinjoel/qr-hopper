@@ -1,26 +1,94 @@
-/* PixelStream v0.7.4 · Monochrome Fiducial Isolation */
-/* El canal de navegación (fiduciales) es acromático; el canal DATA puede usar color sin colisiones. */
+/* PixelStream v0.7.5 · Optical Stage Isolation */
+/*
+  Separación física definitiva entre navegación y DATA:
+  - viewport óptico gris medio uniforme (no negro)
+  - tarjeta cuadrada con anillos B/N/B de gran escala
+  - fiduciales monocromos tipo bullseye
+  - guard band claro entre navegación y payload
+  El color queda reservado exclusivamente al DATA.
+*/
+
+#streamOverlay{
+  background:#767676!important;
+  padding:0!important;
+  overflow:hidden!important;
+}
+
+/* Tarjeta óptica aislada del fondo. 84vmin deja un margen exterior visible
+   en cualquier orientación y evita que el borde del teléfono sea el borde del código. */
+.pixelFrame{
+  width:min(84vmin,calc(100vw - 36px))!important;
+  max-height:84vmin!important;
+  aspect-ratio:1!important;
+  background:#eeeeee!important;
+  border:10px solid #090909!important;
+  box-shadow:
+    0 0 0 8px #fafafa,
+    0 0 0 16px #090909,
+    0 0 0 22px #a8a8a8!important;
+}
+
+/* El payload vive dentro de una isla separada. */
+.pixelShell{
+  inset:15%!important;
+  background:#d8d8d8!important;
+  border:8px solid #f6f6f6!important;
+  box-shadow:
+    0 0 0 6px #0a0a0a,
+    0 0 0 13px #d0d0d0!important;
+  overflow:hidden!important;
+}
+
+#pixelCanvas{
+  width:100%!important;
+  height:100%!important;
+  display:block!important;
+  image-rendering:pixelated!important;
+}
+
+/* Fiduciales: acromáticos, grandes y con tres anillos de contraste.
+   Su identidad proviene de la geometría TL/TR/BL/BR, no del color. */
 .finder{
-  width:10.5%!important;
-  height:10.5%!important;
-  background:#f4f4f4!important;
-  border:3px solid #050505!important;
-  box-shadow:0 0 0 3px #fff,0 0 0 6px #000!important;
+  width:11.5%!important;
+  height:11.5%!important;
+  background:#f7f7f7!important;
+  border:7px solid #050505!important;
+  box-shadow:
+    0 0 0 5px #ffffff,
+    0 0 0 10px #050505!important;
+  overflow:hidden!important;
 }
 .finder:after{
-  inset:26%!important;
-  background:#020202!important;
-  border:3px solid #fff!important;
-  box-shadow:0 0 0 2px #000!important;
+  content:""!important;
+  position:absolute!important;
+  inset:24%!important;
+  background:#050505!important;
+  border:5px solid #ffffff!important;
+  box-shadow:0 0 0 3px #050505!important;
 }
-.f-tl,.f-tr,.f-bl,.f-br{background:#f4f4f4!important}
+.f-tl,.f-tr,.f-bl,.f-br{background:#f7f7f7!important}
 
-/* Guard band óptico: DATA ya no toca visualmente los fiduciales. */
-.pixelFrame{background:#151515!important}
-.pixelShell{
-  inset:13.5%!important;
-  background:#0b0b0b!important;
-  box-shadow:0 0 0 5px #050505,0 0 0 7px #9ca3af!important;
+/* Controles fuera de la tarjeta y con luminancia cercana al fondo para no
+   generar componentes de alto contraste cerca de los fiduciales. */
+.streamTop,.streamBottom{z-index:60!important}
+.streamMeta,.streamBottom{
+  background:rgba(70,70,70,.86)!important;
+  color:#ffffff!important;
+  border:1px solid rgba(255,255,255,.28)!important;
+}
+#overlayActionBtn,#closeStream{
+  background:#5f5f5f!important;
+  border-color:#9a9a9a!important;
+  color:#fff!important;
+  box-shadow:none!important;
 }
 
-/* El guide del receptor puede conservar colores de diagnóstico: no forma parte de la imagen transmitida. */
+/* En pantallas pequeñas prioriza siempre que se vea el margen exterior. */
+@media(max-width:520px){
+  .pixelFrame{
+    width:min(80vmin,calc(100vw - 44px))!important;
+    max-height:80vmin!important;
+    border-width:8px!important;
+  }
+  .pixelShell{inset:15.5%!important;border-width:6px!important}
+}
