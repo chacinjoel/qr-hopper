@@ -22,7 +22,7 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Compile dynamically patched HPS7 core through acoustic syntax guard
+      - name: Validate generated HPS7 runtime and HAC1 codec
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -31,7 +31,10 @@ jobs:
           const runtime = fs.readFileSync(`${path}/hps7-runtime.js`, 'utf8');
           const core = fs.readFileSync(`${path}/hps7.js`, 'utf8');
           const acoustic = fs.readFileSync(`${path}/acoustic-control.js`, 'utf8');
+          const html = fs.readFileSync(`${path}/index.html`, 'utf8');
+          const sw = fs.readFileSync(`${path}/sw.js`, 'utf8');
 
+          // 1) Build the dynamically patched HPS7 core exactly from the runtime patcher.
           const a = runtime.indexOf('function replaceOne');
           const b = runtime.indexOf('function loadScript');
           if (a < 0 || b < 0 || b <= a) throw new Error('Could not locate patchCore in runtime');
@@ -43,16 +46,14 @@ jobs:
 
           let rawError = null;
           try { new Function(patched); } catch (e) { rawError = e; }
-          console.log('Raw patched core:', rawError ? `needs guard (${rawError.message})` : 'compiles directly');
+          console.log('Raw patched core:', rawError ? `needs syntax guard (${rawError.message})` : 'compiles directly');
 
+          // 2) Install the same one-shot syntax guard that the browser loads before hps7-runtime.js.
           const guardEnd = acoustic.indexOf('const VERSION=1');
           if (guardEnd < 0) throw new Error('Could not locate acoustic syntax guard');
           const guardCode = acoustic.slice(0, guardEnd) + '\n})();';
           const events = [];
-          const windowObj = {
-            Function,
-            dispatchEvent: e => events.push(e),
-          };
+          const windowObj = { Function, dispatchEvent: e => events.push(e) };
           class CustomEventMock { constructor(type, init={}) { this.type=type; this.detail=init.detail; } }
           const guardCtx = { window: windowObj, CustomEvent: CustomEventMock, console, Object };
           vm.createContext(guardCtx);
@@ -60,28 +61,80 @@ jobs:
 
           const body = `${patched}\n//# sourceURL=hps7-core-v090.js`;
           let compiled;
-          try {
-            compiled = windowObj.Function(body);
-          } catch (e) {
-            console.error('Guarded compile failed:', e.stack || e);
-            process.exit(1);
-          }
-          if (typeof compiled !== 'function') throw new Error('Guard did not return compiled Function');
+          try { compiled = windowObj.Function(body); }
+          catch (e) { console.error('Guarded compile failed:', e.stack || e); process.exit(1); }
+          if (typeof compiled !== 'function') throw new Error('Guard did not return a compiled Function');
           if (windowObj.Function !== Function) throw new Error('Native Function constructor was not restored');
-          if (rawError && !events.some(e => e.type === 'hopper:runtime-syntax-fixed')) {
-            throw new Error('Raw core was invalid but syntax-fix event did not fire');
-          }
+          if (rawError && !events.some(e => e.type === 'hopper:runtime-syntax-fixed')) throw new Error('Syntax-fix event did not fire');
           console.log('Guarded HPS7 compile: PASS');
 
+          // 3) Acoustic runtime invariants must exist in the generated core.
           for (const needle of [
             "controlMode==='acoustic'",
             'listenForAcousticControl',
             'showNackAcoustic',
             'HopperAcoustic.sendNack',
             'HopperAcoustic.sendComplete',
-            'fallback manual'
+            'Fallback manual disponible'
           ]) {
             if (!patched.includes(needle)) throw new Error(`Missing acoustic runtime invariant: ${needle}`);
           }
           console.log('Acoustic runtime invariants: PASS');
+
+          // 4) Load acoustic-control.js in a browser-like VM and test packet codec/CRC without audio hardware.
+          const listeners = {};
+          const documentMock = {
+            getElementById: () => null,
+            addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); }
+          };
+          const windowMock = {
+            Function,
+            dispatchEvent: () => true,
+            addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+            AudioContext: function(){},
+            webkitAudioContext: null,
+          };
+          const acousticCtx = {
+            window: windowMock,
+            document: documentMock,
+            navigator: { mediaDevices: {} },
+            CustomEvent: CustomEventMock,
+            Uint8Array, Uint32Array, Array, Math, Number, Object, String, Error,
+            setTimeout, clearTimeout, setInterval, clearInterval, console
+          };
+          vm.createContext(acousticCtx);
+          vm.runInContext(acoustic, acousticCtx, { filename: 'acoustic-control.js' });
+          const HAC = windowMock.HopperAcoustic;
+          if (!HAC) throw new Error('HopperAcoustic API not exported');
+
+          const samples = [
+            [0,1,2,3,4,5,99,100,101,777,778,1200],
+            [2,17,31,32,90,143,144,145,146,500,999,1000,1001],
+            Array.from({length:480}, (_,i) => i*3)
+          ];
+          for (const missing of samples) {
+            const compressed = HAC.compressMissing(missing);
+            const decoded = Array.from(HAC.decompressMissing(compressed, 5000));
+            if (JSON.stringify(decoded) !== JSON.stringify(missing)) throw new Error('Missing-list compression roundtrip failed');
+            const packet = HAC.makePacket(HAC.TYPE.NACK,{session:0x12345678,round:2,bits:3,total:5000,fileCrc:0x89abcdef,missing});
+            const parsed = HAC.parsePacket(packet,0);
+            if (!parsed?.ok || parsed.session!==0x12345678 || parsed.round!==2 || parsed.bits!==3 || parsed.total!==5000 || parsed.fileCrc!==0x89abcdef) throw new Error('NACK packet roundtrip failed');
+            if (JSON.stringify(parsed.missing)!==JSON.stringify(missing)) throw new Error('NACK missing list changed during packet roundtrip');
+            const corrupt = packet.slice(); corrupt[Math.max(5, corrupt.length-6)] ^= 0x01;
+            const bad = HAC.parsePacket(corrupt,0);
+            if (!bad?.bad) throw new Error('Corrupted acoustic packet was not rejected by CRC');
+          }
+          const completePacket = HAC.makePacket(HAC.TYPE.COMPLETE,{session:7,round:3,bits:3,total:123,fileCrc:0x10203040});
+          const complete = HAC.parsePacket(completePacket,0);
+          if (!complete?.ok || complete.type!==HAC.TYPE.COMPLETE || complete.fileCrc!==0x10203040) throw new Error('COMPLETE packet roundtrip failed');
+          console.log('HAC1 packet codec + CRC: PASS');
+
+          // 5) Load order/cache invariants. Acoustic must execute before runtime.
+          const acousticPos = html.indexOf('acoustic-control.js');
+          const runtimePos = html.indexOf('hps7-runtime.js');
+          if (acousticPos < 0 || runtimePos < 0 || acousticPos >= runtimePos) throw new Error('index.html does not load acoustic-control before hps7-runtime');
+          for (const asset of ['acoustic-control.js','hps7-runtime.js','hps7.js','transfer-telemetry.js']) {
+            if (!sw.includes(asset)) throw new Error(`Service Worker missing ${asset}`);
+          }
+          console.log('Load order + service-worker assets: PASS');
           NODE
