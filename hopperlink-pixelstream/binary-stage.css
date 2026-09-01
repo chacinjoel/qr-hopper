@@ -1,5 +1,7 @@
-/* PixelStream v0.8 · Binary Stage Navigation */
-/* La geometría física coincide exactamente con HPS7 DATA_MIN=.12 / DATA_MAX=.88. */
+/* PixelStream v0.9.9c · Binary Stage + Vertical DualLane */
+/* Square control sigue en DATA_MIN=.12 / DATA_MAX=.88. En DualLane, el mismo
+   rango vertical se divide .12→.50 y .50→.88. Con stage 1:2, cada mitad queda
+   físicamente cuadrada y conserva el tamaño de celda del grid 56×56 original. */
 #streamOverlay{
   background:#7a7a7a!important;
   padding:0!important;
@@ -14,7 +16,7 @@
   border:8px solid #111!important;
   box-shadow:0 0 0 6px #fff,0 0 0 13px #151515,0 0 0 19px #a0a0a0!important;
 }
-/* CRÍTICO: debe ser exactamente 12% para coincidir con el decoder. */
+/* Square: coincide exactamente con HPS7 DATA_MIN=.12 / DATA_MAX=.88. */
 .pixelShell{
   inset:12%!important;
   background:#d6d6d6!important;
@@ -24,7 +26,7 @@
 }
 #pixelCanvas{width:100%!important;height:100%!important;display:block!important;image-rendering:pixelated!important}
 
-/* Contenedor físico de cada tag: centro exactamente en 6% / 94%. */
+/* Square control: centro de tags exactamente 6% / 94%. */
 .finder{
   width:11.6%!important;
   height:11.6%!important;
@@ -41,6 +43,41 @@
 .f-br{right:.2%!important;bottom:.2%!important}
 .fid-tag-canvas{width:100%!important;height:100%!important;display:block!important;image-rendering:pixelated!important;background:#fff!important}
 
+/*
+ * VERTICAL DUAL LANE
+ * ------------------
+ * El stage pasa a ancho:alto = 1:2. Como pixelShell conserva inset 12%, su
+ * ancho físico es .76W y su alto es .76(2W)=1.52W. Cada mitad mide .76W×.76W:
+ * exactamente un grid cuadrado. No reducimos la celda para obtener el ×2.
+ */
+html.stream-tall .pixelFrame{
+  width:min(88vw,44vh,calc(100vw - 32px))!important;
+  max-height:88vh!important;
+  aspect-ratio:1/2!important;
+}
+html.stream-tall .pixelShell{
+  inset:12%!important;
+}
+/* En un stage 1:2, 5.8% de alto = 11.6% del ancho físico. De esta forma el tag
+   continúa siendo cuadrado. top/bottom=3.1% deja su centro exactamente en y=6/94%. */
+html.stream-tall .finder{
+  width:11.6%!important;
+  height:5.8%!important;
+}
+html.stream-tall .f-tl{left:.2%!important;top:3.1%!important}
+html.stream-tall .f-tr{right:.2%!important;top:3.1%!important}
+html.stream-tall .f-bl{left:.2%!important;bottom:3.1%!important}
+html.stream-tall .f-br{right:.2%!important;bottom:3.1%!important}
+/* Separador puramente visual; cae exactamente entre los lanes y no altera canvas. */
+html.stream-tall .pixelFrame:after{
+  content:"";
+  position:absolute;
+  left:12%;right:12%;top:50%;height:1px;
+  background:rgba(255,255,255,.22);
+  z-index:2;
+  pointer-events:none;
+}
+
 /* UI fuera del objeto óptico, con contraste moderado. */
 .streamTop,.streamBottom{z-index:60!important}
 .streamMeta,.streamBottom{background:rgba(88,88,88,.90)!important;color:#fff!important;border:1px solid rgba(255,255,255,.28)!important}
@@ -48,4 +85,9 @@
 
 @media(max-width:520px){
   .pixelFrame{width:min(84vmin,calc(100vw - 38px))!important;max-height:84vmin!important;border-width:7px!important}
+  html.stream-tall .pixelFrame{
+    width:min(84vw,42vh,calc(100vw - 38px))!important;
+    max-height:84vh!important;
+    aspect-ratio:1/2!important;
+  }
 }
