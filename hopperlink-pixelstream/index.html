@@ -6,20 +6,20 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=091">
-<link rel="stylesheet" href="photometric-lock.css?v=091">
-<link rel="stylesheet" href="binary-stage.css?v=091">
+<link rel="stylesheet" href="styles.css?v=092">
+<link rel="stylesheet" href="photometric-lock.css?v=092">
+<link rel="stylesheet" href="binary-stage.css?v=092">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.1 · Dual NACK Control</div>
+    <div class="badge">MVP v0.9.2 · HAC2 Robust Acoustic</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Data Plane + Control seleccionable</h2>
-    <div class="sub">El canal DATA sigue siendo óptico. Ahora puedes elegir cómo vuelve el NACK/COMPLETE: visual/manual como hasta ahora, o acústico automático HAC1 por bocina → micrófono.</div>
+    <div class="sub">El canal DATA sigue siendo óptico. Puedes elegir NACK/COMPLETE visual/manual o acústico automático. HAC2 usa una ventana DSP corta y símbolos con separación temporal real para funcionar mejor con bocinas y micrófonos de teléfonos.</div>
     <div class="transport">
       <span class="chip on">● HPS7 ARQ</span>
       <span class="chip on">● Binary Tags Direct Geometry</span>
@@ -28,7 +28,7 @@
       <span class="chip on">● 372 B / bloque</span>
       <span class="chip on">● Closing Burst ≤500 ×3</span>
       <span class="chip on">● NACK Manual</span>
-      <span class="chip on">● HAC1 Acoustic</span>
+      <span class="chip on">● HAC2 Robust16</span>
       <span class="chip" id="controlChannelStatus">NACK MANUAL</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -45,7 +45,7 @@
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="color3" selected>Stable Color · 3-bit · 8 símbolos</option><option value="gray2">Robust Gray · 2-bit · 4 niveles</option><option value="auto4">Experimental Color · 4-bit · 16 símbolos</option></select></div>
         <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced" selected>Premium Stable · 12 img/s</option><option value="turbo">Turbo · 15 img/s</option><option value="optical">Ultra Optical · 18 img/s</option></select></div>
-        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">NACK acústico · automático HAC1</option></select></div>
+        <div class="grow"><label>Canal NACK / COMPLETE</label><br><select id="controlMode" style="width:100%"><option value="manual" selected>NACK manual · cámara / pantalla</option><option value="acoustic">NACK acústico · automático HAC2</option></select></div>
       </div>
       <div class="stats">
         <div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div>
@@ -60,17 +60,17 @@
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:8px"><b>NACK manual:</b> conserva exactamente el flujo actual. PASS_END → receptor muestra NACK/COMPLETE → el emisor lo lee con cámara.</div>
-      <div class="small" style="margin-top:5px"><b>NACK acústico:</b> al preparar, el emisor habilita su micrófono. Tras PASS_END, el receptor comprime la lista de faltantes y la envía automáticamente por su bocina. El emisor valida sesión + CRC y arranca Repair sin interacción.</div>
-      <div class="small" style="margin-top:5px"><b>HAC1:</b> usa un módem multibanda audible con 24 portadoras, paquete CRC32 propio y compresión delta/rangos. Para NACK pequeños se repite automáticamente para mejorar confiabilidad.</div>
-      <div class="small" style="margin-top:5px"><b>Fallback:</b> si el audio no se valida o expira, aparece “Usar NACK manual” sin perder los bloques ya recibidos.</div>
+      <div class="small" style="margin-top:8px"><b>NACK manual:</b> conserva exactamente el flujo visual actual.</div>
+      <div class="small" style="margin-top:5px"><b>NACK acústico HAC2:</b> el receptor comprime los faltantes y los transmite por bocina; el emisor mantiene el micrófono escuchando y arranca Repair automáticamente cuando sesión + ronda + CRC coinciden.</div>
+      <div class="small" style="margin-top:5px"><b>HAC2 Robust16:</b> 16 portadoras entre 1.8–5.7 kHz, piloto alternante, FFT de 1024 muestras (~21 ms a 48 kHz), tono de 26 ms y guard de 22 ms. El estado muestra SEÑAL, símbolos detectados y timeout para diagnosticar el canal físico.</div>
+      <div class="small" style="margin-top:5px"><b>Fallback:</b> si el audio no se valida o expira, aparece “Usar NACK manual” sin perder los bloques recibidos.</div>
       <div class="small" style="margin-top:5px"><b>Closing Burst:</b> si quedan 1–500 bloques, después del NACK se hacen 3 ciclos internos normal → invertido → intercalado antes del siguiente PASS_END.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">Inicia la cámara una vez. Ese toque también deja preparado Web Audio. Si el HELLO indica modo acústico, el receptor mantendrá la cámara abierta y responderá por bocina automáticamente después de cada PASS_END.</div>
+      <div class="sub">Inicia la cámara una vez. Ese toque también deja preparado Web Audio. Si el HELLO indica modo acústico, el receptor mantiene la cámara abierta y responde por bocina automáticamente después de PASS_END.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
@@ -94,7 +94,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.9.1 · Optical DATA + selectable Manual/HAC1 Acoustic control · 3-bit · 12 img/s VSync · 372 B blocks.</div>
+  <div class="footer">PixelStream v0.9.2 · Optical DATA + Manual/HAC2 control · 3-bit · 12 img/s VSync · 372 B blocks.</div>
 </div>
 
 <div id="streamOverlay">
@@ -109,11 +109,11 @@
   <div class="streamBottom" id="streamBottom">Dual NACK Control</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=091"></script>
-<script src="binary-tag-bridge.js?v=091"></script>
-<script src="binary-tag-status.js?v=091"></script>
-<script src="safe-color-constellation.js?v=091"></script>
-<script src="acoustic-control.js?v=091"></script>
-<script src="hps7-runtime.js?v=091"></script>
+<script src="runtime-syntax-guard.js?v=092"></script>
+<script src="binary-tag-bridge.js?v=092"></script>
+<script src="binary-tag-status.js?v=092"></script>
+<script src="safe-color-constellation.js?v=092"></script>
+<script src="acoustic-control.js?v=092"></script>
+<script src="hps7-runtime.js?v=092"></script>
 </body>
 </html>
