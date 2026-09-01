@@ -1,7 +1,42 @@
 (() => {
 'use strict';
 
-// Repair Reacquisition Stage v1
+// Repair Reacquisition Stage v1.1
+// Also installs the v0.9.11 tiered Repair policy BEFORE the DualLane runtime
+// fetches hps7-manual-max.js:
+//   1–99 missing  -> 10 internal cycles
+//   100–499      -> 3 internal cycles
+//   500+         -> 1 cycle
+// There is never an intermediate NACK/PASS_END inside those internal cycles.
+
+const nativeFetch=window.fetch.bind(window);
+let repairPolicyArmed=true;
+function patchManualRuntimeSource(text){
+  let out=text;
+  const replacements=[
+    ['function repairPasses(n){return n>0&&n<=500?3:1;}','function repairPasses(n){return n>0&&n<100?10:n>0&&n<500?3:1;}'],
+    ["missing<=500?' · CLOSING BURST ×3':''","missing>0&&missing<100?' · CLOSING BURST ×10':missing>0&&missing<500?' · CLOSING BURST ×3':''"],
+    ['closingBurst:missing>0&&missing<=500,cycles:missing>0&&missing<=500?3:1','closingBurst:missing>0&&missing<500,cycles:missing>0&&missing<100?10:missing>0&&missing<500?3:1'],
+    ['Closing Burst ≤500 ×3 sin NACK intermedio.','Repair Burst <100 ×10 · 100–499 ×3 · sin NACK intermedio.']
+  ];
+  for(const [from,to] of replacements){
+    if(!out.includes(from))throw new Error(`Repair policy patch missing: ${from}`);
+    out=out.replace(from,to);
+  }
+  return out;
+}
+window.fetch=async function(input,init){
+  const url=typeof input==='string'?input:(input?.url||'');
+  const response=await nativeFetch(input,init);
+  if(!repairPolicyArmed||!url.includes('hps7-manual-max.js'))return response;
+  const text=await response.text(),patched=patchManualRuntimeSource(text);
+  repairPolicyArmed=false;
+  window.fetch=nativeFetch;
+  try{window.dispatchEvent(new CustomEvent('hopper:repair-policy-ready',{detail:{under100:10,under500:3,default:1}}));}catch{}
+  return new Response(patched,{status:response.status,statusText:response.statusText,headers:response.headers});
+};
+window.__hopperRepairCyclePolicy={version:'0.9.11',under100:10,under500:3,default:1,strictLessThan:true};
+
 // Manual ARQ helper: after a valid NACK, show a static optical target using
 // exactly the selected Square/DualLane geometry and modulation BEFORE any real
 // repair DATA is emitted. The receiver can reacquire tags/homography/focus/
@@ -30,26 +65,16 @@ function renderTarget(){
   document.documentElement.classList.toggle('stream-tall',tall);
   c.width=grid;c.height=rows;
   const ctx=c.getContext('2d',{alpha:false}),img=ctx.createImageData(grid,rows),d=img.data;
-
-  // Large macro-cells stabilize exposure/WB. Each lane gets a slightly shifted
-  // pattern so top/bottom remain visually distinct while preserving palette.
   for(let y=0;y<rows;y++)for(let x=0;x<grid;x++){
     const lane=tall&&y>=56?1:0,ly=y%56,bx=Math.floor(x/7),by=Math.floor(ly/7);
     const sym=(by*8+bx+lane*3)%n,rgb=pal[sym],p=(y*grid+x)*4;
     d[p]=rgb[0];d[p+1]=rgb[1];d[p+2]=rgb[2];d[p+3]=255;
   }
-
-  // A thin neutral cross in the center of each lane gives autofocus a strong
-  // luminance edge but is deliberately not an HPS7 packet.
   const laneCount=tall?2:1;
   for(let lane=0;lane<laneCount;lane++){
     const yBase=lane*56,cy=yBase+28;
-    for(let x=4;x<52;x++){
-      let p=(cy*grid+x)*4;d[p]=220;d[p+1]=220;d[p+2]=220;
-    }
-    for(let y=yBase+5;y<yBase+51;y++){
-      let p=(y*grid+28)*4;d[p]=220;d[p+1]=220;d[p+2]=220;
-    }
+    for(let x=4;x<52;x++){let p=(cy*grid+x)*4;d[p]=220;d[p+1]=220;d[p+2]=220;}
+    for(let y=yBase+5;y<yBase+51;y++){let p=(y*grid+28)*4;d[p]=220;d[p+1]=220;d[p+2]=220;}
   }
   ctx.putImageData(img,0,0);
   return {bits,tall};
@@ -75,8 +100,6 @@ function ensureStartButton(){
     targetActive=false;
     startBtn.style.display='none';
     startBtn.disabled=false;
-    // Preserve the target for two repaints so the first real DATA transition is
-    // clean and synchronized with the display refresh.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     try{originalRepair.call($('txRepairBtn'));}
     finally{starting=false;}
@@ -108,24 +131,17 @@ function install(){
   if(installed)return;
   const repair=$('txRepairBtn');if(!repair||typeof repair.onclick!=='function')return;
   installed=true;originalRepair=repair.onclick;
-
-  // Keep the original button as a fallback but normally the user starts Repair
-  // from the full-screen reacquisition target.
   observer=new MutationObserver(()=>{
     if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);
     else if(!starting)resetTarget();
   });
   observer.observe(repair,{attributes:true,attributeFilter:['style','class']});
-
-  // Catch the case where NACK became ready immediately before installation.
   if(getComputedStyle(repair).display!=='none')queueMicrotask(showTarget);
-
   window.addEventListener('pagehide',resetTarget);
-  log('Repair Reacquisition Stage instalado.');
+  log('Repair Reacquisition Stage instalado · política <100 ×10 / 100–499 ×3.');
 }
 
 window.addEventListener('hopper:runtime-ready',()=>setTimeout(install,0),{once:true});
-// Fallback in case the runtime event fired before this module was evaluated.
 setTimeout(install,700);
-window.__hopperRepairReacquisition={version:'1.0',active:true,mode:'static-target-before-real-repair'};
+window.__hopperRepairReacquisition={version:'1.1',active:true,mode:'static-target-before-real-repair',repairCycles:{under100:10,under500:3,default:1}};
 })();
