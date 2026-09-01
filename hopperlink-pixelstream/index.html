@@ -3,35 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#767676">
+<meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=075">
-<link rel="stylesheet" href="photometric-lock.css?v=075">
-<link rel="stylesheet" href="monochrome-fiducials.css?v=075">
+<link rel="stylesheet" href="styles.css?v=080">
+<link rel="stylesheet" href="photometric-lock.css?v=080">
+<link rel="stylesheet" href="binary-stage.css?v=080">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.7.5 · Optical Stage Isolation</div>
+    <div class="badge">MVP v0.8 · Binary Stage Navigation</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HPS7 · Optical Stage Card</h2>
-    <div class="sub">El stream ya no flota sobre negro. Durante transmisión ocupa un escenario óptico de pantalla completa: fondo gris medio uniforme, tarjeta cuadrada con anillos negro/blanco/negro, fiduciales bullseye monocromos, guard band claro y DATA aislado en el centro.</div>
+    <h2>HPS7 Data Plane + Binary Stage</h2>
+    <div class="sub">La navegación óptica fue reemplazada por cuatro tags binarios blanco/negro con IDs únicos. El receptor debe decodificar TL/TR/BL/BR antes de aceptar una geometría. Los colores quedan exclusivamente para DATA.</div>
     <div class="transport">
-      <span class="chip on">● HPS7</span>
-      <span class="chip on">● 100% óptico</span>
-      <span class="chip on">● Optical Stage Card</span>
-      <span class="chip on">● Matte Gray Exterior</span>
-      <span class="chip on">● Monochrome Bullseyes</span>
-      <span class="chip on">● Stage-aware Detector</span>
-      <span class="chip on">● Optical Guard Band</span>
+      <span class="chip on">● HPS7 ARQ</span>
+      <span class="chip on">● Binary Tags TL/TR/BL/BR</span>
+      <span class="chip on">● Zero Color Navigation</span>
+      <span class="chip on">● DATA Geometry 12%–88%</span>
       <span class="chip on">● Safe Color Constellation</span>
       <span class="chip on">● 2 / 3 / 4 bits por celda</span>
-      <span class="chip on">● Color Training 4 s</span>
-      <span class="chip on">● Auto Repair 4→3→2</span>
+      <span class="chip on">● Color Training</span>
+      <span class="chip on">● Adaptive Repair</span>
       <span class="chip on">● CRC32 integral</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -42,7 +39,7 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Configuración recomendada: Grid 56 + Adaptive Color 4-bit + Turbo. La tarjeta óptica ocupa casi todo el viewport pero conserva un margen gris visible alrededor para que la cámara pueda separar inequívocamente pantalla, marco y DATA.</div>
+      <div class="sub">Recomendado: Grid 56 + Adaptive Color 4-bit + Turbo. La cuadrícula física vuelve exactamente a 12%–88%, igual que el decoder; el aislamiento se obtiene con tags binarios y Stage Card, no desplazando DATA.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
@@ -62,22 +59,21 @@
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:7px"><b>Stage Isolation:</b> el fondo exterior es gris 50%, la tarjeta tiene anillos alternos de contraste y el payload está físicamente separado del marco.</div>
-      <div class="small" style="margin-top:5px"><b>Navegación:</b> los cuatro bullseyes son blanco/negro; ningún color DATA participa en la localización del marco.</div>
-      <div class="small" style="margin-top:5px"><b>Inicio:</b> HELLO gris → COLOR TRAINING 4 s → primer DATA fijo ~1.5 s → secuencia normal.</div>
-      <div class="small" style="margin-top:5px"><b>Repair:</b> primer paquete fijo 3 s + Repair Burst interno; conserva todos los bloques válidos.</div>
+      <div class="small" style="margin-top:7px"><b>Cambio radical:</b> cada esquina transmite un ID binario distinto. Una celda DATA, aunque sea negra o del mismo color que antes usábamos en el marco, no puede convertirse en TL/TR/BL/BR.</div>
+      <div class="small" style="margin-top:5px"><b>Geometría única:</b> emisor y receptor usan exactamente DATA_MIN=.12 / DATA_MAX=.88. Se eliminó el desacople visual 15% vs decoder 12%.</div>
+      <div class="small" style="margin-top:5px"><b>Inicio:</b> HELLO → Color Training → primer DATA fijo → secuencia → PASS_END/NACK/Repair.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
-      <h2>2. Receptor / Stage-aware AutoLock</h2>
-      <div class="sub">El receptor ya no intenta encontrar cuatro manchas arbitrarias: prioriza cuatro bullseyes grandes, alejados del centro DATA, con contraste local alto y que formen una tarjeta rectangular de tamaño significativo.</div>
+      <h2>2. Receptor / Binary Tag Lock</h2>
+      <div class="sub">El receptor busca patrones 7×7 blanco/negro con código interno 5×5. Cada patrón tiene ID y distancia de Hamming propia. Solo después de identificar las esquinas calcula la homografía.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
-        <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">Apunta de modo que se vea el margen gris alrededor de la tarjeta. El detector rechaza candidatos centrales del DATA y valida tamaño, simetría, diagonales y perspectiva del stage completo.</div>
+        <div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div>
+        <div class="camHint">Mantén visibles los cuatro tags binarios y un poco del fondo gris. Si un tag desaparece brevemente, el bridge puede usar memoria geométrica; DATA nunca participa en la identidad de las esquinas.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -95,24 +91,24 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.7.5 · HPS7 · Optical Stage Card · Stage-aware Detector · Monochrome Bullseyes · Safe Color Constellation · adaptive 2/3/4-bit.</div>
+  <div class="footer">PixelStream v0.8 · HPS7 Data Plane · Binary Stage Navigation · coded 4-corner tags · exact 12%–88% DATA geometry · adaptive 2/3/4-bit.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream HPS7</div>
+    <div class="streamMeta" id="streamMeta">PixelStream Binary Stage</div>
     <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">HPS7 Optical Stage Card</div>
+  <div class="streamBottom" id="streamBottom">Binary Stage Navigation</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="corner-geometry-guard.js?v=075"></script>
-<script src="safe-color-constellation.js?v=075"></script>
-<script src="hps7.js?v=075"></script>
-<script src="color-warmup.js?v=075"></script>
+<script src="binary-tag-bridge.js?v=080"></script>
+<script src="safe-color-constellation.js?v=080"></script>
+<script src="hps7.js?v=080"></script>
+<script src="color-warmup.js?v=080"></script>
 </body>
 </html>
