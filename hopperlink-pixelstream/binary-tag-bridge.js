@@ -24,7 +24,6 @@ function renderTags(){
     host.innerHTML='';
     const c=document.createElement('canvas');c.className='fid-tag-canvas';c.width=90;c.height=90;c.dataset.tagId=key;
     const ctx=c.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,90,90);
-    // 9x9: quiet zone blanca de 1 celda + marker 7x7 con borde negro + código 5x5.
     const cell=10;for(let y=1;y<=7;y++)for(let x=1;x<=7;x++){
       let black=x===1||x===7||y===1||y===7;
       if(x>=2&&x<=6&&y>=2&&y<=6)black=!!TAGS[key][(y-2)*5+(x-2)];
@@ -76,16 +75,19 @@ function process(img,w,h){
   let visible=KEYS.filter(k=>markers[k]).length;
   if(visible===3){const miss=KEYS.find(k=>!markers[k]),p=predict(markers,miss);if(p){markers[miss]=p;visible=4;}}
   if(visible<4&&memory&&performance.now()-memory.ts<850){const present=KEYS.filter(k=>markers[k]&&memory.markers[k]);if(present.length>=2){let dx=0,dy=0;for(const k of present){dx+=markers[k].x-memory.markers[k].x;dy+=markers[k].y-memory.markers[k].y;}dx/=present.length;dy/=present.length;for(const k of KEYS)if(!markers[k])markers[k]={x:memory.markers[k].x+dx,y:memory.markers[k].y+dy};visible=4;}}
-  if(visible<4||!geometryOK(markers,w,h)){window.__hopperBinaryTagBridge.last={ts:performance.now(),found:Math.min(4,visible),valid:false};return img;}
-  const avgSize=sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:(memory?.size||Math.min(w,h)*.09);memory={markers,size:avgSize,ts:performance.now()};
+  if(visible<4||!geometryOK(markers,w,h)){window.__hopperBinaryTagBridge.last={ts:performance.now(),found:Math.min(4,visible),valid:false,motionPx:null,motionNorm:null};return img;}
+  const avgSize=sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:(memory?.size||Math.min(w,h)*.09);
+  let motionPx=0;if(memory?.markers){for(const k of KEYS)motionPx+=Math.hypot(markers[k].x-memory.markers[k].x,markers[k].y-memory.markers[k].y);motionPx/=4;}
+  const motionNorm=avgSize?motionPx/avgSize:0;
+  memory={markers,size:avgSize,ts:performance.now()};
   for(const k of KEYS)paintSynthetic(img.data,w,h,markers[k],avgSize,k);
   const errs=KEYS.filter(k=>tags[k]).map(k=>tags[k].dec.err+tags[k].dec.borderErr),quality=clamp(Math.round(100-(errs.length?errs.reduce((a,b)=>a+b,0)/errs.length*4:15)),45,100);
-  window.__hopperBinaryTagBridge.last={ts:performance.now(),found:4,valid:true,markers,quality,decoded:KEYS.filter(k=>!!tags[k])};
+  window.__hopperBinaryTagBridge.last={ts:performance.now(),found:4,valid:true,markers,quality,decoded:KEYS.filter(k=>!!tags[k]),motionPx,motionNorm};
   return img;
 }
 
 CanvasRenderingContext2D.prototype.getImageData=function(...args){const img=nativeGetImageData.apply(this,args);if(this.canvas?.id!=='capture')return img;try{return process(img,this.canvas.width,this.canvas.height);}catch{return img;}};
 
 document.readyState==='loading'?document.addEventListener('DOMContentLoaded',renderTags,{once:true}):renderTags();
-window.__hopperBinaryTagBridge={version:'0.8.0',active:true,last:null,tagIds:KEYS.slice(),geometry:'DATA 12%-88%'};
+window.__hopperBinaryTagBridge={version:'0.8.3',active:true,last:null,tagIds:KEYS.slice(),geometry:'DATA 12%-88%',motionTelemetry:true};
 })();
