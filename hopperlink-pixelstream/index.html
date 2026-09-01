@@ -6,27 +6,27 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=098">
-<link rel="stylesheet" href="photometric-lock.css?v=098">
-<link rel="stylesheet" href="binary-stage.css?v=098">
+<link rel="stylesheet" href="styles.css?v=099">
+<link rel="stylesheet" href="photometric-lock.css?v=099">
+<link rel="stylesheet" href="binary-stage.css?v=099">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.8 · Manual Max</div>
+    <div class="badge">MVP v0.9.9 · Vertical DualLane</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>Manual Max · canal óptico optimizado</h2>
-    <div class="sub">Volvemos al NACK visual manual que ya funciona físicamente y exprimimos cada modulación. El bloque lógico baja a 367 B para aprovechar mucho mejor 2-bit sin sacrificar prácticamente 3/4-bit.</div>
+    <h2>Manual Max · Vertical DualLane</h2>
+    <div class="sub">Aprovecha la altura del teléfono sin hacer las celdas más pequeñas: dos grids 56×56 independientes se muestran apilados en la misma imagen física. Square 56×56 sigue disponible para comparar.</div>
     <div class="transport">
       <span class="chip on">● NACK Manual</span>
-      <span class="chip on">● Grid 56 recomendado</span>
       <span class="chip on">● 367 B / bloque</span>
-      <span class="chip on">● 2-bit: 2 bloques/frame</span>
-      <span class="chip on">● 3-bit: 3 bloques/frame</span>
-      <span class="chip on">● 4-bit: 4 bloques/frame</span>
+      <span class="chip on">● DualLane 2×56×56</span>
+      <span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span>
+      <span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span>
+      <span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span>
       <span class="chip on">● Closing Burst ≤500 ×3</span>
       <span class="chip" id="phaseStatus">HPS7 LISTO</span>
       <span class="chip" id="cameraChip">● Cámara: detectando…</span>
@@ -37,10 +37,11 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Selecciona el modelo. “Auto Max” usa una cadencia física distinta para cada modulación: 2-bit 15 img/s, 3-bit 12 img/s y 4-bit 10 img/s.</div>
+      <div class="sub">DualLane mantiene exactamente el grid 56×56 ya probado en cada mitad. No aumenta la frecuencia ni reduce el tamaño de celda: simplemente envía dos paquetes simultáneos usando la altura de la pantalla.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
+        <div class="grow"><label>Formato DATA</label><br><select id="streamShape" style="width:100%"><option value="tall2" selected>Vertical DualLane · 2× grid</option><option value="square">Square · 1× grid compatible</option></select></div>
         <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="gray2">Max Gray · 2-bit · 4 niveles</option><option value="color3" selected>Max Color · 3-bit · 8 símbolos</option><option value="color4">Max Color · 4-bit · 16 símbolos</option></select></div>
         <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="maxcal" selected>Auto Max · calibrado por modulación</option><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced">12 img/s</option><option value="turbo">15 img/s</option><option value="optical">18 img/s · experimental</option></select></div>
       </div>
@@ -56,24 +57,24 @@
       </div>
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
+      <div class="small" id="layoutHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:8px"><b>2-bit Max:</b> 367 B permite 2 bloques por imagen; a 15 img/s son ~10.8 KiB/s teóricos, con la mayor tolerancia óptica.</div>
-      <div class="small" style="margin-top:5px"><b>3-bit Max:</b> 3 bloques por imagen a 12 img/s, ~12.9 KiB/s teóricos. Sigue siendo el punto medio recomendado.</div>
-      <div class="small" style="margin-top:5px"><b>4-bit Max:</b> 4 bloques por imagen a 10 img/s, ~14.3 KiB/s teóricos. Cada frame permanece más tiempo para que 16 símbolos sean distinguibles.</div>
-      <div class="small" style="margin-top:5px"><b>Closing Burst obligatorio:</b> cuando el NACK contiene 1–500 faltantes, el emisor hace 3 ciclos seguidos normal → invertido → intercalado. <b>No pide otro NACK entre esos 3 ciclos.</b> Solo vuelve a PASS_END al terminar los tres.</div>
-      <div class="small" style="margin-top:5px"><b>Repair lock:</b> al volver de NACK, el primer frame se mantiene ~0.7s en 2-bit, 1.2s en 3-bit y 1.8s en 4-bit para recuperar foco/exposición sin gastar 3 segundos completos.</div>
+      <div class="small" style="margin-top:8px"><b>Vertical DualLane:</b> arriba y abajo llevan paquetes HPS7 distintos pero cada lane conserva 56×56, sus pilotos y el mismo tamaño físico de celda. Los cuatro tags exteriores delimitan un stage ~2:1.</div>
+      <div class="small" style="margin-top:5px"><b>Controles:</b> HELLO, PASS_END, NACK y COMPLETE siguen usando el stage cuadrado robusto. Solo DATA/Repair se expande a DualLane; así no cambiamos el flujo manual que ya funciona.</div>
+      <div class="small" style="margin-top:5px"><b>Closing Burst obligatorio:</b> con 1–500 faltantes se hacen 3 ciclos seguidos normal → invertido → intercalado, sin NACK intermedio.</div>
+      <div class="small" style="margin-top:5px"><b>Objetivo:</b> si la tasa de aceptación se mantiene, DualLane puede acercarse a reducir casi a la mitad el tiempo frente a Square con la misma modulación.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
 
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">El detector de tags ahora reutiliza geometría validada entre frames cuando el teléfono está estable. La búsqueda completa se vuelve más frecuente automáticamente si detecta movimiento.</div>
+      <div class="sub">El receptor puede decodificar los dos lanes de una misma captura. El detector de tags reutiliza geometría validada cuando está estable para liberar CPU a los dos decoders DATA.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div>
-        <div class="camHint">Busca TAGS 4/4 · IDs OK · ESTABLE. Mantén Grid 56 para comparar los tres modos.</div>
+        <div class="camHint">En DualLane deja visible todo el rectángulo alto y sus 4 tags. Mantén Grid 56 para la primera comparación.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -91,25 +92,25 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.9.8 · Manual Max · 367 B · 2/3/4-bit calibrated profiles · Closing Burst ≤500 ×3.</div>
+  <div class="footer">PixelStream v0.9.9 · Vertical DualLane · Manual NACK · 367 B · 2×56×56 DATA · Closing Burst ≤500 ×3.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop">
-    <div class="streamMeta" id="streamMeta">PixelStream Manual Max</div>
+    <div class="streamMeta" id="streamMeta">PixelStream Vertical DualLane</div>
     <div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
   </div>
   <div class="pixelFrame">
     <span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span>
     <div class="pixelShell"><canvas id="pixelCanvas"></canvas></div>
   </div>
-  <div class="streamBottom" id="streamBottom">Manual Max</div>
+  <div class="streamBottom" id="streamBottom">Vertical DualLane</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=098"></script>
-<script src="binary-tag-bridge-fast.js?v=098"></script>
-<script src="binary-tag-status.js?v=098"></script>
-<script src="safe-color-constellation.js?v=098"></script>
-<script src="hps7-manual-max.js?v=098"></script>
+<script src="runtime-syntax-guard.js?v=099"></script>
+<script src="binary-tag-bridge-fast.js?v=099"></script>
+<script src="binary-tag-status.js?v=099"></script>
+<script src="safe-color-constellation.js?v=099"></script>
+<script src="hps7-duallane.js?v=099"></script>
 </body>
 </html>
