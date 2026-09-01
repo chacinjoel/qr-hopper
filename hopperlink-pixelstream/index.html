@@ -6,27 +6,27 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0912">
-<link rel="stylesheet" href="photometric-lock.css?v=0912">
-<link rel="stylesheet" href="binary-stage.css?v=0912">
+<link rel="stylesheet" href="styles.css?v=0913">
+<link rel="stylesheet" href="photometric-lock.css?v=0913">
+<link rel="stylesheet" href="binary-stage.css?v=0913">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.12 · Dynamic Repair Budget</div>
+    <div class="badge">MVP v0.9.13 · HPS7 Perfect Projection</div>
   </div>
   <div class="card" style="margin-bottom:16px">
     <h2>Manual Max · Vertical DualLane + Clean Repair Lock</h2>
-    <div class="sub">Dos grids 56×56 independientes usan la altura del teléfono. Antes de cada Repair aparece un target óptico limpio para recuperar lock; la cantidad de repeticiones se calcula automáticamente para mantener el presupuesto en hasta 1500 unidades.</div>
+    <div class="sub">Dos grids 56×56 independientes usan la altura del teléfono. Antes de cada Repair aparece un target óptico limpio; al preparar HPS7 se calcula además cuántos streams físicos necesita cada modulación y su tiempo ideal sin pérdidas.</div>
     <div class="transport">
-      <span class="chip on">● NACK Manual</span><span class="chip on">● 367 B / bloque</span><span class="chip on">● Stage físico 1:2</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Clean Repair Target</span><span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span><span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span><span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span><span class="chip on">● n = floor(1500 / faltantes)</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara: detectando…</span><span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
+      <span class="chip on">● NACK Manual</span><span class="chip on">● 367 B / bloque</span><span class="chip on">● Stage físico 1:2</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Clean Repair Target</span><span class="chip on">● Proyección HPS7 perfecta</span><span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span><span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span><span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span><span class="chip on">● n = floor(1500 / faltantes)</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara: detectando…</span><span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
     </div>
   </div>
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">DualLane mantiene cada lane como un grid 56×56 completo. El target previo al Repair no contiene DATA válido y queda libre de textos o botones sobre el área óptica.</div>
+      <div class="sub">DualLane mantiene cada lane como un grid completo. La proyección usa el total real de bloques que HPS7 genera para el archivo, no una estimación por tamaño.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
@@ -37,7 +37,8 @@
       <div class="stats"><div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div><div class="stat"><b id="frameCount">—</b><span>Bloques lógicos</span></div><div class="stat"><b id="capacity">—</b><span>Bloque base</span></div></div>
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar HPS7</button><button class="btn good" id="sendBtn" disabled>Mostrar HELLO</button><button class="btn primary" id="txRepairBtn" style="display:none">Enviar Repair Burst</button></div>
       <div class="small" id="speedHint" style="margin-top:10px"></div><div class="small" id="modulationHint" style="margin-top:5px"></div><div class="small" id="layoutHint" style="margin-top:5px"></div><div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:8px"><b>Vertical DualLane:</b> arriba y abajo llevan paquetes HPS7 distintos pero cada lane conserva 56×56, sus pilotos y el mismo tamaño físico de celda. Los cuatro tags exteriores delimitan un stage 1:2.</div>
+      <div class="small" style="margin-top:8px"><b>Proyección HPS7:</b> después de preparar el archivo aparece una tabla 2/3/4-bit con bloques por stream físico, cantidad de streams DATA, cadencia y tiempo perfecto estimado.</div>
+      <div class="small" style="margin-top:5px"><b>Vertical DualLane:</b> arriba y abajo llevan paquetes HPS7 distintos pero cada lane conserva su grid completo. Los cuatro tags exteriores delimitan un stage 1:2.</div>
       <div class="small" style="margin-top:5px"><b>Clean Repair Target:</b> al leer un NACK aparece el patrón estático sin barra superior, metadatos, Cancelar ni botones sobre el stream. Solo queda un botón inferior fuera del área óptica para iniciar el Repair cuando el receptor ya tenga LOCK.</div>
       <div class="small" style="margin-top:5px"><b>Repetición dinámica:</b> n = floor(1500 / faltantes), con mínimo 1. Ej.: 499→3, 290→5, 100→15, 50→30. No se pide NACK entre los n ciclos internos.</div>
       <div class="small" style="margin-top:5px"><b>Controles:</b> HELLO, PASS_END, NACK y COMPLETE siguen usando el stage cuadrado robusto. Solo DATA/Repair se expande a DualLane.</div>
@@ -52,15 +53,16 @@
       <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.12 · Vertical DualLane · Clean Repair Target · Dynamic Repair Budget 1500 · Manual NACK · 367 B.</div>
+  <div class="footer">PixelStream v0.9.13 · Vertical DualLane · HPS7 Perfect Projection · Clean Repair Target · Dynamic Repair Budget 1500 · 367 B.</div>
 </div>
 <div id="streamOverlay"><div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream Vertical DualLane</div><div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div></div><div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div><div class="streamBottom" id="streamBottom">Vertical DualLane</div></div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0912"></script>
-<script src="binary-tag-bridge-fast.js?v=0912"></script>
-<script src="binary-tag-status.js?v=0912"></script>
-<script src="safe-color-constellation.js?v=0912"></script>
-<script src="repair-reacquisition.js?v=0912"></script>
-<script src="hps7-duallane-v2.js?v=0912"></script>
+<script src="runtime-syntax-guard.js?v=0913"></script>
+<script src="binary-tag-bridge-fast.js?v=0913"></script>
+<script src="binary-tag-status.js?v=0913"></script>
+<script src="safe-color-constellation.js?v=0913"></script>
+<script src="hps7-projection.js?v=0913"></script>
+<script src="repair-reacquisition.js?v=0913"></script>
+<script src="hps7-duallane-v2.js?v=0913"></script>
 </body>
 </html>
