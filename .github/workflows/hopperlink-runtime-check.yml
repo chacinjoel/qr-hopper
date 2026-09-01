@@ -22,63 +22,66 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Validate HPS7 runtime and HAC4
+      - name: Validate HPS7 hybrid runtime
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream';
           const runtime=fs.readFileSync(`${p}/hps7-runtime.js`,'utf8');
           const core=fs.readFileSync(`${p}/hps7.js`,'utf8');
-          const acoustic=fs.readFileSync(`${p}/acoustic-hac4.js`,'utf8');
           const guard=fs.readFileSync(`${p}/runtime-syntax-guard.js`,'utf8');
+          const hybrid=fs.readFileSync(`${p}/hybrid-control.js`,'utf8');
           const html=fs.readFileSync(`${p}/index.html`,'utf8');
           const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
           const a=runtime.indexOf('function replaceOne'),b=runtime.indexOf('function loadScript');
           if(a<0||b<=a)throw new Error('patchCore not found');
-          const pc={console};vm.createContext(pc);vm.runInContext(runtime.slice(a,b)+'\n;globalThis.__patchCore=patchCore;',pc);
-          const patched=pc.__patchCore(core);let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
+          const pc={console};vm.createContext(pc);vm.runInContext(runtime.slice(a,b)+'\n;globalThis.__patchCore=patchCore;',pc,{filename:'runtime-patch.js'});
+          const patched=pc.__patchCore(core);
+          let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
+          console.log('Raw patched core:',rawErr?rawErr.message:'compiles directly');
+
           const events=[],g={Function,dispatchEvent:e=>events.push(e)};
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail;}}
-          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc);
-          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v090.js`);
-          if(typeof compiled!=='function'||g.Function!==Function)throw new Error('guarded HPS7 compile failed');
+          const gc={globalThis:g,CustomEvent:CE,console,Object};vm.createContext(gc);vm.runInContext(guard,gc,{filename:'runtime-syntax-guard.js'});
+          const compiled=g.Function(`${patched}\n//# sourceURL=hps7-core-v096.js`);
+          if(typeof compiled!=='function')throw new Error('guarded HPS7 compile did not return Function');
+          if(g.Function!==Function)throw new Error('native Function was not restored');
           if(rawErr&&!events.some(e=>e.type==='hopper:runtime-syntax-fixed'))throw new Error('syntax guard did not fire');
           console.log('Guarded HPS7 compile: PASS');
 
-          for(const n of ["controlMode==='acoustic'",'listenForAcousticControl','showNackAcoustic','HopperAcoustic.sendNack','HopperAcoustic.sendComplete'])if(!patched.includes(n))throw new Error(`runtime missing ${n}`);
-          for(const n of ['micSource.connect(analyser)','analyser.connect(silentGain)','silentGain.connect(micCtx.destination)',"silentGain.gain.value=1e-7",'classifyNibble','syncDistance','DTMF'])if(!acoustic.includes(n))throw new Error(`HAC4 missing ${n}`);
+          for(const needle of [
+            'window.HopperHybrid.prepareSender',
+            'window.HopperHybrid.waitReady',
+            'showNackHybrid',
+            'showCompleteHybrid',
+            "cameraMode==='senderControl'?'user':'environment'",
+            'Repair detectado automáticamente',
+            'AUTO REPAIR',
+            'setTimeout(()=>sendRepair(),300)',
+            'receiverCameraContinuous:true',
+            'frontCameraControl:true'
+          ]) if(!patched.includes(needle)&&!runtime.includes(needle)) throw new Error(`Missing hybrid runtime invariant: ${needle}`);
+          console.log('Hybrid HPS7 state-machine invariants: PASS');
 
-          const listeners={};
-          const document={getElementById:()=>null,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)}};
-          const window={Function,dispatchEvent:()=>true,addEventListener:(t,f)=>{(listeners[t]??=[]).push(f)},AudioContext:function(){},webkitAudioContext:null};
-          const ctx={window,document,navigator:{mediaDevices:{}},CustomEvent:CE,Uint8Array,Uint32Array,Float32Array,Array,Math,Number,Object,String,Error,Date,setTimeout,clearTimeout,setInterval,clearInterval,console};
-          vm.createContext(ctx);vm.runInContext(acoustic,ctx,{filename:'acoustic-hac4.js'});
-          const H=window.HopperAcoustic;if(!H||H.VERSION!==4)throw new Error('HAC4 API/version failed');
+          for(const needle of [
+            'const LOW=770, HIGH=1336',
+            'async function prepareSender()',
+            'async function preflightFrontCamera()',
+            'async function signalReady',
+            'async function waitReady',
+            'micSource.connect(analyser)',
+            'analyser.connect(silentGain)',
+            'silentGain.connect(micCtx.destination)',
+            "facingMode:{ideal:'user'}"
+          ]) if(!hybrid.includes(needle)) throw new Error(`Missing hybrid-control invariant: ${needle}`);
+          if(hybrid.includes('compressMissing')||hybrid.includes('makePacket('))throw new Error('Hybrid audio must not carry NACK payloads');
+          console.log('READY-only audio control invariants: PASS');
 
-          for(const missing of [[0,1,2,99,100,777],Array.from({length:480},(_,i)=>i*3)]){
-            const c=H.compressMissing(missing),d=Array.from(H.decompressMissing(c,5000));
-            if(JSON.stringify(d)!==JSON.stringify(missing))throw new Error('compression roundtrip');
-            const packet=H.makePacket(H.TYPE.NACK,{session:0x12345678,round:2,bits:3,total:5000,fileCrc:0x89abcdef,missing});
-            const parsed=H.parsePacket(packet);if(!parsed?.ok||JSON.stringify(parsed.missing)!==JSON.stringify(missing))throw new Error('NACK roundtrip');
-            const corrupt=packet.slice();corrupt[corrupt.length-6]^=1;if(!H.parsePacket(corrupt)?.bad)throw new Error('CRC reject failed');
-          }
-          const complete=H.parsePacket(H.makePacket(H.TYPE.COMPLETE,{session:7,round:3,bits:3,total:123,fileCrc:0x10203040}));
-          if(!complete?.ok||complete.type!==H.TYPE.COMPLETE||complete.fileCrc!==0x10203040)throw new Error('COMPLETE roundtrip');
-          console.log('HAC4 packet codec + CRC: PASS');
-
-          const sr=48000,fft=1024,low=[697,770,852,941],high=[1209,1336,1477,1633],probes=[560,1080,1880,2140];
-          function spectrum(nib){const x=new Float32Array(fft/2+1);x.fill(-92);for(const f of probes)x[Math.round(f*fft/sr)]=-88;const row=(nib>>>2)&3,col=nib&3;x[Math.round(low[row]*fft/sr)]=-34;x[Math.round(high[col]*fft/sr)]=-35;for(let i=0;i<4;i++){if(i!==row)x[Math.round(low[i]*fft/sr)]=-67;if(i!==col)x[Math.round(high[i]*fft/sr)]=-68;}return x;}
-          for(let nib=0;nib<16;nib++){const r=H.classifyNibble(spectrum(nib),sr,fft);if(!r.active||r.nibble!==nib)throw new Error(`DTMF classifier failed ${nib} -> ${r.nibble}, active=${r.active}`);}
-          console.log('HAC4 all 16 dual-tone symbols: PASS');
-
-          const sync=Array.from(H.SYNC),noisy=sync.slice();noisy[2]^=1;noisy[9]^=2;
-          if(H.syncDistance(sync)!==0||H.syncDistance(noisy)>2)throw new Error('tolerant nibble SYNC failed');
-          console.log('HAC4 tolerant SYNC: PASS');
-
-          const gp=html.indexOf('runtime-syntax-guard.js?v=095'),ap=html.indexOf('acoustic-hac4.js?v=095'),rp=html.indexOf('hps7-runtime.js?v=095');
-          if(gp<0||ap<0||rp<0||!(gp<ap&&ap<rp))throw new Error('load order guard -> HAC4 -> runtime failed');
-          for(const asset of ['runtime-syntax-guard.js?v=095','acoustic-hac4.js?v=095','hps7-runtime.js?v=095'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
-          if(!sw.includes('hopperlink-pixelstream-v095'))throw new Error('cache key not v095');
-          console.log('v0.9.5 load order + cache isolation: PASS');
+          const gp=html.indexOf('runtime-syntax-guard.js?v=096'),hp=html.indexOf('hybrid-control.js?v=096'),rp=html.indexOf('hps7-runtime.js?v=096');
+          if(gp<0||hp<0||rp<0||!(gp<hp&&hp<rp))throw new Error('load order must be guard -> hybrid -> runtime');
+          for(const asset of ['runtime-syntax-guard.js?v=096','hybrid-control.js?v=096','hps7-runtime.js?v=096','color-warmup.js?v=096','transfer-telemetry.js?v=096'])if(!sw.includes(asset))throw new Error(`SW missing ${asset}`);
+          if(!sw.includes('hopperlink-pixelstream-v096'))throw new Error('cache key not v096');
+          if(!html.includes('MVP v0.9.6 · Auto Hybrid Control'))throw new Error('UI badge not v0.9.6');
+          console.log('v0.9.6 load order + cache isolation: PASS');
           NODE
