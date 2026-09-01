@@ -37,9 +37,9 @@ jobs:
           const html=fs.readFileSync(`${p}/index.html`,'utf8');
           const sw=fs.readFileSync(`${p}/sw.js`,'utf8');
 
-          function extract(src,start,end,name){const a=src.indexOf(start),b=src.indexOf(end);if(a<0||b<=a)throw new Error(`${name} extraction failed`);const c={console};vm.createContext(c);vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});return c.__fn;}
-          const manualPatch=extract(manual,'function replaceOne','function loadScript','patchCore');
-          const dualPatch=extract(dual,'function replaceOne','function loadScript','patchDual');
+          function extract(src,start,name){const a=src.indexOf(start),b=src.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw new Error(`${name} extraction failed`);const c={console};vm.createContext(c);vm.runInContext(src.slice(a,b)+`\n;globalThis.__fn=${name};`,c,{filename:`${name}.js`});return c.__fn;}
+          const manualPatch=extract(manual,'function replaceOne','patchCore');
+          const dualPatch=extract(dual,'function replaceOne','patchDual');
           const manualCore=manualPatch(core),patched=dualPatch(manualCore);
 
           let rawErr=null;try{new Function(patched);}catch(e){rawErr=e;}
