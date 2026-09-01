@@ -6,27 +6,27 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0911">
-<link rel="stylesheet" href="photometric-lock.css?v=0911">
-<link rel="stylesheet" href="binary-stage.css?v=0911">
+<link rel="stylesheet" href="styles.css?v=0912">
+<link rel="stylesheet" href="photometric-lock.css?v=0912">
+<link rel="stylesheet" href="binary-stage.css?v=0912">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.11 · Tiered Repair Burst</div>
+    <div class="badge">MVP v0.9.12 · Dynamic Repair Budget</div>
   </div>
   <div class="card" style="margin-bottom:16px">
-    <h2>Manual Max · Vertical DualLane + Repair Lock</h2>
-    <div class="sub">Dos grids 56×56 independientes usan la altura del teléfono. Antes de cada Repair aparece un target estático para recuperar lock; después la repetición escala automáticamente según la cantidad de bloques faltantes.</div>
+    <h2>Manual Max · Vertical DualLane + Clean Repair Lock</h2>
+    <div class="sub">Dos grids 56×56 independientes usan la altura del teléfono. Antes de cada Repair aparece un target óptico limpio para recuperar lock; la cantidad de repeticiones se calcula automáticamente para mantener el presupuesto en hasta 1500 unidades.</div>
     <div class="transport">
-      <span class="chip on">● NACK Manual</span><span class="chip on">● 367 B / bloque</span><span class="chip on">● Stage físico 1:2</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Repair Reacquisition</span><span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span><span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span><span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span><span class="chip on">● Repair 1–99 ×10</span><span class="chip on">● Repair 100–499 ×3</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara: detectando…</span><span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
+      <span class="chip on">● NACK Manual</span><span class="chip on">● 367 B / bloque</span><span class="chip on">● Stage físico 1:2</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Clean Repair Target</span><span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span><span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span><span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span><span class="chip on">● n = floor(1500 / faltantes)</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara: detectando…</span><span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
     </div>
   </div>
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">DualLane mantiene cada lane como un grid 56×56 completo. Repair Reacquisition evita usar los primeros bloques faltantes como “frames de enfoque”.</div>
+      <div class="sub">DualLane mantiene cada lane como un grid 56×56 completo. El target previo al Repair no contiene DATA válido y queda libre de textos o botones sobre el área óptica.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
@@ -38,29 +38,29 @@
       <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar HPS7</button><button class="btn good" id="sendBtn" disabled>Mostrar HELLO</button><button class="btn primary" id="txRepairBtn" style="display:none">Enviar Repair Burst</button></div>
       <div class="small" id="speedHint" style="margin-top:10px"></div><div class="small" id="modulationHint" style="margin-top:5px"></div><div class="small" id="layoutHint" style="margin-top:5px"></div><div class="small" id="throughputHint" style="margin-top:5px"></div>
       <div class="small" style="margin-top:8px"><b>Vertical DualLane:</b> arriba y abajo llevan paquetes HPS7 distintos pero cada lane conserva 56×56, sus pilotos y el mismo tamaño físico de celda. Los cuatro tags exteriores delimitan un stage 1:2.</div>
-      <div class="small" style="margin-top:5px"><b>Repair Reacquisition:</b> al leer un NACK válido aparece automáticamente un target estático. Vuelve el receptor a cámara, espera TAGS 4/4 / LOCK y después pulsa “Receptor listo · Iniciar Repair”. Hasta ese momento no se transmite ningún bloque faltante real.</div>
+      <div class="small" style="margin-top:5px"><b>Clean Repair Target:</b> al leer un NACK aparece el patrón estático sin barra superior, metadatos, Cancelar ni botones sobre el stream. Solo queda un botón inferior fuera del área óptica para iniciar el Repair cuando el receptor ya tenga LOCK.</div>
+      <div class="small" style="margin-top:5px"><b>Repetición dinámica:</b> n = floor(1500 / faltantes), con mínimo 1. Ej.: 499→3, 290→5, 100→15, 50→30. No se pide NACK entre los n ciclos internos.</div>
       <div class="small" style="margin-top:5px"><b>Controles:</b> HELLO, PASS_END, NACK y COMPLETE siguen usando el stage cuadrado robusto. Solo DATA/Repair se expande a DualLane.</div>
-      <div class="small" style="margin-top:5px"><b>Repair Burst escalonado:</b> con 1–99 faltantes se hacen 10 ciclos seguidos; con 100–499 se hacen 3; con 500 o más se hace 1. No se pide NACK entre los ciclos internos.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
     </section>
     <section class="card">
       <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">En Repair, vuelve a la cámara mientras el emisor mantiene el target estático. No inicies Repair hasta ver TAGS 4/4 / LOCK estable.</div>
+      <div class="sub">En Repair, vuelve a la cámara mientras el emisor mantiene el target limpio. Inicia los datos reales únicamente cuando veas TAGS 4/4 / LOCK estable.</div>
       <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div><div class="camHint">En DualLane deja visible todo el rectángulo alto y sus 4 tags. Para Repair espera LOCK antes de iniciar los datos.</div></div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total esperado</span></div><div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad real</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
       <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div class="log" id="rxLog" style="margin-top:12px"></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.11 · Vertical DualLane · Repair Reacquisition · Manual NACK · 367 B · Repair 1–99 ×10 / 100–499 ×3.</div>
+  <div class="footer">PixelStream v0.9.12 · Vertical DualLane · Clean Repair Target · Dynamic Repair Budget 1500 · Manual NACK · 367 B.</div>
 </div>
 <div id="streamOverlay"><div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream Vertical DualLane</div><div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div></div><div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div><div class="streamBottom" id="streamBottom">Vertical DualLane</div></div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0911"></script>
-<script src="binary-tag-bridge-fast.js?v=0911"></script>
-<script src="binary-tag-status.js?v=0911"></script>
-<script src="safe-color-constellation.js?v=0911"></script>
-<script src="repair-reacquisition.js?v=0911"></script>
-<script src="hps7-duallane-v2.js?v=0911"></script>
+<script src="runtime-syntax-guard.js?v=0912"></script>
+<script src="binary-tag-bridge-fast.js?v=0912"></script>
+<script src="binary-tag-status.js?v=0912"></script>
+<script src="safe-color-constellation.js?v=0912"></script>
+<script src="repair-reacquisition.js?v=0912"></script>
+<script src="hps7-duallane-v2.js?v=0912"></script>
 </body>
 </html>
