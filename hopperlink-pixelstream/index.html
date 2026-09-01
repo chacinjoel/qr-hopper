@@ -3,66 +3,93 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#7a7a7a">
+<meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0913">
-<link rel="stylesheet" href="photometric-lock.css?v=0913">
-<link rel="stylesheet" href="binary-stage.css?v=0913">
+<link rel="stylesheet" href="styles.css?v=0914">
+<link rel="stylesheet" href="photometric-lock.css?v=0914">
+<link rel="stylesheet" href="binary-stage.css?v=0914">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.13 · HPS7 Perfect Projection</div>
+    <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
+    <div class="badge">MVP v0.9.14 · Premium Flow</div>
   </div>
+
   <div class="card" style="margin-bottom:16px">
-    <h2>Manual Max · Vertical DualLane + Clean Repair Lock</h2>
-    <div class="sub">Dos grids 56×56 independientes usan la altura del teléfono. Antes de cada Repair aparece un target óptico limpio; al preparar HPS7 se calcula además cuántos streams físicos necesita cada modulación y su tiempo ideal sin pérdidas.</div>
-    <div class="transport">
-      <span class="chip on">● NACK Manual</span><span class="chip on">● 367 B / bloque</span><span class="chip on">● Stage físico 1:2</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Clean Repair Target</span><span class="chip on">● Proyección HPS7 perfecta</span><span class="chip on">● 2-bit: hasta 4 bloques/frame físico</span><span class="chip on">● 3-bit: hasta 6 bloques/frame físico</span><span class="chip on">● 4-bit: hasta 8 bloques/frame físico</span><span class="chip on">● n = floor(1500 / faltantes)</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara: detectando…</span><span class="chip" id="wakeChip">● Wake Lock: detectando…</span>
-    </div>
+    <h2>Manual Max · Vertical DualLane</h2>
+    <div class="sub">Flujo guiado, controles inferiores, Repair Target limpio y proyección física real. El área óptica queda separada de botones e información de interfaz.</div>
+    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Repair dinámico 1500</span><span class="chip on">● Orden/lane diversity</span><span class="chip" id="phaseStatus">HPS7 LISTO</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
+
   <div class="grid">
-    <section class="card">
+    <section class="card" id="senderCard">
       <h2>1. Emisor</h2>
-      <div class="sub">DualLane mantiene cada lane como un grid completo. La proyección usa el total real de bloques que HPS7 genera para el archivo, no una estimación por tamaño.</div>
+      <div class="senderIntro sub">Configura una vez. Después, HopperLink te indica la siguiente acción y mantiene todos los controles del emisor en la zona inferior.</div>
+
+      <div class="flowStepper" aria-label="Progreso del flujo">
+        <div class="flowStep active">1 · Preparar</div><div class="flowStep">2 · HELLO</div><div class="flowStep">3 · DATA</div><div class="flowStep">4 · Repair</div><div class="flowStep">5 · Listo</div>
+      </div>
+      <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Prepara la transferencia</b><span id="flowCoachDetail">Selecciona un archivo y configura HPS7.</span></div>
+
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
-        <div class="grow"><label>Formato DATA</label><br><select id="streamShape" style="width:100%"><option value="tall2" selected>Vertical DualLane · 2× grid</option><option value="square">Square · 1× grid compatible</option></select></div>
-        <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="gray2">Max Gray · 2-bit · 4 niveles</option><option value="color3" selected>Max Color · 3-bit · 8 símbolos</option><option value="color4">Max Color · 4-bit · 16 símbolos</option></select></div>
-        <div class="grow"><label>Velocidad óptica</label><br><select id="speedMode" style="width:100%"><option value="maxcal" selected>Auto Max · calibrado por modulación</option><option value="compatible">Compatible · 8 fps / repeat 2</option><option value="balanced">12 img/s</option><option value="turbo">15 img/s</option><option value="optical">18 img/s · experimental</option></select></div>
+        <div class="grow"><label>Formato</label><br><select id="streamShape" style="width:100%"><option value="tall2" selected>Vertical DualLane · 2× grid</option><option value="square">Square · 1× grid</option></select></div>
+        <div class="grow"><label>Modulación</label><br><select id="modulationMode" style="width:100%"><option value="gray2">Max Gray · 2-bit</option><option value="color3" selected>Max Color · 3-bit</option><option value="color4">Max Color · 4-bit</option></select></div>
+        <div class="grow"><label>Velocidad</label><br><select id="speedMode" style="width:100%"><option value="maxcal" selected>Auto Max</option><option value="compatible">Compatible · 8/s ×2</option><option value="balanced">12 streams/s</option><option value="turbo">15 streams/s</option><option value="optical">18 streams/s · experimental</option></select></div>
       </div>
+
       <div class="stats"><div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div><div class="stat"><b id="frameCount">—</b><span>Bloques lógicos</span></div><div class="stat"><b id="capacity">—</b><span>Bloque base</span></div></div>
-      <div class="row"><button class="btn primary grow" id="prepareBtn">Preparar HPS7</button><button class="btn good" id="sendBtn" disabled>Mostrar HELLO</button><button class="btn primary" id="txRepairBtn" style="display:none">Enviar Repair Burst</button></div>
-      <div class="small" id="speedHint" style="margin-top:10px"></div><div class="small" id="modulationHint" style="margin-top:5px"></div><div class="small" id="layoutHint" style="margin-top:5px"></div><div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:8px"><b>Proyección HPS7:</b> después de preparar el archivo aparece una tabla 2/3/4-bit con bloques por stream físico, cantidad de streams DATA, cadencia y tiempo perfecto estimado.</div>
-      <div class="small" style="margin-top:5px"><b>Vertical DualLane:</b> arriba y abajo llevan paquetes HPS7 distintos pero cada lane conserva su grid completo. Los cuatro tags exteriores delimitan un stage 1:2.</div>
-      <div class="small" style="margin-top:5px"><b>Clean Repair Target:</b> al leer un NACK aparece el patrón estático sin barra superior, metadatos, Cancelar ni botones sobre el stream. Solo queda un botón inferior fuera del área óptica para iniciar el Repair cuando el receptor ya tenga LOCK.</div>
-      <div class="small" style="margin-top:5px"><b>Repetición dinámica:</b> n = floor(1500 / faltantes), con mínimo 1. Ej.: 499→3, 290→5, 100→15, 50→30. No se pide NACK entre los n ciclos internos.</div>
-      <div class="small" style="margin-top:5px"><b>Controles:</b> HELLO, PASS_END, NACK y COMPLETE siguen usando el stage cuadrado robusto. Solo DATA/Repair se expande a DualLane.</div>
-      <div class="log" id="sendLog" style="margin-top:12px"></div>
+
+      <div class="small" id="speedHint"></div><div class="small" id="modulationHint" style="margin-top:4px"></div><div class="small" id="layoutHint" style="margin-top:4px"></div><div class="small" id="throughputHint" style="margin-top:4px"></div>
+
+      <details class="techDetails">
+        <summary>Detalles técnicos y reglas</summary>
+        <div class="techDetailsBody">
+          <div class="small"><b>DualLane:</b> cada mitad conserva un grid completo. La densidad se expresa siempre como bloques/lane × lanes = bloques/stream físico.</div>
+          <div class="small" style="margin-top:6px"><b>Repair Target:</b> no contiene DATA válido. Mantén el patrón hasta que el receptor muestre TAGS 4/4 / LOCK.</div>
+          <div class="small" style="margin-top:6px"><b>Repair dinámico:</b> n = floor(1500 / faltantes), mínimo 1. Los ciclos alternan orden y posición de lanes para reducir errores sistemáticos.</div>
+          <div class="small" style="margin-top:6px"><b>Finalizar ronda:</b> durante un Repair puedes terminar los ciclos restantes si el receptor ya muestra 0 faltantes.</div>
+          <div class="log" id="sendLog" style="margin-top:10px"></div>
+        </div>
+      </details>
+
+      <div id="senderActionDock" class="actionDock senderDock" aria-label="Acciones del emisor">
+        <button class="btn primary grow" id="prepareBtn">Preparar HPS7</button>
+        <button class="btn good grow" id="sendBtn" disabled style="display:none">Mostrar HELLO</button>
+        <button class="btn primary internalRepairTrigger" id="txRepairBtn" style="display:none">Enviar Repair Burst</button>
+      </div>
     </section>
-    <section class="card">
-      <h2>2. Receptor / Binary Tag Lock</h2>
-      <div class="sub">En Repair, vuelve a la cámara mientras el emisor mantiene el target limpio. Inicia los datos reales únicamente cuando veas TAGS 4/4 / LOCK estable.</div>
-      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div><div class="camHint">En DualLane deja visible todo el rectángulo alto y sus 4 tags. Para Repair espera LOCK antes de iniciar los datos.</div></div>
-      <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
-      <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total esperado</span></div><div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad real</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
-      <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div class="log" id="rxLog" style="margin-top:12px"></div>
+
+    <section class="card" id="receiverCard">
+      <h2>2. Receptor</h2>
+      <div class="sub">Mantén visible el rectángulo óptico completo. En Repair, espera TAGS 4/4 / LOCK antes de iniciar desde el emisor.</div>
+      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO TAGS · 0/4</div><div class="camHint">DualLane: encuadra todo el rectángulo alto y sus 4 tags.</div></div>
+      <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total</span></div><div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
+      <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div id="telemetryMount"></div>
+      <details class="techDetails"><summary>Diagnóstico del receptor</summary><div class="techDetailsBody"><div class="log" id="rxLog"></div></div></details>
+      <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.13 · Vertical DualLane · HPS7 Perfect Projection · Clean Repair Target · Dynamic Repair Budget 1500 · 367 B.</div>
+  <div class="footer">PixelStream v0.9.14 · Premium Flow · Vertical DualLane · Clean Repair · Dynamic Budget 1500 · 367 B.</div>
 </div>
-<div id="streamOverlay"><div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream Vertical DualLane</div><div class="row"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div></div><div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div><div class="streamBottom" id="streamBottom">Vertical DualLane</div></div>
+
+<div id="streamOverlay">
+  <div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream</div></div>
+  <div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div>
+  <div class="streamBottom" id="streamBottom">HPS7</div>
+  <div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
+</div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0913"></script>
-<script src="binary-tag-bridge-fast.js?v=0913"></script>
-<script src="binary-tag-status.js?v=0913"></script>
-<script src="safe-color-constellation.js?v=0913"></script>
-<script src="hps7-projection.js?v=0913"></script>
-<script src="repair-reacquisition.js?v=0913"></script>
-<script src="hps7-duallane-v2.js?v=0913"></script>
+<script src="runtime-syntax-guard.js?v=0914"></script>
+<script src="binary-tag-bridge-fast.js?v=0914"></script>
+<script src="binary-tag-status.js?v=0914"></script>
+<script src="safe-color-constellation.js?v=0914"></script>
+<script src="premium-flow-ui.js?v=0914"></script>
+<script src="hps7-projection.js?v=0914"></script>
+<script src="repair-reacquisition.js?v=0914"></script>
+<script src="hps7-duallane-v2.js?v=0914"></script>
 </body>
 </html>
