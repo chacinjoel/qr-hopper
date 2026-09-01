@@ -6,23 +6,26 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=073">
-<link rel="stylesheet" href="photometric-lock.css?v=073">
+<link rel="stylesheet" href="styles.css?v=074">
+<link rel="stylesheet" href="photometric-lock.css?v=074">
+<link rel="stylesheet" href="monochrome-fiducials.css?v=074">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.7.3 · Safe Color Constellation</div>
+    <div class="badge">MVP v0.7.4 · Monochrome Fiducial Isolation</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 · modulación óptica adaptativa</h2>
-    <div class="sub">La constelación de color ahora deja margen contra sobreexposición y white balance agresivo. Antes de DATA color, HPS7 estabiliza la cámara con COLOR TRAINING y protege los fiduciales por geometría.</div>
+    <div class="sub">DATA y navegación óptica ahora están separados físicamente: el payload conserva color, mientras los cuatro fiduciales son blanco/negro y se identifican por contraste, cuadrante y geometría. Una banda neutra evita que la cuadrícula DATA toque el marco.</div>
     <div class="transport">
       <span class="chip on">● HPS7</span>
       <span class="chip on">● 100% óptico</span>
       <span class="chip on">● Safe Color Constellation</span>
+      <span class="chip on">● Monochrome Fiducials</span>
+      <span class="chip on">● Optical Guard Band</span>
       <span class="chip on">● 2 / 3 / 4 bits por celda</span>
       <span class="chip on">● Color Training 4 s</span>
       <span class="chip on">● First DATA Hold</span>
@@ -39,7 +42,7 @@
   <div class="grid">
     <section class="card">
       <h2>1. Emisor</h2>
-      <div class="sub">Para probar la nueva modulación usa Grid 56 + Adaptive Color 4-bit + Turbo. Si una cámara no distingue bien 4-bit, el Repair puede bajar a 3 o 2 bits sin reiniciar.</div>
+      <div class="sub">Para probar la separación de canales usa Grid 56 + Adaptive Color 4-bit + Turbo. Los colores DATA ya no compiten visualmente con los fiduciales del marco.</div>
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
         <div><label>Grid DATA</label><br><select id="gridSize"><option selected>56</option><option>64</option><option>72</option></select></div>
@@ -59,7 +62,8 @@
       <div class="small" id="speedHint" style="margin-top:10px"></div>
       <div class="small" id="modulationHint" style="margin-top:5px"></div>
       <div class="small" id="throughputHint" style="margin-top:5px"></div>
-      <div class="small" style="margin-top:7px"><b>Safe Constellation:</b> 4-bit ya no usa niveles cercanos al blanco máximo; deja margen para que una cámara pueda subir exposición sin fusionar símbolos distintos.</div>
+      <div class="small" style="margin-top:7px"><b>Separación óptica:</b> los cuatro marcadores externos son ahora acromáticos y la identidad TL/TR/BL/BR se obtiene por geometría. El grid DATA puede usar verde, magenta o cualquier otro símbolo sin confundirse con el marco.</div>
+      <div class="small" style="margin-top:5px"><b>Guard Band:</b> existe una franja neutra entre marcadores y DATA para impedir componentes visuales conectados.</div>
       <div class="small" style="margin-top:5px"><b>Inicio:</b> HELLO gris → COLOR TRAINING 4 s → primer DATA fijo ~1.5 s → secuencia normal.</div>
       <div class="small" style="margin-top:5px"><b>Repair:</b> primer paquete fijo 3 s + Repair Burst interno; conserva todos los bloques válidos.</div>
       <div class="log" id="sendLog" style="margin-top:12px"></div>
@@ -67,13 +71,13 @@
 
     <section class="card">
       <h2>2. Receptor / AutoLock fotométrico</h2>
-      <div class="sub">El detector combina color relativo, contraste centro/borde, forma, perspectiva y memoria temporal. Si el color de un marcador se lava por brillo/HDR, Corner Geometry Guard reconstruye su identidad sin tocar el área DATA.</div>
+      <div class="sub">El receptor localiza cuatro centros negros con anillo claro y valida su rectángulo/perspectiva. Corner Geometry Guard asigna después internamente cada esquina, sin utilizar los colores del payload para localizar el marco.</div>
       <div id="receiverPanel">
         <video id="video" playsinline muted></video>
         <canvas id="guideCanvas"></canvas>
         <div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div>
         <div id="lockQuality" class="lock">BUSCANDO 0/4 · 0%</div>
-        <div class="camHint">Durante COLOR TRAINING mantén los cuatro marcadores visibles. L = brillo medio, C = contraste. TRACK HOLD conserva la geometría durante cambios breves de exposición.</div>
+        <div class="camHint">Los soportes visibles son blanco/negro. Los colores que ves dentro de DATA ya no participan en la identidad del marco. L = brillo medio, C = contraste.</div>
       </div>
       <div class="row" style="margin-top:12px"><button class="btn primary grow" id="cameraBtn">Iniciar cámara receptora</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
       <div class="stats">
@@ -91,7 +95,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.7.3 · HPS7 · Safe Color Constellation · Color Training · Corner Geometry Guard · adaptive 2/3/4-bit.</div>
+  <div class="footer">PixelStream v0.7.4 · HPS7 · Monochrome Fiducials · Optical Guard Band · Safe Color Constellation · adaptive 2/3/4-bit.</div>
 </div>
 
 <div id="streamOverlay">
@@ -106,9 +110,9 @@
   <div class="streamBottom" id="streamBottom">HPS7 Adaptive Optical Modem</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="corner-geometry-guard.js?v=073"></script>
-<script src="safe-color-constellation.js?v=073"></script>
-<script src="hps7.js?v=073"></script>
-<script src="color-warmup.js?v=073"></script>
+<script src="corner-geometry-guard.js?v=074"></script>
+<script src="safe-color-constellation.js?v=074"></script>
+<script src="hps7.js?v=074"></script>
+<script src="color-warmup.js?v=074"></script>
 </body>
 </html>
