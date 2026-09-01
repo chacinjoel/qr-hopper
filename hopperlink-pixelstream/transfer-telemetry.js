@@ -1,0 +1,93 @@
+(() => {
+'use strict';
+
+const $=id=>document.getElementById(id);
+const state={hello:null,currentBps:0,peakBps:0,errors:0,validPackets:0,duplicateBlocks:0,rounds:[],nacks:0,completed:null};
+
+function fmtBytes(n){if(!Number.isFinite(n))return'—';if(n<1024)return`${Math.round(n)} B`;if(n<1048576)return`${(n/1024).toFixed(1)} KiB`;return`${(n/1048576).toFixed(2)} MiB`;}
+function fmtRate(n){return Number.isFinite(n)&&n>0?`${(n/1024).toFixed(2)} KiB/s`:'—';}
+function fmtTime(ms){if(!Number.isFinite(ms)||ms<0)return'—';let s=Math.round(ms/1000);const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s%=60;return h?`${h}h ${m}m ${String(s).padStart(2,'0')}s`:m?`${m}m ${String(s).padStart(2,'0')}s`:`${s}s`;}
+function pct(a,b){return b>0?`${(a/b*100).toFixed(1)}%`:'—';}
+function set(id,v){const e=$(id);if(e)e.textContent=v;}
+
+function inject(){
+  if($('telemetryPanel'))return;
+  const rxLog=$('rxLog');if(!rxLog)return;
+  const panel=document.createElement('div');panel.id='telemetryPanel';panel.innerHTML=`
+    <div style="margin-top:14px;padding:14px;border:1px solid #2b3a50;border-radius:16px;background:#09111d">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <b>Telemetría óptica</b><span id="telemetryStatus" class="chip on">LISTA</span>
+      </div>
+      <div class="stats" style="margin-bottom:8px">
+        <div class="stat"><b id="tmCurrent">—</b><span>Velocidad actual</span></div>
+        <div class="stat"><b id="tmPeak">—</b><span>Pico</span></div>
+        <div class="stat"><b id="tmEfficiency">—</b><span>Aceptación paquetes</span></div>
+        <div class="stat"><b id="tmValid">0</b><span>Paquetes válidos</span></div>
+        <div class="stat"><b id="tmReject">0</b><span>Rechazados CRC/ID</span></div>
+        <div class="stat"><b id="tmDup">0</b><span>Bloques duplicados</span></div>
+      </div>
+      <div id="tmClosing" class="small">Closing Burst: cuando quedan 1–499 bloques, la reparación recorre los faltantes 3 veces antes del siguiente PASS_END.</div>
+      <div id="tmRounds" class="small" style="margin-top:8px;line-height:1.55"></div>
+    </div>
+    <div id="finalTelemetry" style="display:none;margin-top:12px;padding:16px;border:1px solid #0f766e;border-radius:16px;background:#06201c"></div>`;
+  rxLog.parentNode.insertBefore(panel,rxLog);
+
+  const opt=document.querySelector('#speedMode option[value="balanced"]');if(opt)opt.textContent='Stable+ · 13 img/s';
+  const badge=document.querySelector('.badge');if(badge)badge.textContent='MVP v0.8.2 · Closing Burst + Telemetry';
+  const footer=document.querySelector('.footer');if(footer)footer.textContent='PixelStream v0.8.2 · Stable Color 3-bit · Stable+ 13 img/s · Binary Stage · Closing Burst <500 ×3 · Live Telemetry.';
+}
+
+function reset(d){
+  state.hello=d;state.currentBps=0;state.peakBps=0;state.errors=0;state.validPackets=0;state.duplicateBlocks=0;state.rounds=[];state.nacks=0;state.completed=null;
+  set('telemetryStatus','RECIBIENDO');set('tmCurrent','—');set('tmPeak','—');set('tmEfficiency','—');set('tmValid','0');set('tmReject','0');set('tmDup','0');set('tmRounds',`Archivo: ${fmtBytes(d.fileSize)} · ${d.total} bloques · grid ${d.dataGrid} · ${d.bits}-bit`);
+  const f=$('finalTelemetry');if(f)f.style.display='none';
+}
+
+function renderLive(d){
+  state.currentBps=d.byteRate||0;state.peakBps=Math.max(state.peakBps,d.peakBps||0);state.errors=d.errors||0;state.validPackets=d.validPackets||0;state.duplicateBlocks=d.duplicateBlocks||0;
+  set('tmCurrent',fmtRate(state.currentBps));set('tmPeak',fmtRate(state.peakBps));set('tmValid',String(state.validPackets));set('tmReject',String(state.errors));set('tmDup',String(state.duplicateBlocks));set('tmEfficiency',pct(state.validPackets,state.validPackets+state.errors));
+}
+
+function renderRounds(){
+  const e=$('tmRounds');if(!e)return;
+  const head=state.hello?`Archivo: ${fmtBytes(state.hello.fileSize)} · ${state.hello.total} bloques<br>`:'';
+  const body=state.rounds.map(r=>`R${r.round}: +${r.gained} · faltan ${r.missing} · ${r.bits}-bit · ${fmtTime(r.roundMs)}`).join('<br>');
+  e.innerHTML=head+(body||'Esperando primer PASS_END…');
+}
+
+function loadRuns(){try{return JSON.parse(localStorage.getItem('hopperlink.telemetry.runs')||'[]');}catch{return[];}}
+function saveRun(run){try{const arr=loadRuns();arr.unshift(run);localStorage.setItem('hopperlink.telemetry.runs',JSON.stringify(arr.slice(0,12)));}catch{}}
+function previousComparable(size){return loadRuns().find(r=>r&&r.fileSize&&Math.abs(r.fileSize-size)/size<.12);}
+
+function renderComplete(d){
+  state.completed=d;state.peakBps=Math.max(state.peakBps,d.peakBps||0);set('telemetryStatus','✓ CRC CONFIRMADO');set('tmPeak',fmtRate(state.peakBps));
+  const acceptance=d.validPackets+d.errors?pct(d.validPackets,d.validPackets+d.errors):'—';
+  const prev=previousComparable(d.fileSize);let comparison='';
+  if(prev&&prev.dataMs>0){const delta=(prev.dataMs-d.dataMs)/prev.dataMs*100;comparison=`<br><b>Vs. prueba comparable anterior:</b> ${delta>=0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}% ${delta>=0?'más rápida':'más lenta'} (${fmtTime(prev.dataMs)} → ${fmtTime(d.dataMs)}).`;}
+  const roundRows=(d.roundStats||[]).map(r=>`<tr><td>R${r.round}</td><td>+${r.gained}</td><td>${r.missing}</td><td>${r.bits}-bit</td><td>${fmtTime(r.roundMs)}</td></tr>`).join('');
+  const box=$('finalTelemetry');if(box){box.style.display='block';box.innerHTML=`
+    <div style="font-size:18px;font-weight:900">✓ Descarga completada y verificada</div>
+    <div class="small" style="margin-top:5px">CRC ${Number(d.crc>>>0).toString(16).padStart(8,'0')} · ${fmtBytes(d.fileSize)} · Grid ${d.grid} · ${d.bits}-bit</div>
+    <div class="stats" style="margin-top:12px">
+      <div class="stat"><b>${fmtTime(d.dataMs)}</b><span>Tiempo de descarga</span></div>
+      <div class="stat"><b>${fmtTime(d.sessionMs)}</b><span>Sesión total</span></div>
+      <div class="stat"><b>${fmtRate(d.avgBps)}</b><span>Promedio efectivo</span></div>
+      <div class="stat"><b>${fmtRate(d.peakBps)}</b><span>Pico</span></div>
+      <div class="stat"><b>${d.repairs}</b><span>Repairs / NACK previos</span></div>
+      <div class="stat"><b>${acceptance}</b><span>Aceptación decodificada</span></div>
+    </div>
+    <div class="small"><b>Paquetes:</b> ${d.validPackets} válidos · ${d.errors} rechazados · ${d.duplicateBlocks} bloques duplicados.${comparison}</div>
+    ${roundRows?`<div style="overflow:auto;margin-top:12px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr><th>Ronda</th><th>Ganados</th><th>Faltan</th><th>Modo</th><th>Duración</th></tr></thead><tbody>${roundRows}</tbody></table></div>`:''}`;}
+  saveRun({at:Date.now(),fileSize:d.fileSize,dataMs:d.dataMs,sessionMs:d.sessionMs,avgBps:d.avgBps,peakBps:d.peakBps,repairs:d.repairs,errors:d.errors,validPackets:d.validPackets,bits:d.bits,grid:d.grid});
+}
+
+window.addEventListener('hopper:hello',e=>reset(e.detail));
+window.addEventListener('hopper:metrics',e=>renderLive(e.detail));
+window.addEventListener('hopper:passend',e=>{state.rounds.push(e.detail);renderRounds();});
+window.addEventListener('hopper:nack',e=>{state.nacks++;const d=e.detail;if(d.closingBurst)set('telemetryStatus',`CIERRE ×${d.cycles} · ${d.missing} faltan`);else set('telemetryStatus',`NACK · ${d.missing} faltan`);});
+window.addEventListener('hopper:complete',e=>renderComplete(e.detail));
+window.addEventListener('hopper:reject',e=>{state.errors=e.detail.errors||state.errors;set('tmReject',String(state.errors));set('tmEfficiency',pct(state.validPackets,state.validPackets+state.errors));});
+
+inject();
+window.__hopperTelemetry={version:'0.8.2',active:true,closingBurst:{threshold:500,cycles:3},history:true};
+})();
