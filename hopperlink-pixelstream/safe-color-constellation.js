@@ -3,8 +3,8 @@
 
 const nativePutImageData = CanvasRenderingContext2D.prototype.putImageData;
 const BASES=[[1.00,.14,.07],[.07,1.00,.16],[.07,.24,1.00],[1.00,.07,.70]];
-const OLD3=[.58,.94], SAFE3=[.30,.55];
-const OLD4=[.48,.64,.80,.96], SAFE4=[.20,.31,.42,.53];
+const OLD3=[.58,.94], SAFE3=[.40,.68];
+const OLD4=[.48,.64,.80,.96], SAFE4=[.24,.34,.44,.54];
 
 function rgb(base,s){return base.map(v=>Math.round(Math.max(0,Math.min(255,v*s*255))));}
 function key(c){return `${c[0]},${c[1]},${c[2]}`;}
@@ -25,8 +25,8 @@ CanvasRenderingContext2D.prototype.putImageData=function(img,dx,dy,...rest){
 };
 
 window.__hopperSafeColorConstellation={
-  version:'0.7.2',active:true,
+  version:'0.8.3',active:true,
   threeBitLevels:SAFE3.slice(),fourBitLevels:SAFE4.slice(),
-  reason:'headroom against exposure/WB clipping'
+  reason:'brighter centers shorten camera exposure while preserving highlight headroom'
 };
 })();
