@@ -6,15 +6,15 @@
 <meta name="theme-color" content="#7a7a7a">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=090">
-<link rel="stylesheet" href="photometric-lock.css?v=090">
-<link rel="stylesheet" href="binary-stage.css?v=090">
+<link rel="stylesheet" href="styles.css?v=091">
+<link rel="stylesheet" href="photometric-lock.css?v=091">
+<link rel="stylesheet" href="binary-stage.css?v=091">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin servidor, internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.0 · Dual NACK Control</div>
+    <div class="badge">MVP v0.9.1 · Dual NACK Control</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
@@ -94,7 +94,7 @@
     </section>
   </div>
 
-  <div class="footer">PixelStream v0.9.0 · Optical DATA + selectable Manual/HAC1 Acoustic control · 3-bit · 12 img/s VSync · 372 B blocks.</div>
+  <div class="footer">PixelStream v0.9.1 · Optical DATA + selectable Manual/HAC1 Acoustic control · 3-bit · 12 img/s VSync · 372 B blocks.</div>
 </div>
 
 <div id="streamOverlay">
@@ -109,10 +109,11 @@
   <div class="streamBottom" id="streamBottom">Dual NACK Control</div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="binary-tag-bridge.js?v=090"></script>
-<script src="binary-tag-status.js?v=090"></script>
-<script src="safe-color-constellation.js?v=090"></script>
-<script src="acoustic-control.js?v=090"></script>
-<script src="hps7-runtime.js?v=090"></script>
+<script src="runtime-syntax-guard.js?v=091"></script>
+<script src="binary-tag-bridge.js?v=091"></script>
+<script src="binary-tag-status.js?v=091"></script>
+<script src="safe-color-constellation.js?v=091"></script>
+<script src="acoustic-control.js?v=091"></script>
+<script src="hps7-runtime.js?v=091"></script>
 </body>
 </html>
