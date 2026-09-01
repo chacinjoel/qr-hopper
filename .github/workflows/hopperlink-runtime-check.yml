@@ -22,7 +22,7 @@ jobs:
             echo "Checking $f"
             node --check "$f"
           done
-      - name: Validate generated HPS7 runtime and HAC1 codec
+      - name: Validate generated HPS7 runtime and HAC2 codec
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -51,12 +51,7 @@ jobs:
           const events = [];
           const globalObj = { Function, dispatchEvent: e => events.push(e) };
           class CustomEventMock { constructor(type, init={}) { this.type=type; this.detail=init.detail; } }
-          const guardCtx = {
-            globalThis: globalObj,
-            CustomEvent: CustomEventMock,
-            console,
-            Object
-          };
+          const guardCtx = { globalThis: globalObj, CustomEvent: CustomEventMock, console, Object };
           vm.createContext(guardCtx);
           vm.runInContext(standaloneGuard, guardCtx, { filename: 'runtime-syntax-guard.js' });
 
@@ -98,13 +93,14 @@ jobs:
             document: documentMock,
             navigator: { mediaDevices: {} },
             CustomEvent: CustomEventMock,
-            Uint8Array, Uint32Array, Array, Math, Number, Object, String, Error,
+            Uint8Array, Uint32Array, Float32Array, Array, Math, Number, Object, String, Error,
             setTimeout, clearTimeout, setInterval, clearInterval, console
           };
           vm.createContext(acousticCtx);
           vm.runInContext(acoustic, acousticCtx, { filename: 'acoustic-control.js' });
           const HAC = windowMock.HopperAcoustic;
           if (!HAC) throw new Error('HopperAcoustic API not exported');
+          if (HAC.VERSION !== 2) throw new Error(`Expected HAC2 VERSION=2, got ${HAC.VERSION}`);
 
           const samples = [
             [0,1,2,3,4,5,99,100,101,777,778,1200],
@@ -126,17 +122,32 @@ jobs:
           const completePacket = HAC.makePacket(HAC.TYPE.COMPLETE,{session:7,round:3,bits:3,total:123,fileCrc:0x10203040});
           const complete = HAC.parsePacket(completePacket,0);
           if (!complete?.ok || complete.type!==HAC.TYPE.COMPLETE || complete.fileCrc!==0x10203040) throw new Error('COMPLETE packet roundtrip failed');
-          console.log('HAC1 packet codec + CRC: PASS');
+          console.log('HAC2 packet codec + CRC: PASS');
 
-          const guardPos = html.indexOf('runtime-syntax-guard.js?v=091');
-          const acousticPos = html.indexOf('acoustic-control.js?v=091');
-          const runtimePos = html.indexOf('hps7-runtime.js?v=091');
+          // Synthetic spectrum classifier: verify dense and sparse 16-bit symbols.
+          const sr=48000, fft=1024, carriers=Array.from({length:16},(_,i)=>1800+i*260);
+          function spectrumFor(word){
+            const a=new Float32Array(fft/2+1);a.fill(-92);
+            for(let bit=0;bit<16;bit++) if(word&(1<<(15-bit))){
+              const bin=Math.round(carriers[bit]*fft/sr);a[bin]=-42;
+            }
+            return a;
+          }
+          for(const word of [0x0000,0xffff,0xa55a,0x1234]){
+            const got=HAC.classifyWord(spectrumFor(word),sr,fft,-32).word;
+            if(got!==word)throw new Error(`HAC2 spectrum classifier failed: ${word.toString(16)} -> ${got.toString(16)}`);
+          }
+          console.log('HAC2 synthetic spectrum classifier: PASS');
+
+          const guardPos = html.indexOf('runtime-syntax-guard.js?v=092');
+          const acousticPos = html.indexOf('acoustic-control.js?v=092');
+          const runtimePos = html.indexOf('hps7-runtime.js?v=092');
           if (guardPos < 0 || acousticPos < 0 || runtimePos < 0 || !(guardPos < acousticPos && acousticPos < runtimePos)) {
             throw new Error('index.html load order must be guard -> acoustic -> runtime');
           }
-          for (const asset of ['runtime-syntax-guard.js?v=091','acoustic-control.js?v=091','hps7-runtime.js?v=091','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
+          for (const asset of ['runtime-syntax-guard.js?v=092','acoustic-control.js?v=092','hps7-runtime.js?v=092','hps7.js?v=090core','transfer-telemetry.js?v=090']) {
             if (!sw.includes(asset)) throw new Error(`Service Worker missing ${asset}`);
           }
-          if (!sw.includes("hopperlink-pixelstream-v091")) throw new Error('Service Worker cache key is not v091');
-          console.log('v0.9.1 load order + cache isolation: PASS');
+          if (!sw.includes("hopperlink-pixelstream-v092")) throw new Error('Service Worker cache key is not v092');
+          console.log('v0.9.2 load order + cache isolation: PASS');
           NODE
