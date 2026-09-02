@@ -27,7 +27,7 @@ function encodeExact(actualMissing,ids){const sorted=Array.from(new Set(ids)).so
 function decodeExact(p){if(!p||p.length<3)return null;const actualMissing=(p[0]<<8)|p[1],st={p:2},n=getVar(p,st),ids=[];let prev=-1;for(let i=0;i<n;i++){const idx=prev+1+getVar(p,st);ids.push(idx);prev=idx;}return{actualMissing,ids};}
 function currentMissing(){return num('rxMissing');}
 function currentTotal(){return num('rxTotal');}
-function markRequest(label,payload,session,missing,candidates){state.session=session;state.requestAt=performance.now();state.preMissing=currentMissing()||missing;state.lastMissing=state.preMissing;state.lastExact={label,payload,session,missing,candidates};state.retries=0;state.result=state.armed?'PRUEBA E2E EN CURSO':'AUTO-REPAIR EN CURSO';state.note=`Solicitud ${label}: déficit ${state.preMissing}. Esperando que Lane A reduzca el déficit.`;render();scheduleRetry();}
+function markRequest(label,payload,session,missing,candidates,retryExact=false){state.session=session;state.requestAt=performance.now();state.preMissing=currentMissing()||missing;state.lastMissing=state.preMissing;state.lastExact=retryExact?{label,payload,session,missing,candidates}:null;state.retries=0;state.result=state.armed?'PRUEBA E2E EN CURSO':'AUTO-REPAIR EN CURSO';state.note=`Solicitud ${label}: déficit ${state.preMissing}. Esperando que Lane A reduzca el déficit.`;render();if(retryExact)scheduleRetry();}
 function scheduleRetry(){clearTimeout(retryTimer);if(!state.lastExact)return;retryTimer=setTimeout(async()=>{const nowMissing=currentMissing();if(!state.requestAt||nowMissing<state.preMissing)return;if(state.retries>=2){state.result='AUTO-REPAIR NO CONFIRMADO';state.note='Sonic envió la solicitud pero el déficit no bajó tras 3 intentos. Fountain continúa; revisa RX/TX Sonic y Lane A.';render();return;}state.retries++;state.note=`Sin avance tras Auto-Repair · reintento acústico ${state.retries}/2…`;render();try{await nativeSend(DTYPE.EXACT,state.lastExact.session,state.lastExact.payload,{repeats:2,label:`EXACT RETRY ${state.retries}`});scheduleRetry();}catch(e){state.note=`Reintento Sonic falló: ${e.message}`;render();}},12000);}
 
 S.send=async function(type,session,payload,opts={}){
@@ -38,9 +38,9 @@ S.send=async function(type,session,payload,opts={}){
       const candidates=F.candidatesFromBloom(total,p.bloom,3);
       if(p.missing<=12&&candidates.length>0&&candidates.length<=28){
         const exact=encodeExact(p.missing,candidates);
-        if(exact.length<=64){state.exactTx++;state.lastTx=`EXACT ${p.missing}→${candidates.length}`;markRequest('EXACT-NACK',exact,session,p.missing,candidates);return nativeSend(DTYPE.EXACT,session,exact,{...opts,repeats:2,label:`EXACT ${p.missing}`});}
+        if(exact.length<=64){state.exactTx++;state.lastTx=`EXACT ${p.missing}→${candidates.length}`;markRequest('EXACT-NACK',exact,session,p.missing,candidates,true);return nativeSend(DTYPE.EXACT,session,exact,{...opts,repeats:2,label:`EXACT ${p.missing}`});}
       }
-      markRequest('BLOOM',payload,session,p.missing,candidates);
+      markRequest('BLOOM',payload,session,p.missing,candidates,false);
     }
   }
   return nativeSend(type,session,payload,opts);
@@ -48,7 +48,7 @@ S.send=async function(type,session,payload,opts={}){
 
 S.startListener=async function(onMessage){
   return nativeStart(async msg=>{
-    state.session=msg.session;state.lastRx=typeName(msg.type);state.validRx++;render();
+    state.session=msg.session;state.lastRx=typeName(msg.type);render();
     if(msg.type===DTYPE.PING){
       const payload=msg.payload?.slice?.()||new Uint8Array(0);state.note='PING físico recibido. Preparando PONG…';render();
       setTimeout(()=>nativeSend(DTYPE.PONG,msg.session,payload,{repeats:1,label:'DIAG PONG'}).catch(()=>{}),3000);return;
