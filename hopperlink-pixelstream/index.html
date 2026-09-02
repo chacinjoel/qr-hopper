@@ -6,21 +6,21 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0916">
-<link rel="stylesheet" href="photometric-lock.css?v=0916">
-<link rel="stylesheet" href="binary-stage.css?v=0916">
+<link rel="stylesheet" href="styles.css?v=0917">
+<link rel="stylesheet" href="photometric-lock.css?v=0917">
+<link rel="stylesheet" href="binary-stage.css?v=0917">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.16 · Optical Dock v2</div>
+    <div class="badge">MVP v0.9.17 · Optical Dock v3 Adaptive Vision</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>Manual Max · Vertical DualLane · Optical Dock v2</h2>
-    <div class="sub">El receptor puede adquirir el stream por Binary Tags o por el gran contorno 1:2, mantener geometría durante pérdidas breves y congelar transiciones para evitar CRC falsos.</div>
-    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Contour Lock</span><span class="chip on">● Photometric Rails</span><span class="chip on">● Stable Frame Gate</span><span class="chip on">● Repair 1500</span><span class="chip" id="phaseStatus">INICIALIZANDO HPS7</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <h2>Manual Max · Vertical DualLane · Optical Dock v3</h2>
+    <div class="sub">Adquisición por tags/contorno con histéresis, calibración fotométrica real por lane, exposición adaptativa y beacons de fase para descartar rolling shutter sin confundirlo con DATA nuevo.</div>
+    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Contour + Hysteresis</span><span class="chip on">● Lane Normalization</span><span class="chip on">● Adaptive Exposure</span><span class="chip on">● Phase Beacons</span><span class="chip on">● Repair 1500</span><span class="chip" id="phaseStatus">INICIALIZANDO HPS7</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
@@ -48,10 +48,11 @@
       <details class="techDetails">
         <summary>Detalles técnicos y diagnóstico</summary>
         <div class="techDetailsBody">
-          <div class="small"><b>Optical Dock v2:</b> borde negro/blanco grueso + 4 Binary Tags + 4 anclas laterales + rails fotométricos. El DATA sigue intacto dentro de 12%-88%.</div>
-          <div class="small" style="margin-top:6px"><b>Contour Lock:</b> si una esquina/tag se pierde, el receptor puede reconstruir la geometría desde el gran rectángulo y la proporción del stage.</div>
-          <div class="small" style="margin-top:6px"><b>Stable Frame Gate:</b> durante cambios de stream, rolling shutter o temblor fuerte se reutiliza brevemente el último frame estable; los duplicados se ignoran y se evitan CRC falsos.</div>
-          <div class="small" style="margin-top:6px"><b>Photometric Rails:</b> referencias superior/inferior para medir contraste, clipping y desigualdad de iluminación sin ocupar celdas DATA.</div>
+          <div class="small"><b>Optical Dock v3:</b> borde negro/blanco + Binary Tags + anclas + rails universales + beacons de fase. El DATA sigue intacto en 12%-88%.</div>
+          <div class="small" style="margin-top:6px"><b>Geometry Hysteresis:</b> un contorno aislado no reemplaza la homografía; debe ser coherente durante varios frames o coincidir con el LOCK existente.</div>
+          <div class="small" style="margin-top:6px"><b>Photometric Normalization:</b> cada captura ajusta RGB observado→normalizado usando referencias fijas; DualLane calibra superior e inferior por separado.</div>
+          <div class="small" style="margin-top:6px"><b>Adaptive Exposure:</b> si el navegador expone compensación EV, los rails corrigen gradualmente highlights quemados o escenas demasiado oscuras.</div>
+          <div class="small" style="margin-top:6px"><b>Phase Beacons:</b> arriba y abajo deben mostrar la misma fase. Si difieren, es rolling shutter real y se hace HOLD sin sumar CRC falsos.</div>
           <div class="small" style="margin-top:6px"><b>Repair dinámico:</b> n = floor(1500 / faltantes), mínimo 1. Los ciclos alternan orden y posición de lanes.</div>
           <div class="log" id="sendLog" style="margin-top:10px"></div>
         </div>
@@ -66,15 +67,15 @@
 
     <section class="card" id="receiverCard">
       <h2>2. Receptor</h2>
-      <div class="sub">No necesitas encuadrar con precisión milimétrica: deja visible el gran rectángulo del Dock. El receptor combinará contorno, tags y tracking temporal.</div>
-      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">Optical Dock v2: deja visible el rectángulo exterior completo. TAGS, CONTORNO o TRACK pueden conservar el LOCK.</div></div>
+      <div class="sub">Deja visible el rectángulo exterior. El Dock combina tags, contorno y tracking; la iluminación se calibra continuamente antes de que el decoder clasifique las celdas.</div>
+      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">Optical Dock v3: encuadra el rectángulo exterior completo. NORM = normalización activa; ROLLING = frame descartado por fase.</div></div>
       <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total</span></div><div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
       <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div id="telemetryMount"></div>
       <details class="techDetails"><summary>Diagnóstico del receptor</summary><div class="techDetailsBody"><div class="log" id="rxLog"></div></div></details>
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.16 · Optical Dock v2 · Contour Lock · Photometric Rails · Stable Frame Gate · 367 B.</div>
+  <div class="footer">PixelStream v0.9.17 · Optical Dock v3 · Adaptive Vision · Lane Normalization · Phase Beacons · 367 B.</div>
 </div>
 
 <div id="streamOverlay">
@@ -84,15 +85,15 @@
   <div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0916"></script>
-<script src="binary-tag-bridge-fast.js?v=0916"></script>
-<script src="optical-dock-v2.js?v=0916"></script>
-<script src="binary-tag-status.js?v=0916"></script>
-<script src="safe-color-constellation.js?v=0916"></script>
-<script src="premium-flow-ui.js?v=0916"></script>
-<script src="hps7-projection.js?v=0916"></script>
-<script src="repair-reacquisition.js?v=0916"></script>
-<script src="hps7-duallane-v2.js?v=0916"></script>
-<script src="runtime-stability.js?v=0916"></script>
+<script src="runtime-syntax-guard.js?v=0917"></script>
+<script src="binary-tag-bridge-fast.js?v=0917"></script>
+<script src="optical-dock-v3.js?v=0917"></script>
+<script src="binary-tag-status.js?v=0917"></script>
+<script src="safe-color-constellation.js?v=0917"></script>
+<script src="premium-flow-ui.js?v=0917"></script>
+<script src="hps7-projection.js?v=0917"></script>
+<script src="repair-reacquisition.js?v=0917"></script>
+<script src="hps7-duallane-v2.js?v=0917"></script>
+<script src="runtime-stability.js?v=0917"></script>
 </body>
 </html>
