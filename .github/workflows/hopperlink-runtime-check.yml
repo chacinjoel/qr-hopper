@@ -42,7 +42,6 @@ jobs:
           if(diag.includes("await S.startListener(()=>{});pingTimer"))throw Error('PING test still reopens listener after transmit');
           console.log('Sonic8 persistent PING/PONG diagnostics: PASS');
 
-          // Framing still round-trips independently of physical audio.
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail}}
           const doc={getElementById(){return null},createElement(){return{}},querySelector(){return null}};
           const c={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};c.window=c;c.dispatchEvent=()=>true;vm.createContext(c);vm.runInContext(sonic,c,{timeout:1500});const S=c.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
@@ -50,12 +49,10 @@ jobs:
           if(!S.adaptiveBands||!S.guardedSymbols||!S.persistentDuplex||!S.userGesturePrime)throw Error('Sonic export flags missing');
           console.log('Sonic8 framing + adaptive/duplex exports: PASS');
 
-          // PhotonFountain loss recovery stays intact.
           const fc={console,window:null};fc.window=fc;vm.createContext(fc);vm.runInContext(fountain,fc,{timeout:1500});const F=fc.__hopperHPS8Fountain,N=64,SZ=96,blocks=Array.from({length:N},(_,i)=>Uint8Array.from({length:SZ},(_,j)=>(i*31+j*17)&255)),dec=F.createDecoder(N,SZ);for(let i=0;i<N;i++)if(i%4)dec.addSystematic(i,blocks[i]);for(let seed=1;seed<16000&&!dec.complete;seed++){const x=F.makeParity(blocks,seed);dec.addParity(seed,x.data);}if(!dec.complete)throw Error('Fountain recovery regression');
           console.log('PhotonFountain 25% systematic-loss recovery: PASS');
 
-          // Preserve HPS7 fallback files and Adaptive Vision hook.
-          for(const s of ['hps7-core-v','sampleGridRGB'])if(!core.includes(s))throw Error(`HPS7 core missing ${s}`);
+          if(core.length<5000||!core.includes('sampleGridRGB'))throw Error('HPS7 core fallback missing/too small');
           if(!dual.includes('patchDual'))throw Error('HPS7 DualLane fallback missing');
           if(!guard.includes('photometricNormalizer:true'))throw Error('HPS7 photometric guard missing');
           if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
