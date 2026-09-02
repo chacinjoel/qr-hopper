@@ -6,32 +6,41 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=0917">
-<link rel="stylesheet" href="photometric-lock.css?v=0917">
-<link rel="stylesheet" href="binary-stage.css?v=0917">
+<link rel="stylesheet" href="styles.css?v=1000">
+<link rel="stylesheet" href="photometric-lock.css?v=1000">
+<link rel="stylesheet" href="binary-stage.css?v=1000">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.9.17 · Optical Dock v3 Adaptive Vision</div>
+    <div class="badge">MVP v0.10.0 · HPS8 PhotonFountain</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>Manual Max · Vertical DualLane · Optical Dock v3</h2>
-    <div class="sub">Adquisición por tags/contorno con histéresis, calibración fotométrica real por lane, exposición adaptativa y beacons de fase para descartar rolling shutter sin confundirlo con DATA nuevo.</div>
-    <div class="compactFacts"><span class="chip on">● NACK Manual</span><span class="chip on">● 367 B/bloque</span><span class="chip on">● DualLane 2×56×56</span><span class="chip on">● Contour + Hysteresis</span><span class="chip on">● Lane Normalization</span><span class="chip on">● Adaptive Exposure</span><span class="chip on">● Phase Beacons</span><span class="chip on">● Repair 1500</span><span class="chip" id="phaseStatus">INICIALIZANDO HPS7</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <h2>HPS7 Stable + HPS8 PhotonFountain</h2>
+    <div class="sub">HPS7 permanece como fallback estable. HPS8 añade Fountain/FEC, Sonic8 near-ultrasonic, Bloom-NACK y Auto-Repair transparente manteniendo Optical Dock v3.</div>
+    <div class="compactFacts"><span class="chip on">● HPS7 Fallback</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Sonic Auto-Repair</span><span class="chip on">● Bloom-NACK</span><span class="chip on">● File Progress</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
     <section class="card" id="senderCard">
       <h2>1. Emisor</h2>
-      <div class="senderIntro sub">Configura una vez. HopperLink valida el runtime antes de habilitar Preparar y después te indica la siguiente acción.</div>
+      <div class="senderIntro sub">Elige HPS7 para la ruta conocida o HPS8 para probar reconstrucción progresiva y Repair automático sin girar los teléfonos.</div>
+
+      <div class="protocolPicker">
+        <label for="protocolMode">Protocolo</label>
+        <select id="protocolMode">
+          <option value="hps7">HPS7 Stable · Repair manual</option>
+          <option value="hps8" selected>HPS8 PhotonFountain · Auto-Repair experimental</option>
+        </select>
+        <div class="small">HPS8 v0.10.0 inicia deliberadamente con Grid 56 · DualLane · 2-bit para medir primero la ganancia de Fountain/Sonic antes de aumentar FPS.</div>
+      </div>
 
       <div class="flowStepper" aria-label="Progreso del flujo">
-        <div class="flowStep active">1 · Preparar</div><div class="flowStep">2 · HELLO</div><div class="flowStep">3 · DATA</div><div class="flowStep">4 · Repair</div><div class="flowStep">5 · Listo</div>
+        <div class="flowStep active">1 · Preparar</div><div class="flowStep">2 · HELLO</div><div class="flowStep">3 · DATA</div><div class="flowStep">4 · Auto-Repair</div><div class="flowStep">5 · Listo</div>
       </div>
-      <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Inicializando HPS7</b><span id="flowCoachDetail">Espera un instante mientras se carga y valida el módem óptico.</span></div>
+      <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Inicializando módem óptico</b><span id="flowCoachDetail">HPS7 y HPS8 se cargarán en paralelo.</span></div>
 
       <div class="filebox"><input id="fileInput" type="file"></div>
       <div class="row" style="margin-top:12px">
@@ -41,25 +50,25 @@
         <div class="grow"><label>Velocidad</label><br><select id="speedMode" style="width:100%"><option value="maxcal" selected>Auto Max</option><option value="compatible">Compatible · 8/s ×2</option><option value="balanced">12 streams/s</option><option value="turbo">15 streams/s</option><option value="optical">18 streams/s · experimental</option></select></div>
       </div>
 
-      <div class="stats"><div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div><div class="stat"><b id="frameCount">—</b><span>Bloques lógicos</span></div><div class="stat"><b id="capacity">—</b><span>Bloque base</span></div></div>
+      <div class="stats"><div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div><div class="stat"><b id="frameCount">—</b><span>Bloques fuente/lógicos</span></div><div class="stat"><b id="capacity">—</b><span>Bloque base</span></div></div>
 
       <div class="small" id="speedHint"></div><div class="small" id="modulationHint" style="margin-top:4px"></div><div class="small" id="layoutHint" style="margin-top:4px"></div><div class="small" id="throughputHint" style="margin-top:4px"></div>
 
       <details class="techDetails">
         <summary>Detalles técnicos y diagnóstico</summary>
         <div class="techDetailsBody">
-          <div class="small"><b>Optical Dock v3:</b> borde negro/blanco + Binary Tags + anclas + rails universales + beacons de fase. El DATA sigue intacto en 12%-88%.</div>
-          <div class="small" style="margin-top:6px"><b>Geometry Hysteresis:</b> un contorno aislado no reemplaza la homografía; debe ser coherente durante varios frames o coincidir con el LOCK existente.</div>
-          <div class="small" style="margin-top:6px"><b>Photometric Normalization:</b> cada captura ajusta RGB observado→normalizado usando referencias fijas; DualLane calibra superior e inferior por separado.</div>
-          <div class="small" style="margin-top:6px"><b>Adaptive Exposure:</b> si el navegador expone compensación EV, los rails corrigen gradualmente highlights quemados o escenas demasiado oscuras.</div>
-          <div class="small" style="margin-top:6px"><b>Phase Beacons:</b> arriba y abajo deben mostrar la misma fase. Si difieren, es rolling shutter real y se hace HOLD sin sumar CRC falsos.</div>
-          <div class="small" style="margin-top:6px"><b>Repair dinámico:</b> n = floor(1500 / faltantes), mínimo 1. Los ciclos alternan orden y posición de lanes.</div>
+          <div class="small"><b>HPS7:</b> se conserva sin cambios funcionales como ruta estable y fallback.</div>
+          <div class="small" style="margin-top:6px"><b>HPS8 Lane A:</b> primero datos sistemáticos; si Sonic8 detecta déficit, cambia automáticamente a bloques candidatos de Bloom-NACK.</div>
+          <div class="small" style="margin-top:6px"><b>HPS8 Lane B:</b> símbolos PhotonFountain XOR deterministas. Un frame perdido no obliga a pedir ese ID exacto.</div>
+          <div class="small" style="margin-top:6px"><b>Sonic8:</b> canal near-ultrasonic máquina↔máquina para ACK, progreso, Bloom-NACK y COMPLETE. No transporta el archivo.</div>
+          <div class="small" style="margin-top:6px"><b>Bloom-NACK:</b> si Fountain se estanca cerca del final, el receptor envía un filtro compacto; el emisor reinyecta candidatos automáticamente, aceptando falsos positivos baratos.</div>
+          <div class="small" style="margin-top:6px"><b>Optical Dock v3:</b> normalización por lane, exposición adaptativa, contorno/tags y beacons de fase siguen activos en ambos protocolos.</div>
           <div class="log" id="sendLog" style="margin-top:10px"></div>
         </div>
       </details>
 
       <div id="senderActionDock" class="actionDock senderDock" aria-label="Acciones del emisor">
-        <button class="btn primary grow" id="prepareBtn" disabled>Inicializando HPS7…</button>
+        <button class="btn primary grow" id="prepareBtn" disabled>Inicializando…</button>
         <button class="btn good grow" id="sendBtn" disabled style="display:none">Mostrar HELLO</button>
         <button class="btn primary internalRepairTrigger" id="txRepairBtn" style="display:none">Enviar Repair Burst</button>
       </div>
@@ -67,33 +76,50 @@
 
     <section class="card" id="receiverCard">
       <h2>2. Receptor</h2>
-      <div class="sub">Deja visible el rectángulo exterior. El Dock combina tags, contorno y tracking; la iluminación se calibra continuamente antes de que el decoder clasifique las celdas.</div>
-      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">Optical Dock v3: encuadra el rectángulo exterior completo. NORM = normalización activa; ROLLING = frame descartado por fase.</div></div>
-      <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total</span></div><div class="stat"><b id="rxMissing">—</b><span>Faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
+      <div class="sub">En HPS8 solo mantén visible el Optical Dock. Fountain absorbe pérdidas y Sonic8 dispara cualquier Auto-Repair necesario en segundo plano.</div>
+      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">HPS8: deja visible el rectángulo exterior. NORM = fotometría corregida; ROLLING = frame descartado; Sonic8 maneja progreso y Auto-Repair.</div></div>
+
+      <div id="hps8ProgressPanel" class="hps8ProgressPanel" style="display:none">
+        <div class="hps8ProgressTop"><div><span class="small">Archivo reconstruible</span><b id="hps8FileName">Sin transferencia</b></div><strong id="hps8Percent">0%</strong></div>
+        <div id="hps8ProgressStatus" class="small hps8ProgressStatus">HPS8 listo</div>
+        <div class="progress hps8MainProgress"><div class="bar" id="hps8FileBar"></div></div>
+        <div class="hps8ProgressMeta">
+          <div><b id="hps8Bytes">0 B de 0 B</b><span>Bytes reconstruidos</span></div>
+          <div><b id="hps8Speed">—</b><span>Velocidad efectiva</span></div>
+          <div><b id="hps8Eta">—</b><span>Tiempo restante</span></div>
+          <div><b id="hps8Fountain">—</b><span>Bloques resueltos</span></div>
+        </div>
+        <div class="hps8RepairLine"><span class="chip on">AUTO</span><span id="hps8AutoRepair">Auto-Repair transparente</span></div>
+      </div>
+
+      <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total</span></div><div class="stat"><b id="rxMissing">—</b><span>Déficit/faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
       <div class="progress"><div class="bar" id="rxBar"></div></div><div id="receivedBox" class="received" style="display:none"></div><div id="telemetryMount"></div>
       <details class="techDetails"><summary>Diagnóstico del receptor</summary><div class="techDetailsBody"><div class="log" id="rxLog"></div></div></details>
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.9.17 · Optical Dock v3 · Adaptive Vision · Lane Normalization · Phase Beacons · 367 B.</div>
+  <div class="footer">PixelStream v0.10.0 · HPS7 Stable + HPS8 PhotonFountain · Sonic8 · Bloom-NACK · Optical Dock v3.</div>
 </div>
 
 <div id="streamOverlay">
   <div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream</div></div>
   <div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div>
-  <div class="streamBottom" id="streamBottom">HPS7</div>
+  <div class="streamBottom" id="streamBottom">HPS</div>
   <div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=0917"></script>
-<script src="binary-tag-bridge-fast.js?v=0917"></script>
-<script src="optical-dock-v3.js?v=0917"></script>
-<script src="binary-tag-status.js?v=0917"></script>
-<script src="safe-color-constellation.js?v=0917"></script>
-<script src="premium-flow-ui.js?v=0917"></script>
-<script src="hps7-projection.js?v=0917"></script>
-<script src="repair-reacquisition.js?v=0917"></script>
-<script src="hps7-duallane-v2.js?v=0917"></script>
-<script src="runtime-stability.js?v=0917"></script>
+<script src="runtime-syntax-guard.js?v=1000"></script>
+<script src="binary-tag-bridge-fast.js?v=1000"></script>
+<script src="optical-dock-v3.js?v=1000"></script>
+<script src="binary-tag-status.js?v=1000"></script>
+<script src="safe-color-constellation.js?v=1000"></script>
+<script src="premium-flow-ui.js?v=1000"></script>
+<script src="hps7-projection.js?v=1000"></script>
+<script src="repair-reacquisition.js?v=1000"></script>
+<script src="hps7-duallane-v2.js?v=1000"></script>
+<script src="runtime-stability.js?v=1000"></script>
+<script src="hps8-fountain.js?v=1000"></script>
+<script src="hps8-sonic.js?v=1000"></script>
+<script src="hps8.js?v=1000"></script>
 </body>
 </html>
