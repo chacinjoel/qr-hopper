@@ -8,7 +8,6 @@ const PROFILES={
   mid:{name:'MID',freq:[13800,14400,15000,15600],audibility:'high-frequency'},
   safe:{name:'SAFE',freq:[10800,11600,12400,13200],audibility:'compatibility'}
 };
-const PROFILE_ORDER=['high','mid','safe'];
 const PREAMBLE=new Uint8Array([0xF0,0xA5,0xF0,0xA5]);
 const TONE_MS=22,GAP_MS=22,LEAD_MS=120,PROFILE_GAP_MS=160,TAIL_MS=80,POLL_MS=6;
 let outCtx=null,micCtx=null,micStream=null,micSource=null,analyser=null,silentGain=null,listenTimer=null,listenCb=null;
@@ -25,7 +24,7 @@ const PRE_SYM=bytesToSymbols(PREAMBLE);
 function emit(name,detail={}){try{window.dispatchEvent(new CustomEvent('hopper:hps8-sonic-'+name,{detail}));}catch{}}
 function log(msg){const e=document.getElementById('sendLog');if(e)e.textContent=`[${new Date().toLocaleTimeString()}] SONIC8A · ${msg}\n`+e.textContent.slice(0,8500);}
 function status(text,kind=''){const e=document.getElementById('hps8SonicStatus');if(e){e.textContent=text;e.className='chip '+kind;}}
-function overlay(text,kind=''){let e=document.getElementById('sonicOverlayDiag');const o=document.getElementById('streamOverlay');if(!o)return;if(!e){e=document.createElement('div');e.id='sonicOverlayDiag';o.appendChild(e);}e.textContent=text;e.dataset.kind=kind;}
+function overlay(text,kind=''){let e=document.getElementById('sonicOverlayDiag');const o=document.getElementById('streamOverlay');if(!o)return;if(!e){e=document.createElement('div');e.id='sonicOverlayDiag';e.style.cssText='position:absolute;left:12px;top:max(52px,calc(env(safe-area-inset-top) + 42px));z-index:75;max-width:calc(100vw - 24px);padding:7px 9px;border-radius:10px;background:rgba(2,6,23,.78);border:1px solid rgba(103,232,249,.35);color:#dbeafe;font:800 10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;pointer-events:none;backdrop-filter:blur(8px)';o.appendChild(e);}e.textContent=text;e.dataset.kind=kind;}
 
 async function ensureOutput(){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)throw new Error('Web Audio no disponible');if(!outCtx)outCtx=new AC({latencyHint:'interactive'});if(outCtx.state==='suspended')await outCtx.resume();return outCtx;}
 function chooseProfiles(repeats=2,requested){if(Array.isArray(requested)&&requested.length)return requested.filter(x=>PROFILES[x]);const r=Math.max(1,repeats|0);if(r===1)return['mid'];if(r===2)return['high','mid'];const out=['high','mid','safe'];for(let i=3;i<r;i++)out.push(i%2?'mid':'safe');return out;}
