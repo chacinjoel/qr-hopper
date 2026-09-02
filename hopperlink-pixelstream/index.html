@@ -6,21 +6,21 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=1001">
-<link rel="stylesheet" href="photometric-lock.css?v=1001">
-<link rel="stylesheet" href="binary-stage.css?v=1001">
+<link rel="stylesheet" href="styles.css?v=1002">
+<link rel="stylesheet" href="photometric-lock.css?v=1002">
+<link rel="stylesheet" href="binary-stage.css?v=1002">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.10.1 · Sonic8 Verified Auto-Repair</div>
+    <div class="badge">MVP v0.10.2 · Sonic8 Adaptive Multiband</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Stable + HPS8 PhotonFountain</h2>
-    <div class="sub">HPS7 permanece como fallback estable. HPS8 añade Fountain/FEC, Sonic8 near-ultrasonic, Exact/Bloom-NACK, Auto-Repair transparente y ahora diagnóstico físico verificable extremo a extremo.</div>
-    <div class="compactFacts"><span class="chip on">● HPS7 Fallback</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Sonic Auto-Repair</span><span class="chip on">● Exact/Bloom-NACK</span><span class="chip on">● E2E Diagnostics</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <div class="sub">HPS7 permanece como fallback estable. HPS8 usa Fountain/FEC y Sonic8 adaptativo HIGH→MID→SAFE con símbolos temporalmente separados para evitar filtros de hardware y fusiones de símbolos iguales.</div>
+    <div class="compactFacts"><span class="chip on">● HPS7 Fallback</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Sonic Multiband</span><span class="chip on">● Guarded Symbols</span><span class="chip on">● Exact/Bloom-NACK</span><span class="chip on">● E2E Diagnostics</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
@@ -34,7 +34,7 @@
           <option value="hps7">HPS7 Stable · Repair manual</option>
           <option value="hps8" selected>HPS8 PhotonFountain · Auto-Repair experimental</option>
         </select>
-        <div class="small">HPS8 v0.10.1 mantiene Grid 56 · DualLane · 2-bit para aislar y validar Fountain/Sonic antes de aumentar FPS.</div>
+        <div class="small">HPS8 v0.10.2 mantiene Grid 56 · DualLane · 2-bit. Sonic8 ahora prueba HIGH, MID y SAFE y usa un guard temporal real entre símbolos.</div>
       </div>
 
       <div class="flowStepper" aria-label="Progreso del flujo">
@@ -60,7 +60,8 @@
           <div class="small"><b>HPS7:</b> se conserva sin cambios funcionales como ruta estable y fallback.</div>
           <div class="small" style="margin-top:6px"><b>HPS8 Lane A:</b> primero datos sistemáticos; si Sonic8 detecta déficit, cambia automáticamente a bloques candidatos de Exact/Bloom-NACK.</div>
           <div class="small" style="margin-top:6px"><b>HPS8 Lane B:</b> símbolos PhotonFountain XOR deterministas. Un frame perdido no obliga a pedir ese ID exacto.</div>
-          <div class="small" style="margin-top:6px"><b>Sonic8:</b> canal near-ultrasonic máquina↔máquina para ACK, progreso, Exact/Bloom-NACK y COMPLETE. No transporta el archivo y no se garantiza que sea inaudible en todos los teléfonos/personas.</div>
+          <div class="small" style="margin-top:6px"><b>Sonic8 Adaptive:</b> HIGH 17.4–19.2 kHz, MID 13.8–15.6 kHz y SAFE 10.8–13.2 kHz. Los perfiles bajos pueden ser audibles, pero solo existen para compatibilidad física.</div>
+          <div class="small" style="margin-top:6px"><b>Guarded Symbols:</b> cada símbolo tiene tono + silencio explícito de 22 ms; el FFT se redujo a 512 para que dos símbolos iguales consecutivos no se fusionen.</div>
           <div class="small" style="margin-top:6px"><b>Verified Auto-Repair:</b> la prueba E2E solo aprueba cuando existe una solicitud Sonic y después disminuye realmente <span class="mono">rxMissing</span>.</div>
           <div class="small" style="margin-top:6px"><b>Optical Dock v3:</b> normalización por lane, exposición adaptativa, contorno/tags y beacons de fase siguen activos en ambos protocolos.</div>
           <div class="log" id="sendLog" style="margin-top:10px"></div>
@@ -97,11 +98,13 @@
             <div><span>Rol</span><b id="sonicDiagRole">—</b></div><div><span>Sesión</span><b id="sonicDiagSession">—</b></div>
             <div><span>Mic / listener</span><b id="sonicDiagListener">—</b></div><div><span>RX CRC válido</span><b id="sonicDiagValid">0</b></div>
             <div><span>Último TX</span><b id="sonicDiagLastTx">—</b></div><div><span>Último RX</span><b id="sonicDiagLastRx">—</b></div>
-            <div><span>Exact-NACK</span><b id="sonicDiagExact">0 RX / 0 TX</b></div><div><span>Lane A Repair</span><b id="sonicDiagRepairTx">0</b></div>
+            <div><span>Banda detectada</span><b id="sonicDiagBand">—</b></div><div><span>Señal / margen / SNR</span><b id="sonicDiagSignal">—</b></div>
+            <div><span>Mic settings</span><b id="sonicDiagMic">—</b></div><div><span>Exact-NACK</span><b id="sonicDiagExact">0 RX / 0 TX</b></div>
+            <div><span>Lane A Repair</span><b id="sonicDiagRepairTx">0</b></div><div><span>Modem</span><b>Adaptive 3-band</b></div>
           </div>
           <div id="sonicDiagNote" class="small sonicDiagNote">Inicia HPS8 y espera LOCK para probar el canal físico.</div>
           <div class="sonicDiagActions"><button class="btn" id="sonicPingTest" disabled>Probar Sonic ida/vuelta</button><button class="btn good" id="autoRepairArm" disabled>Armar prueba Auto-Repair</button></div>
-          <div class="small sonicDiagFoot">El test Sonic usa ~18–19.5 kHz. Es near-ultrasonic, no necesariamente inaudible en todos los dispositivos/personas.</div>
+          <div class="small sonicDiagFoot">El test intenta HIGH→MID→SAFE. HIGH busca inaudibilidad; MID/SAFE priorizan compatibilidad porque algunos teléfonos filtran >16–18 kHz.</div>
         </div>
       </div>
 
@@ -111,7 +114,7 @@
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.10.1 · HPS7 Stable + HPS8 PhotonFountain · Sonic8 Verified Auto-Repair · Optical Dock v3.</div>
+  <div class="footer">PixelStream v0.10.2 · HPS7 Stable + HPS8 PhotonFountain · Sonic8 Adaptive Multiband · Optical Dock v3.</div>
 </div>
 
 <div id="streamOverlay">
@@ -121,19 +124,19 @@
   <div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div>
 </div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=1001"></script>
-<script src="binary-tag-bridge-fast.js?v=1001"></script>
-<script src="optical-dock-v3.js?v=1001"></script>
-<script src="binary-tag-status.js?v=1001"></script>
-<script src="safe-color-constellation.js?v=1001"></script>
-<script src="premium-flow-ui.js?v=1001"></script>
-<script src="hps7-projection.js?v=1001"></script>
-<script src="repair-reacquisition.js?v=1001"></script>
-<script src="hps7-duallane-v2.js?v=1001"></script>
-<script src="runtime-stability.js?v=1001"></script>
-<script src="hps8-fountain.js?v=1001"></script>
-<script src="hps8-sonic.js?v=1001"></script>
-<script src="hps8-diagnostics.js?v=1001"></script>
-<script src="hps8.js?v=1001"></script>
+<script src="runtime-syntax-guard.js?v=1002"></script>
+<script src="binary-tag-bridge-fast.js?v=1002"></script>
+<script src="optical-dock-v3.js?v=1002"></script>
+<script src="binary-tag-status.js?v=1002"></script>
+<script src="safe-color-constellation.js?v=1002"></script>
+<script src="premium-flow-ui.js?v=1002"></script>
+<script src="hps7-projection.js?v=1002"></script>
+<script src="repair-reacquisition.js?v=1002"></script>
+<script src="hps7-duallane-v2.js?v=1002"></script>
+<script src="runtime-stability.js?v=1002"></script>
+<script src="hps8-fountain.js?v=1002"></script>
+<script src="hps8-sonic-adaptive.js?v=1002"></script>
+<script src="hps8-diagnostics.js?v=1002"></script>
+<script src="hps8.js?v=1002"></script>
 </body>
 </html>
