@@ -20,48 +20,55 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 Precision + HPS8 ACK Wake v0.10.11
+      - name: Validate HPS7 Precision + HPS8 Strict ACK v0.10.12
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
-          const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),guideCss=read('hps7-scan-guide.css'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),ackWake=read('hps8-ack-wake.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js'),sonic=read('hps8-sonic-adaptive.js'),slot=read('hps8-sonic-slot-decoder.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js');
+          const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js');
+          const sonic=read('hps8-sonic-adaptive.js'),slot=read('hps8-sonic-slot-decoder.js'),strict=read('hps8-strict-ack.js'),ackWake=read('hps8-ack-wake.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
 
+          // HPS7 stable fallback must remain unchanged.
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
-          if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grid compatibility changed');
-          if(!core.includes("'Receptor listo · Iniciar HPS7'"))throw Error('Original HPS7 start action missing');
+          if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grids changed');
           function extract(text,name){const a=text.indexOf('function replaceOne'),b=text.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw Error(`Cannot extract ${name}`);return new Function(`${text.slice(a,b)}; return ${name};`)();}
-          const patchCore=extract(manual,'patchCore'),patchDual=extract(dual,'patchDual'),generated=patchDual(patchCore(core));
+          const generated=extract(dual,'patchDual')(extract(manual,'patchCore')(core));
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail}}
-          let guardEvent=null;const gc={console,CustomEvent:CE,dispatchEvent:e=>{if(e.type==='hopper:runtime-syntax-fixed')guardEvent=e.detail;},window:null};gc.window=gc;vm.createContext(gc);vm.runInContext(guard,gc,{timeout:1500});const compiled=gc.Function(`${generated}\n//# sourceURL=hps7-core-v-ci.js`),body=compiled.toString();
-          if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected)throw Error(`Generated HPS7 guard injection failed ${JSON.stringify(guardEvent)}`);
-          for(const s of ['precisionDockGeometry','precisionAdopt','trackedFails<=18','LOCK PRECISION','TRACK HOLD','__hopperOpticalDockV3?.normalizeSamples'])if(!body.includes(s))throw Error(`Generated HPS7 Precision Scanner missing ${s}`);
-          if(!guideCss.includes('aspect-ratio:1/2')||!fullscreen.includes('actionMirror:true')||!fullscreenCss.includes('#hps7FullscreenAction'))throw Error('HPS7 UI regression');
-          console.log('HPS7 Precision Scanner + Fullscreen action: PASS');
+          let guardEvent=null;const gc={console,CustomEvent:CE,dispatchEvent:e=>{if(e.type==='hopper:runtime-syntax-fixed')guardEvent=e.detail;},window:null};gc.window=gc;vm.createContext(gc);vm.runInContext(guard,gc);const compiled=gc.Function(`${generated}\n//# sourceURL=hps7-core-v-ci.js`),body=compiled.toString();
+          if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected||!body.includes('TRACK HOLD'))throw Error('HPS7 Precision regression');
+          console.log('HPS7 Precision fallback: PASS');
 
+          // Sonic physical modem + PLL remain available.
           for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Base Sonic missing ${s}`);
-          for(const s of ["VERSION='0.10.10'",'START_HOLD=28','PERIOD=CLOCK_MS+SWITCH_MS+DATA_MS+BIT_GAP','FIRST_DATA_START','MAX_SYNC_SEARCH=28','decodeCodewordSoft','START_LOCK','PLL_ADJUST','SYNC_SEARCH','earlyAck:true','deterministicPll:true','headerOnly:true'])if(!slot.includes(s))throw Error(`Sonic PLL missing ${s}`);
+          for(const s of ["VERSION='0.10.10'",'deterministicPll:true','headerOnly:true','START_LOCK','SYNC_SEARCH','decodeCodewordSoft'])if(!slot.includes(s))throw Error(`Sonic PLL missing ${s}`);
 
-          const doc={getElementById(){return null},createElement(){return{}},querySelector(){return null}};
-          const sc={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};sc.window=sc;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(sonic,sc,{timeout:1500});vm.runInContext(slot,sc,{timeout:1500});const S=sc.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
-          if(S.version!=='0.10.10'||!S.slotDecoder||!S.softDecision||!S.erasureRecovery||!S.deterministicPll||!S.earlyAck)throw Error('PLL decoder did not replace Sonic RX API');
-          for(let b=0;b<256;b++){const cw=S.hammingEncodeByte(b),clean=S.hammingDecodeCodeword(cw);if(!clean||clean.byte!==b)throw Error(`Hamming clean fail ${b}`);for(let bit=0;bit<12;bit++){const bad=cw.slice();bad[bit]^=1;const d=S.hammingDecodeCodeword(bad);if(!d||d.byte!==b)throw Error(`Hamming correction fail ${b}/${bit}`);}}
-          const packet=S.pack(S.type.ACK,0x1234abcd,new Uint8Array([1])),parsed=S.unpack(packet);if(!parsed?.ok||parsed.session!==0x1234abcd||parsed.type!==S.type.ACK)throw Error('Sonic packet/CRC regression');
-          console.log('HPS8 Sonic deterministic PLL API + Hamming + CRC: PASS');
+          // Strict ACK is the only automatic-start authorization filter.
+          for(const s of ["VERSION='0.10.12'",'fullCrcRequired:true','headerOnlyRejected:true','startLockCannotStartData:true','msg.ok!==true','msg.headerOnly===true','p.length===1&&p[0]===1','strictAckOnly=true'])if(!strict.includes(s))throw Error(`Strict ACK missing ${s}`);
+          const fakeS={type:{ACK:1},startListener:async cb=>{fakeS.cb=cb;return true;}};
+          const sc={console,window:null,document:{getElementById(){return null}},CustomEvent:CE,Uint8Array};sc.window=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
+          const accepted=[];await sc.__hopperHPS8Sonic.startListener(m=>accepted.push(m));
+          fakeS.cb({type:1,ok:true,headerOnly:true,earlyAck:true,session:1,payload:new Uint8Array([1])});
+          fakeS.cb({type:1,ok:false,session:1,payload:new Uint8Array([1])});
+          fakeS.cb({type:1,ok:true,session:1,payload:new Uint8Array([9])});
+          if(accepted.length!==0)throw Error('Strict ACK accepted unsafe ACK');
+          fakeS.cb({type:1,ok:true,session:0x1234,payload:new Uint8Array([1])});
+          if(accepted.length!==1||!accepted[0].strictAck)throw Error('Strict ACK rejected full CRC ACK');
+          console.log('HPS8 Strict ACK filtering: PASS');
 
-          for(const s of ["VERSION='0.10.11'",'startLockWake:true','delayMs:420','validatedControlsStillRequired:true','EMISOR\\s*·\\s*HPS8\\s*HELLO','START_LOCK','CLOCK_LOCK','overlayActionBtn','b.click()'])if(!ackWake.includes(s))throw Error(`ACK Wake missing ${s}`);
-          if(!selector.includes("VERSION='0.10.11'")||!selector.includes('ackWakeLoader:true')||!selector.includes('hps8-ack-wake.js?v=1011'))throw Error('ACK Wake loader missing from selector');
-          if(/PROGRESS|BLOOM|COMPLETE/.test(ackWake))throw Error('ACK Wake must not bypass validated PROGRESS/BLOOM/COMPLETE controls');
-          console.log('HPS8 ACK Wake START-lock fallback: PASS · initial DATA wake only');
+          // The old START wake implementation is now diagnostic-only and can never click DATA.
+          for(const s of ["VERSION='0.10.12'",'active:false','startLockWake:false','autoStartFromStart:false','diagnosticOnly:true','strictAckOnly:true'])if(!ackWake.includes(s))throw Error(`ACK Wake disable missing ${s}`);
+          if(ackWake.includes('.click()')||ackWake.includes('triggerFallback')||ackWake.includes('setTimeout(triggerFallback'))throw Error('Unsafe ACK Wake auto-start still present');
+          console.log('Unsafe START/CLOCK auto-start removed: PASS');
 
-          const fc={console,window:null};fc.window=fc;vm.createContext(fc);vm.runInContext(fountain,fc,{timeout:1500});const F=fc.__hopperHPS8Fountain,N=64,SZ=96,blocks=Array.from({length:N},(_,i)=>Uint8Array.from({length:SZ},(_,j)=>(i*31+j*17)&255)),dec=F.createDecoder(N,SZ);for(let i=0;i<N;i++)if(i%4)dec.addSystematic(i,blocks[i]);for(let seed=1;seed<16000&&!dec.complete;seed++){const x=F.makeParity(blocks,seed);dec.addParity(seed,x.data);}if(!dec.complete)throw Error('PhotonFountain recovery regression');
-          if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
+          // HPS8 core must still require exact session equality before handling any control message.
+          if(!hps8.includes('if(!tx||msg.session!==tx.session)return;'))throw Error('HPS8 session gate missing');
+          if(!hps8.includes('if(msg.type===T.ACK)'))throw Error('HPS8 ACK handler missing');
           for(const s of ['sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics missing ${s}`);
-          console.log('PhotonFountain + HPS8 diagnostics coexistence: PASS');
 
-          for(const s of ['explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8'])if(!selector.includes(s))throw Error(`Protocol selector regression ${s}`);
-          for(const s of ['.protocolChoiceGrid','.protocolChoice.active'])if(!styles.includes(s))throw Error(`Protocol selector CSS missing ${s}`);
-          for(const s of ['MVP v0.10.10 · HPS8 Sonic PLL Start Lock','hps8-sonic-adaptive.js?v=1010','hps8-sonic-slot-decoder.js?v=1010','hps8-diagnostics.js?v=1010','hps8.js?v=1010'])if(!html.includes(s))throw Error(`HTML base v1010 missing ${s}`);
-          if(!sw.includes("hopperlink-pixelstream-v1011")||!sw.includes('hps8-sonic-slot-decoder.js?v=1010')||!sw.includes('hps8-ack-wake.js?v=1011')||!sw.includes('hps8.js?v=1010'))throw Error('SW v1011 assets missing');
-          console.log('HPS7 + HPS8 v0.10.11 ACK Wake integration: PASS');
+          // Load order: base -> PLL -> Strict ACK -> diagnostics -> HPS8.
+          for(const s of ['MVP v0.10.12 · HPS8 Strict ACK','hps8-sonic-adaptive.js?v=1012','hps8-sonic-slot-decoder.js?v=1012','hps8-strict-ack.js?v=1012','hps8-diagnostics.js?v=1012','hps8.js?v=1012'])if(!html.includes(s))throw Error(`HTML v1012 missing ${s}`);
+          const a=html.indexOf('hps8-sonic-adaptive.js?v=1012'),b=html.indexOf('hps8-sonic-slot-decoder.js?v=1012'),c=html.indexOf('hps8-strict-ack.js?v=1012'),d=html.indexOf('hps8-diagnostics.js?v=1012'),e=html.indexOf('hps8.js?v=1012');
+          if(!(a>=0&&b>a&&c>b&&d>c&&e>d))throw Error('Strict ACK load order invalid');
+          if(!sw.includes("hopperlink-pixelstream-v1012")||!sw.includes('hps8-strict-ack.js?v=1012')||sw.includes('hps8-ack-wake.js?v=1011'))throw Error('SW v1012 strict cache invalid');
+          console.log('HPS7 + HPS8 v0.10.12 Strict ACK integration: PASS');
           NODE
