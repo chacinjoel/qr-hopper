@@ -6,34 +6,35 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=1006">
-<link rel="stylesheet" href="photometric-lock.css?v=1006">
-<link rel="stylesheet" href="binary-stage.css?v=1006">
-<link rel="stylesheet" href="hps7-fullscreen.css?v=1006">
+<link rel="stylesheet" href="styles.css?v=1008">
+<link rel="stylesheet" href="photometric-lock.css?v=1008">
+<link rel="stylesheet" href="binary-stage.css?v=1008">
+<link rel="stylesheet" href="hps7-fullscreen.css?v=1008">
+<link rel="stylesheet" href="hps7-scan-guide.css?v=1008">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.10.6 · HPS7 + HPS8 Dual Select</div>
+    <div class="badge">MVP v0.10.8 · HPS7 Precision Scanner</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
-    <h2>HPS7 Fullscreen Max + HPS8 PhotonFountain</h2>
-    <div class="sub">Las dos rutas conviven en paralelo. HPS7 conserva la transferencia estable con Repair manual y ahora usa máxima superficie óptica. HPS8 conserva PhotonFountain + Sonic8 Robust + Auto-Repair experimental.</div>
-    <div class="compactFacts"><span class="chip on">● HPS7 Fullscreen</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Clocked BFSK</span><span class="chip on">● Hamming FEC</span><span class="chip on">● Tolerant Sync</span><span class="chip on">● Sonic Full-Duplex</span><span class="chip on">● Exact/Bloom-NACK</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <h2>HPS7 Fullscreen Precision + HPS8 PhotonFountain</h2>
+    <div class="sub">HPS7 conserva el protocolo estable y Repair manual, pero ahora conecta su decoder directamente a la geometría persistente de Optical Dock v3 para mantener LOCK y recuperar el encuadre sin volver a buscar desde cero. HPS8 conserva PhotonFountain + Sonic8 Robust.</div>
+    <div class="compactFacts"><span class="chip on">● HPS7 Precision Scanner</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Contour Lock</span><span class="chip on">● Geometry Hold</span><span class="chip on">● Lane NORM</span><span class="chip on">● Sonic Full-Duplex</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
     <section class="card" id="senderCard">
       <h2>1. Emisor</h2>
-      <div class="senderIntro sub">Selecciona explícitamente cuál protocolo quieres probar. Cambiar de tarjeta cambia la misma variable interna que ya usan HPS7/HPS8.</div>
+      <div class="senderIntro sub">Selecciona explícitamente cuál protocolo quieres probar. HPS7 usa fullscreen + Precision Scanner; HPS8 mantiene PhotonFountain + Sonic8 Robust.</div>
       <div class="protocolPicker">
         <label>Versión de protocolo</label>
         <div class="protocolChoiceGrid" role="group" aria-label="Seleccionar versión HPS">
           <button type="button" class="protocolChoice" id="protocolHps7" data-mode="hps7" aria-pressed="false">
-            <span class="protocolChoiceTop"><strong>HPS7 Fullscreen Max</strong><span class="protocolTag">ESTABLE</span></span>
-            <small>Repair manual · ruta física conocida · DATA 12–88% · superficie óptica máxima.</small>
+            <span class="protocolChoiceTop"><strong>HPS7 Fullscreen Precision</strong><span class="protocolTag">ESTABLE</span></span>
+            <small>Repair manual · Optical Dock persistente · geometría retenida · DATA 12–88% intacto.</small>
           </button>
           <button type="button" class="protocolChoice active" id="protocolHps8" data-mode="hps8" aria-pressed="true">
             <span class="protocolChoiceTop"><strong>HPS8 PhotonFountain</strong><span class="protocolTag">EXPERIMENTAL</span></span>
@@ -55,11 +56,10 @@
       <div class="stats"><div class="stat"><b id="fileSize">—</b><span>Tamaño</span></div><div class="stat"><b id="frameCount">—</b><span>Bloques fuente/lógicos</span></div><div class="stat"><b id="capacity">—</b><span>Bloque base</span></div></div>
       <div class="small" id="speedHint"></div><div class="small" id="modulationHint" style="margin-top:4px"></div><div class="small" id="layoutHint" style="margin-top:4px"></div><div class="small" id="throughputHint" style="margin-top:4px"></div>
       <details class="techDetails"><summary>Detalles técnicos y diagnóstico</summary><div class="techDetailsBody">
-        <div class="small"><b>HPS7 Fullscreen Max:</b> HELLO, DATA, Repair y PASS_END ocupan casi todo el viewport. Fullscreen API cuando existe; fallback 100dvh/VisualViewport en iOS/Safari.</div>
-        <div class="small" style="margin-top:6px"><b>HPS7 compatibilidad:</b> DATA_MIN=.12 y DATA_MAX=.88, pilotos, grids 56/64/72 y paquetes siguen sin cambios.</div>
-        <div class="small" style="margin-top:6px"><b>HPS8 Lane A:</b> sistemático y Auto-Repair Exact/Bloom-NACK.</div>
-        <div class="small" style="margin-top:6px"><b>HPS8 Lane B:</b> símbolos PhotonFountain XOR deterministas.</div>
-        <div class="small" style="margin-top:6px"><b>Sonic8 Robust:</b> START + CLOCK por bit + DATA0/DATA1 + Hamming(12,8) + CRC.</div>
+        <div class="small"><b>HPS7 Precision Scanner:</b> usa primero tags/contorno/tracking de Optical Dock v3; conserva homografía hasta 18 frames fallidos antes de volver al detector legado.</div>
+        <div class="small" style="margin-top:6px"><b>HPS7 compatibilidad:</b> DATA_MIN=.12 y DATA_MAX=.88, pilotos, grids 56/64/72, CRC y paquetes no cambian.</div>
+        <div class="small" style="margin-top:6px"><b>DualLane:</b> la guía del receptor adopta forma 1:2 para que el encuadre corresponda al emisor y la normalización fotométrica sigue separada por lane.</div>
+        <div class="small" style="margin-top:6px"><b>HPS8:</b> PhotonFountain + Sonic8 Robust permanecen disponibles sin cambios funcionales.</div>
         <div class="log" id="sendLog" style="margin-top:10px"></div>
       </div></details>
       <div id="senderActionDock" class="actionDock senderDock" aria-label="Acciones del emisor"><button class="btn primary grow" id="prepareBtn" disabled>Inicializando…</button><button class="btn good grow" id="sendBtn" disabled style="display:none">Mostrar HELLO</button><button class="btn primary internalRepairTrigger" id="txRepairBtn" style="display:none">Enviar Repair Burst</button></div>
@@ -67,8 +67,8 @@
 
     <section class="card" id="receiverCard">
       <h2>2. Receptor</h2>
-      <div class="sub">El receptor usa la misma cámara/Optical Dock para ambas rutas. HPS8 muestra además el panel de Fountain/Sonic; HPS7 conserva su flujo de Repair manual.</div>
-      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">HPS7/HPS8: NORM = fotometría corregida; ROLLING = frame descartado; mantén visible el rectángulo exterior completo.</div></div>
+      <div class="sub">En HPS7 encaja el marco óptico exterior completo dentro de la guía. Al obtener LOCK, Precision Scanner conserva la geometría durante movimiento breve y usa Optical Dock para reacquisition rápida.</div>
+      <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">HPS7 Precision: guía 1:2 en DualLane · verde = LOCK estable · HOLD = conserva geometría · ROLLING = mantén ambos teléfonos quietos.</div></div>
       <div id="hps8ProgressPanel" class="hps8ProgressPanel" style="display:none">
         <div class="hps8ProgressTop"><div><span class="small">Archivo reconstruible</span><b id="hps8FileName">Sin transferencia</b></div><strong id="hps8Percent">0%</strong></div>
         <div id="hps8ProgressStatus" class="small hps8ProgressStatus">HPS8 listo</div><div class="progress hps8MainProgress"><div class="bar" id="hps8FileBar"></div></div>
@@ -98,25 +98,26 @@
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.10.6 · HPS7 Fullscreen Max + HPS8 PhotonFountain seleccionables · Sonic8 Robust · Optical Dock v3.</div>
+  <div class="footer">PixelStream v0.10.8 · HPS7 Fullscreen Precision + HPS8 PhotonFountain · Optical Dock v3.</div>
 </div>
 <div id="streamOverlay"><div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream</div></div><div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div><div class="streamBottom" id="streamBottom">HPS</div><div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div></div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=1006"></script>
-<script src="binary-tag-bridge-fast.js?v=1006"></script>
-<script src="optical-dock-v3.js?v=1006"></script>
-<script src="binary-tag-status.js?v=1006"></script>
-<script src="safe-color-constellation.js?v=1006"></script>
-<script src="premium-flow-ui.js?v=1006"></script>
-<script src="hps7-projection.js?v=1006"></script>
-<script src="repair-reacquisition.js?v=1006"></script>
-<script src="hps7-duallane-v2.js?v=1006"></script>
-<script src="runtime-stability.js?v=1006"></script>
-<script src="protocol-selector-ui.js?v=1006"></script>
-<script src="hps7-fullscreen.js?v=1006"></script>
-<script src="hps8-fountain.js?v=1006"></script>
-<script src="hps8-sonic-adaptive.js?v=1006"></script>
-<script src="hps8-diagnostics.js?v=1006"></script>
-<script src="hps8.js?v=1006"></script>
+<script src="runtime-syntax-guard.js?v=1008"></script>
+<script src="binary-tag-bridge-fast.js?v=1008"></script>
+<script src="optical-dock-v3.js?v=1008"></script>
+<script src="binary-tag-status.js?v=1008"></script>
+<script src="safe-color-constellation.js?v=1008"></script>
+<script src="premium-flow-ui.js?v=1008"></script>
+<script src="hps7-projection.js?v=1008"></script>
+<script src="repair-reacquisition.js?v=1008"></script>
+<script src="hps7-duallane-v2.js?v=1008"></script>
+<script src="runtime-stability.js?v=1008"></script>
+<script src="protocol-selector-ui.js?v=1008"></script>
+<script src="hps7-scan-guide.js?v=1008"></script>
+<script src="hps7-fullscreen.js?v=1008"></script>
+<script src="hps8-fountain.js?v=1008"></script>
+<script src="hps8-sonic-adaptive.js?v=1008"></script>
+<script src="hps8-diagnostics.js?v=1008"></script>
+<script src="hps8.js?v=1008"></script>
 </body>
 </html>
