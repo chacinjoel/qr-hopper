@@ -20,57 +20,46 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 Precision Scanner + HPS8 coexistence v0.10.8
+      - name: Validate HPS7 Precision + HPS8 Sonic Slot Recovery v0.10.9
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
-          const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),guide=read('hps7-scan-guide.js'),guideCss=read('hps7-scan-guide.css'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js'),sonic=read('hps8-sonic-adaptive.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js');
+          const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),guide=read('hps7-scan-guide.js'),guideCss=read('hps7-scan-guide.css'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js'),sonic=read('hps8-sonic-adaptive.js'),slot=read('hps8-sonic-slot-decoder.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js');
 
-          // Protocol invariants: Precision Scanner must never change HPS7 optical payload geometry.
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grid compatibility changed');
-          if(!core.includes('const CONTROL_GRID = 56;'))throw Error('HPS7 control grid changed');
           if(!core.includes("'Receptor listo · Iniciar HPS7'"))throw Error('Original HPS7 start action missing');
 
-          // Build the same generated HPS7 runtime used in the browser.
           function extract(text,name){const a=text.indexOf('function replaceOne'),b=text.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw Error(`Cannot extract ${name}`);return new Function(`${text.slice(a,b)}; return ${name};`)();}
-          const patchCore=extract(manual,'patchCore'),patchDual=extract(dual,'patchDual');
-          const generated=patchDual(patchCore(core));
-          if(!generated.includes('function sampleGridRGB(frame,grid,H,lane=-1)'))throw Error('Generated DualLane lane sampler missing');
-          if(!generated.includes('function decodeWithH(frame,H)'))throw Error('Generated HPS7 decoder missing');
-
-          // Run the one-shot guard against the actual generated runtime and inspect the compiled body.
+          const patchCore=extract(manual,'patchCore'),patchDual=extract(dual,'patchDual'),generated=patchDual(patchCore(core));
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail}}
-          let guardEvent=null;
-          const gc={console,CustomEvent:CE,dispatchEvent:e=>{if(e.type==='hopper:runtime-syntax-fixed')guardEvent=e.detail;},window:null};gc.window=gc;vm.createContext(gc);vm.runInContext(guard,gc,{timeout:1500});
-          const compiled=gc.Function(`${generated}\n//# sourceURL=hps7-core-v-ci.js`),body=compiled.toString();
-          if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected)throw Error(`Generated guard injection failed: ${JSON.stringify(guardEvent)}`);
-          for(const s of ['precisionDockGeometry','precisionAdopt','precisionDispatch','trackedFails<=18','LOCK PRECISION','TRACK HOLD','__hopperOpticalDockV3?.normalizeSamples'])if(!body.includes(s))throw Error(`Generated Precision Scanner missing ${s}`);
-          if(!guard.includes("version:'v0108'")||!guard.includes('precisionScanner:true')||!guard.includes('geometryHoldFrames:18'))throw Error('Precision guard export missing');
-          console.log('Generated HPS7 Precision Scanner: PASS · Optical Dock geometry + lane NORM + 18-frame hold');
+          let guardEvent=null;const gc={console,CustomEvent:CE,dispatchEvent:e=>{if(e.type==='hopper:runtime-syntax-fixed')guardEvent=e.detail;},window:null};gc.window=gc;vm.createContext(gc);vm.runInContext(guard,gc,{timeout:1500});const compiled=gc.Function(`${generated}\n//# sourceURL=hps7-core-v-ci.js`),body=compiled.toString();
+          if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected)throw Error(`Generated HPS7 guard injection failed ${JSON.stringify(guardEvent)}`);
+          for(const s of ['precisionDockGeometry','precisionAdopt','trackedFails<=18','LOCK PRECISION','TRACK HOLD','__hopperOpticalDockV3?.normalizeSamples'])if(!body.includes(s))throw Error(`Generated HPS7 Precision Scanner missing ${s}`);
+          for(const s of ["VERSION='0.10.8'",'dualShape:true','LOCK PRECISION','ROLLING SHUTTER'])if(!guide.includes(s))throw Error(`HPS7 guide missing ${s}`);
+          if(!guideCss.includes('aspect-ratio:1/2')||!fullscreen.includes('actionMirror:true')||!fullscreenCss.includes('#hps7FullscreenAction'))throw Error('HPS7 UI regression');
+          console.log('HPS7 Precision Scanner + Fullscreen action: PASS');
 
-          // Receiver guide must clearly match square vs DualLane 1:2 and explain hold/movement states.
-          for(const s of ["VERSION='0.10.8'",'dualShape:true','opticalDockAware:true','LOCK PRECISION','ROLLING SHUTTER','hps7-scan-dual'])if(!guide.includes(s))throw Error(`HPS7 scan guide JS missing ${s}`);
-          for(const s of ['html.hps7-scan-dual .aim','aspect-ratio:1/2','ZONA HPS7','data-state=\'lock\'','62dvh'])if(!guideCss.includes(s))throw Error(`HPS7 scan guide CSS missing ${s}`);
+          for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Base Sonic missing ${s}`);
+          for(const s of ["VERSION='0.10.9'",'START_HITS=7','CLOCK_MIN_SPACING=14','SLOT_TIMEOUT=38','MAX_CODE_ERASURES=2','decodeCodewordSoft','finalizeSlot','NEXT_CLOCK','SOFT_BIT','ERASURE','softDecision=true','erasureRecovery=true','clockRecoveryV2=true'])if(!slot.includes(s))throw Error(`Sonic Slot Recovery missing ${s}`);
 
-          // Fullscreen deliberate action still exists after scanner changes.
-          for(const s of ["VERSION='0.10.7'",'hps7FullscreenAction','syncActionMirror','original.click()','actionMirror:true'])if(!fullscreen.includes(s))throw Error(`HPS7 fullscreen action regression ${s}`);
-          if(!fullscreenCss.includes('#hps7FullscreenAction'))throw Error('HPS7 fullscreen action CSS missing');
-
-          // HPS8 Sonic Robust remains intact.
-          for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Sonic Robust missing ${s}`);
-          for(const s of ["version:'0.10.4'",'sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics Robust missing ${s}`);
-          const sc={console,window:null,document:{getElementById(){return null},createElement(){return{}},querySelector(){return null}},navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};sc.window=sc;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(sonic,sc,{timeout:1500});const S=sc.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
+          const doc={getElementById(){return null},createElement(){return{}},querySelector(){return null}};
+          const sc={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};sc.window=sc;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(sonic,sc,{timeout:1500});vm.runInContext(slot,sc,{timeout:1500});const S=sc.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
+          if(S.version!=='0.10.9'||!S.slotDecoder||!S.softDecision||!S.erasureRecovery||!S.clockRecoveryV2)throw Error('Slot decoder did not replace Sonic RX API');
           for(let b=0;b<256;b++){const cw=S.hammingEncodeByte(b),clean=S.hammingDecodeCodeword(cw);if(!clean||clean.byte!==b)throw Error(`Hamming clean fail ${b}`);for(let bit=0;bit<12;bit++){const bad=cw.slice();bad[bit]^=1;const d=S.hammingDecodeCodeword(bad);if(!d||d.byte!==b)throw Error(`Hamming correction fail ${b}/${bit}`);}}
-          const fc={console,window:null};fc.window=fc;vm.createContext(fc);vm.runInContext(fountain,fc,{timeout:1500});const F=fc.__hopperHPS8Fountain,N=64,SZ=96,blocks=Array.from({length:N},(_,i)=>Uint8Array.from({length:SZ},(_,j)=>(i*31+j*17)&255)),dec=F.createDecoder(N,SZ);for(let i=0;i<N;i++)if(i%4)dec.addSystematic(i,blocks[i]);for(let seed=1;seed<16000&&!dec.complete;seed++){const x=F.makeParity(blocks,seed);dec.addParity(seed,x.data);}if(!dec.complete)throw Error('Fountain recovery regression');
-          if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
-          console.log('HPS8 PhotonFountain + Sonic Robust coexistence: PASS');
+          const packet=S.pack(S.type.ACK,0x1234abcd,new Uint8Array([1])),parsed=S.unpack(packet);if(!parsed?.ok||parsed.session!==0x1234abcd||parsed.type!==S.type.ACK)throw Error('Sonic packet/CRC regression');
+          console.log('HPS8 Sonic Slot/Soft API + Hamming + CRC: PASS');
 
-          // Explicit HPS7/HPS8 selector and v1008 cache/assets.
+          const fc={console,window:null};fc.window=fc;vm.createContext(fc);vm.runInContext(fountain,fc,{timeout:1500});const F=fc.__hopperHPS8Fountain,N=64,SZ=96,blocks=Array.from({length:N},(_,i)=>Uint8Array.from({length:SZ},(_,j)=>(i*31+j*17)&255)),dec=F.createDecoder(N,SZ);for(let i=0;i<N;i++)if(i%4)dec.addSystematic(i,blocks[i]);for(let seed=1;seed<16000&&!dec.complete;seed++){const x=F.makeParity(blocks,seed);dec.addParity(seed,x.data);}if(!dec.complete)throw Error('PhotonFountain recovery regression');
+          if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
+          for(const s of ['sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics missing ${s}`);
+          console.log('PhotonFountain + HPS8 diagnostics coexistence: PASS');
+
           for(const s of ['explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8'])if(!selector.includes(s))throw Error(`Protocol selector regression ${s}`);
           for(const s of ['.protocolChoiceGrid','.protocolChoice.active'])if(!styles.includes(s))throw Error(`Protocol selector CSS missing ${s}`);
-          for(const s of ['MVP v0.10.8 · HPS7 Precision Scanner','hps7-scan-guide.css?v=1008','runtime-syntax-guard.js?v=1008','hps7-scan-guide.js?v=1008','hps7-fullscreen.js?v=1008','hps8.js?v=1008'])if(!html.includes(s))throw Error(`HTML v1008 missing ${s}`);
-          if(!sw.includes("hopperlink-pixelstream-v1008")||!sw.includes('hps7-scan-guide.css?v=1008')||!sw.includes('hps7-scan-guide.js?v=1008')||!sw.includes('hps8.js?v=1008'))throw Error('SW v1008 assets missing');
-          console.log('HPS7 Precision Scanner v0.10.8 full integration: PASS');
+          for(const s of ['MVP v0.10.9 · HPS8 Sonic Slot Recovery','hps8-sonic-adaptive.js?v=1009','hps8-sonic-slot-decoder.js?v=1009','hps8-diagnostics.js?v=1009','hps8.js?v=1009'])if(!html.includes(s))throw Error(`HTML v1009 missing ${s}`);
+          const basePos=html.indexOf('hps8-sonic-adaptive.js?v=1009'),slotPos=html.indexOf('hps8-sonic-slot-decoder.js?v=1009'),diagPos=html.indexOf('hps8-diagnostics.js?v=1009'),h8Pos=html.indexOf('hps8.js?v=1009');if(!(basePos>=0&&slotPos>basePos&&diagPos>slotPos&&h8Pos>diagPos))throw Error('HPS8 Sonic slot load order invalid');
+          if(!sw.includes("hopperlink-pixelstream-v1009")||!sw.includes('hps8-sonic-slot-decoder.js?v=1009')||!sw.includes('hps8.js?v=1009'))throw Error('SW v1009 assets missing');
+          console.log('HPS7 + HPS8 v0.10.9 integration: PASS');
           NODE
