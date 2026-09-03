@@ -6,29 +6,29 @@
 <meta name="theme-color" content="#080b12">
 <link rel="manifest" href="manifest.json">
 <title>HopperLink + PixelStream</title>
-<link rel="stylesheet" href="styles.css?v=1010">
-<link rel="stylesheet" href="photometric-lock.css?v=1010">
-<link rel="stylesheet" href="binary-stage.css?v=1010">
-<link rel="stylesheet" href="hps7-fullscreen.css?v=1010">
-<link rel="stylesheet" href="hps7-scan-guide.css?v=1010">
+<link rel="stylesheet" href="styles.css?v=1012">
+<link rel="stylesheet" href="photometric-lock.css?v=1012">
+<link rel="stylesheet" href="binary-stage.css?v=1012">
+<link rel="stylesheet" href="hps7-fullscreen.css?v=1012">
+<link rel="stylesheet" href="hps7-scan-guide.css?v=1012">
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="brand"><h1>HopperLink <span style="color:#67e8f9">PixelStream</span></h1><p>Transferencia óptica offline: pantalla → luz → cámara. Sin internet, Wi‑Fi ni Bluetooth.</p></div>
-    <div class="badge">MVP v0.10.10 · HPS8 Sonic PLL Start Lock</div>
+    <div class="badge">MVP v0.10.12 · HPS8 Strict ACK</div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <h2>HPS7 Fullscreen Precision + HPS8 PhotonFountain</h2>
-    <div class="sub">HPS7 mantiene Precision Scanner. HPS8 ahora usa Sonic PLL Start Lock: el START se bloquea por duración, el reloj de bits se reconstruye determinísticamente a 24 ms y los CLOCK físicos solo corrigen deriva. El ACK puede iniciar DATA desde un header Hamming válido con la sesión correcta, mientras CRC completo sigue protegiendo el resto del control.</div>
-    <div class="compactFacts"><span class="chip on">● HPS7 Precision Scanner</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● START Lock</span><span class="chip on">● Deterministic PLL</span><span class="chip on">● Early ACK</span><span class="chip on">● Hamming + Erasures</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
+    <div class="sub">HPS7 mantiene Precision Scanner. HPS8 conserva Sonic PLL para diagnosticar y reconstruir el canal acústico, pero DATA solo puede arrancar automáticamente después de recibir un ACK Sonic completo con CRC válido y la misma sesión HPS8. START/CLOCK nunca autorizan el inicio.</div>
+    <div class="compactFacts"><span class="chip on">● HPS7 Precision Scanner</span><span class="chip on">● HPS8 PhotonFountain</span><span class="chip on">● Strict ACK CRC</span><span class="chip on">● START ≠ ACK</span><span class="chip on">● Deterministic PLL</span><span class="chip on">● Hamming + Erasures</span><span class="chip on">● Optical Dock v3</span><span class="chip" id="hps8SonicStatus" style="display:none">SONIC · LISTO</span><span class="chip" id="phaseStatus">INICIALIZANDO MÓDEMS</span><span class="chip" id="cameraChip">● Cámara</span><span class="chip" id="wakeChip">● Wake Lock</span></div>
   </div>
 
   <div class="grid">
     <section class="card" id="senderCard">
       <h2>1. Emisor</h2>
-      <div class="senderIntro sub">Selecciona HPS7 o HPS8. HPS7 conserva fullscreen + Precision Scanner; HPS8 mantiene PhotonFountain y ahora sincroniza Sonic con START Lock + PLL determinista.</div>
+      <div class="senderIntro sub">Selecciona HPS7 o HPS8. En HPS8 el HELLO permanece fijo hasta que llegue un ACK acústico completo y validado; detectar START o CLOCK por sí solo no inicia la transferencia.</div>
       <div class="protocolPicker">
         <label>Versión de protocolo</label>
         <div class="protocolChoiceGrid" role="group" aria-label="Seleccionar versión HPS">
@@ -38,11 +38,11 @@
           </button>
           <button type="button" class="protocolChoice active" id="protocolHps8" data-mode="hps8" aria-pressed="true">
             <span class="protocolChoiceTop"><strong>HPS8 PhotonFountain</strong><span class="protocolTag">EXPERIMENTAL</span></span>
-            <small>PhotonFountain/FEC · Sonic PLL · Early ACK · Auto-Repair · progreso por archivo.</small>
+            <small>PhotonFountain/FEC · Sonic PLL · Strict ACK CRC · Auto-Repair · progreso por archivo.</small>
           </button>
         </div>
         <select id="protocolMode" class="protocolNativeSelect" aria-label="Selector interno de protocolo"><option value="hps7">HPS7 Stable · Repair manual</option><option value="hps8" selected>HPS8 PhotonFountain · Auto-Repair experimental</option></select>
-        <div id="protocolChoiceNote" class="small protocolChoiceNote">HPS8 PhotonFountain activo · Fountain/FEC + Sonic PLL Start Lock + Auto-Repair experimental.</div>
+        <div id="protocolChoiceNote" class="small protocolChoiceNote">HPS8 activo · HELLO → receptor escanea → ACK Sonic CRC válido → DATA. START/CLOCK son solo diagnóstico.</div>
       </div>
       <div class="flowStepper" aria-label="Progreso del flujo"><div class="flowStep active">1 · Preparar</div><div class="flowStep">2 · HELLO</div><div class="flowStep">3 · DATA</div><div class="flowStep">4 · Auto-Repair</div><div class="flowStep">5 · Listo</div></div>
       <div class="flowCoach" id="flowCoach"><div class="flowCoachKicker">Siguiente paso</div><b id="flowCoachTitle">Inicializando módem óptico</b><span id="flowCoachDetail">HPS7 y HPS8 se cargarán en paralelo.</span></div>
@@ -57,9 +57,9 @@
       <div class="small" id="speedHint"></div><div class="small" id="modulationHint" style="margin-top:4px"></div><div class="small" id="layoutHint" style="margin-top:4px"></div><div class="small" id="throughputHint" style="margin-top:4px"></div>
       <details class="techDetails"><summary>Detalles técnicos y diagnóstico</summary><div class="techDetailsBody">
         <div class="small"><b>HPS7 Precision Scanner:</b> usa primero tags/contorno/tracking de Optical Dock v3; conserva homografía hasta 18 frames fallidos antes de volver al detector legado.</div>
-        <div class="small" style="margin-top:6px"><b>HPS8 START Lock:</b> el receptor acústico fija la banda tras ~28 ms de START sostenido; ya no exige una transición perfecta para entrar al frame.</div>
-        <div class="small" style="margin-top:6px"><b>PLL determinista:</b> cada bit usa el periodo físico conocido de 24 ms. Los CLOCK observados corrigen deriva en vez de decidir si el bit existe o no.</div>
-        <div class="small" style="margin-top:6px"><b>Early ACK:</b> solo ACK puede disparar DATA desde MAGIC + PROTO + TYPE + session reconstruidos por Hamming. PROGRESS/BLOOM/COMPLETE siguen exigiendo CRC completo.</div>
+        <div class="small" style="margin-top:6px"><b>HPS8 Sonic PLL:</b> START y CLOCK siguen ayudando a recuperar sincronización, pero no tienen autoridad para iniciar DATA.</div>
+        <div class="small" style="margin-top:6px"><b>Strict ACK:</b> el ACK debe llegar completo hasta CRC OK. Los ACK de solo header, Early ACK y detecciones START/CLOCK se descartan como autorización de inicio.</div>
+        <div class="small" style="margin-top:6px"><b>Sesión:</b> HPS8 además exige que la session del ACK coincida exactamente con la session del HELLO actual antes de comenzar PhotonFountain.</div>
         <div class="log" id="sendLog" style="margin-top:10px"></div>
       </div></details>
       <div id="senderActionDock" class="actionDock senderDock" aria-label="Acciones del emisor"><button class="btn primary grow" id="prepareBtn" disabled>Inicializando…</button><button class="btn good grow" id="sendBtn" disabled style="display:none">Mostrar HELLO</button><button class="btn primary internalRepairTrigger" id="txRepairBtn" style="display:none">Enviar Repair Burst</button></div>
@@ -67,7 +67,7 @@
 
     <section class="card" id="receiverCard">
       <h2>2. Receptor</h2>
-      <div class="sub">El receptor óptico sirve para HPS7/HPS8. En HPS8, Sonic coordina ACK, progreso y Auto-Repair; el nuevo PLL evita que un CLOCK débil desplace toda la trama acústica.</div>
+      <div class="sub">En HPS8 el receptor debe escanear HELLO correctamente antes de emitir el ACK. Si no existe LOCK óptico y ACK Sonic completo, el emisor debe permanecer en HELLO.</div>
       <div id="receiverPanel"><video id="video" playsinline muted></video><canvas id="guideCanvas"></canvas><div class="aim"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></div><div id="lockQuality" class="lock">BUSCANDO DOCK</div><div class="camHint">HPS7 Precision / HPS8 Optical Dock: mantén el marco exterior completo dentro de cámara.</div></div>
       <div id="hps8ProgressPanel" class="hps8ProgressPanel" style="display:none">
         <div class="hps8ProgressTop"><div><span class="small">Archivo reconstruible</span><b id="hps8FileName">Sin transferencia</b></div><strong id="hps8Percent">0%</strong></div>
@@ -75,7 +75,7 @@
         <div class="hps8ProgressMeta"><div><b id="hps8Bytes">0 B de 0 B</b><span>Bytes reconstruidos</span></div><div><b id="hps8Speed">—</b><span>Velocidad efectiva</span></div><div><b id="hps8Eta">—</b><span>Tiempo restante</span></div><div><b id="hps8Fountain">—</b><span>Bloques resueltos</span></div></div>
         <div class="hps8RepairLine"><span class="chip on">AUTO</span><span id="hps8AutoRepair">Auto-Repair transparente</span></div>
         <div id="sonicDiagPanel" class="sonicDiagPanel">
-          <div class="sonicDiagHead"><div><span class="small">Verificación física</span><b>Sonic8 PLL Live Diagnostic</b></div><strong id="sonicDiagResult">NO PROBADO</strong></div>
+          <div class="sonicDiagHead"><div><span class="small">Verificación física</span><b>Sonic8 Strict ACK Live Diagnostic</b></div><strong id="sonicDiagResult">NO PROBADO</strong></div>
           <div class="sonicDiagGrid">
             <div><span>Rol</span><b id="sonicDiagRole">—</b></div><div><span>Sesión</span><b id="sonicDiagSession">—</b></div>
             <div><span>Mic / listener</span><b id="sonicDiagListener">—</b></div><div><span>RX CRC válido</span><b id="sonicDiagValid">0</b></div>
@@ -85,11 +85,11 @@
             <div><span>Frame/Header</span><b id="sonicDiagFrame">—</b></div><div><span>FEC / Erasures</span><b id="sonicDiagFec">—</b></div>
             <div><span>CRC</span><b id="sonicDiagCrc">—</b></div><div><span>Mic settings</span><b id="sonicDiagMic">—</b></div>
             <div><span>Exact-NACK</span><b id="sonicDiagExact">0 RX / 0 TX</b></div><div><span>Lane A Repair</span><b id="sonicDiagRepairTx">0</b></div>
-            <div><span>Módem</span><b>Clocked BFSK + PLL</b></div><div><span>FEC</span><b>Hamming + erasures</b></div>
+            <div><span>Módem</span><b>Clocked BFSK + PLL</b></div><div><span>Inicio DATA</span><b>ACK CRC + session</b></div>
           </div>
           <div id="sonicDiagNote" class="small sonicDiagNote">Inicia HPS8 y espera LOCK para probar el canal físico.</div>
           <div class="sonicDiagActions"><button class="btn" id="sonicPingTest" disabled>Probar Sonic ida/vuelta</button><button class="btn good" id="autoRepairArm" disabled>Armar prueba Auto-Repair</button></div>
-          <div class="small sonicDiagFoot">START Lock + PLL conservan la alineación temporal. Early ACK solo inicia DATA si el header Hamming contiene la session HPS8 correcta.</div>
+          <div class="small sonicDiagFoot">START/CLOCK pueden aparecer por señal o ruido y nunca inician DATA. Solo un ACK completo con CRC válido y session coincidente puede hacerlo.</div>
         </div>
       </div>
       <div class="stats"><div class="stat"><b id="rxFrames">0</b><span>Bloques únicos</span></div><div class="stat"><b id="rxTotal">—</b><span>Total</span></div><div class="stat"><b id="rxMissing">—</b><span>Déficit/faltantes</span></div><div class="stat"><b id="rxElapsed">—</b><span>Tiempo</span></div><div class="stat"><b id="rxEta">—</b><span>Restante</span></div><div class="stat"><b id="rxRate">—</b><span>Velocidad</span></div><div class="stat"><b id="rxErrors">0</b><span>Rechazados</span></div></div>
@@ -98,27 +98,28 @@
       <div id="receiverActionDock" class="actionDock receiverActionDock"><button class="btn primary grow" id="cameraBtn">Iniciar cámara</button><button class="btn danger" id="stopCameraBtn" disabled>Detener</button></div>
     </section>
   </div>
-  <div class="footer">PixelStream v0.10.10 · HPS7 Fullscreen Precision + HPS8 PhotonFountain · Sonic PLL Start Lock · Optical Dock v3.</div>
+  <div class="footer">PixelStream v0.10.12 · HPS7 Fullscreen Precision + HPS8 PhotonFountain · Sonic Strict ACK · Optical Dock v3.</div>
 </div>
 <div id="streamOverlay"><div class="streamTop"><div class="streamMeta" id="streamMeta">PixelStream</div></div><div class="pixelFrame"><span class="finder f-tl"></span><span class="finder f-tr"></span><span class="finder f-bl"></span><span class="finder f-br"></span><div class="pixelShell"><canvas id="pixelCanvas"></canvas></div></div><div class="streamBottom" id="streamBottom">HPS</div><div id="streamActions" class="streamActions"><button class="btn" id="overlayActionBtn" style="display:none"></button><button class="btn danger" id="closeStream">Cancelar</button></div></div>
 <canvas id="capture" style="display:none"></canvas>
-<script src="runtime-syntax-guard.js?v=1010"></script>
-<script src="binary-tag-bridge-fast.js?v=1010"></script>
-<script src="optical-dock-v3.js?v=1010"></script>
-<script src="binary-tag-status.js?v=1010"></script>
-<script src="safe-color-constellation.js?v=1010"></script>
-<script src="premium-flow-ui.js?v=1010"></script>
-<script src="hps7-projection.js?v=1010"></script>
-<script src="repair-reacquisition.js?v=1010"></script>
-<script src="hps7-duallane-v2.js?v=1010"></script>
-<script src="runtime-stability.js?v=1010"></script>
-<script src="protocol-selector-ui.js?v=1010"></script>
-<script src="hps7-scan-guide.js?v=1010"></script>
-<script src="hps7-fullscreen.js?v=1010"></script>
-<script src="hps8-fountain.js?v=1010"></script>
-<script src="hps8-sonic-adaptive.js?v=1010"></script>
-<script src="hps8-sonic-slot-decoder.js?v=1010"></script>
-<script src="hps8-diagnostics.js?v=1010"></script>
-<script src="hps8.js?v=1010"></script>
+<script src="runtime-syntax-guard.js?v=1012"></script>
+<script src="binary-tag-bridge-fast.js?v=1012"></script>
+<script src="optical-dock-v3.js?v=1012"></script>
+<script src="binary-tag-status.js?v=1012"></script>
+<script src="safe-color-constellation.js?v=1012"></script>
+<script src="premium-flow-ui.js?v=1012"></script>
+<script src="hps7-projection.js?v=1012"></script>
+<script src="repair-reacquisition.js?v=1012"></script>
+<script src="hps7-duallane-v2.js?v=1012"></script>
+<script src="runtime-stability.js?v=1012"></script>
+<script src="protocol-selector-ui.js?v=1012"></script>
+<script src="hps7-scan-guide.js?v=1012"></script>
+<script src="hps7-fullscreen.js?v=1012"></script>
+<script src="hps8-fountain.js?v=1012"></script>
+<script src="hps8-sonic-adaptive.js?v=1012"></script>
+<script src="hps8-sonic-slot-decoder.js?v=1012"></script>
+<script src="hps8-strict-ack.js?v=1012"></script>
+<script src="hps8-diagnostics.js?v=1012"></script>
+<script src="hps8.js?v=1012"></script>
 </body>
 </html>
