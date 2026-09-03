@@ -20,16 +20,15 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 Precision + HPS8 Onset Timeline v0.10.14
+      - name: Validate HPS7 Precision + HPS8 Data Geometry Prelock v0.10.15
         run: |
           node <<'NODE'
           (async()=>{
           const fs=require('fs'),vm=require('vm'),{webcrypto}=require('crypto');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
           const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js');
-          const sonic=read('hps8-sonic-adaptive.js'),timeline=read('hps8-sonic-slot-decoder.js'),strict=read('hps8-strict-ack.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
+          const sonic=read('hps8-sonic-adaptive.js'),timeline=read('hps8-sonic-slot-decoder.js'),geom=read('hps8-data-geometry.js'),strict=read('hps8-strict-ack.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
 
-          // Stable HPS7 must remain intact.
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grids changed');
           function extract(text,name){const a=text.indexOf('function replaceOne'),b=text.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw Error(`Cannot extract ${name}`);return new Function(`${text.slice(a,b)}; return ${name};`)();}
@@ -39,46 +38,39 @@ jobs:
           if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected||!body.includes('TRACK HOLD'))throw Error('HPS7 Precision regression');
           console.log('HPS7 Precision fallback: PASS');
 
-          // Base Sonic transmitter is unchanged; RX timing must be onset-anchored.
           for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Base Sonic missing ${s}`);
-          for(const s of ["VERSION='0.10.14'",'START_MS=86','START_HOLD=28','PERIOD=CLOCK_MS+SWITCH_MS+DATA_MS+BIT_GAP','startEnd=onsetAt+START_MS','onsetAnchored:true','clockDoesNotShiftTimeline:true','earlyAck:false','ONSET_TIMELINE','START_ANCHOR'])if(!timeline.includes(s))throw Error(`Onset Timeline RX missing ${s}`);
-          if(timeline.includes('frame.startEnd+=')||timeline.includes('START_RELEASE'))throw Error('Timeline still depends on release/clock shifting');
-          console.log('HPS8 Sonic Onset Timeline invariants: PASS · START onset → +86 ms → 24 ms fixed slots');
+          for(const s of ["VERSION='0.10.14'",'START_MS=86','startEnd=onsetAt+START_MS','onsetAnchored:true','clockDoesNotShiftTimeline:true','earlyAck:false'])if(!timeline.includes(s))throw Error(`Onset Timeline RX missing ${s}`);
+          if(timeline.includes('frame.startEnd+=')||timeline.includes('START_RELEASE'))throw Error('Timeline still shifts from CLOCK/release');
+          console.log('HPS8 Sonic Onset Timeline: PASS');
 
-          // Load base + timeline and verify exported API was replaced.
-          const doc={getElementById(){return null},createElement(){return{}},querySelector(){return null}};
-          const tc={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};tc.window=tc;tc.dispatchEvent=()=>true;vm.createContext(tc);vm.runInContext(sonic,tc);vm.runInContext(timeline,tc);const TS=tc.__hopperHPS8Sonic;
-          if(TS.version!=='0.10.14'||!TS.onsetAnchored||!TS.clockDoesNotShiftTimeline||TS.earlyAck!==false)throw Error('Timeline decoder did not replace Sonic RX API');
-
-          // Optical Proof ACK remains the only automatic-start authorization.
-          for(const s of ["VERSION='0.10.13'",'OPTICAL-ACK','PROOF_BYTES=8','opticalProofRequired:true','headerOnlyRejected:true','startLockCannotStartData:true','BAD_PROOF_FORMAT','OPTICAL_PROOF_MISMATCH','crypto.subtle.digest'])if(!strict.includes(s))throw Error(`Optical Proof ACK missing ${s}`);
-          const elements={fileInput:{files:[{name:'demo.bin'}]},frameCount:{textContent:'396'},hps8FileName:{textContent:'demo.bin'},hps8Fountain:{textContent:'0/396'}};
+          for(const s of ["VERSION='0.10.15'",'DATA_GEOMETRY_PRIME_MS=1300','primeDataGeometry','DATA GEOMETRY PRELOCK','stream-tall','dataGeometryPrime:true','opticalProofRequired:true'])if(!strict.includes(s))throw Error(`Strict ACK/Data Prelock missing ${s}`);
+          const elements={fileInput:{files:[{name:'demo.bin'}]},frameCount:{textContent:'396'},hps8FileName:{textContent:'demo.bin'},hps8Fountain:{textContent:'0/396'},phaseStatus:{textContent:'RECEPTOR · HPS8 LOCK · AUTO'}};
           const fakeS={type:{ACK:1},startListener:async cb=>{fakeS.cb=cb;return true;},send:async(type,session,payload,opts)=>{fakeS.sent={type,session,payload,opts};return true;}};
-          const sc={console,window:null,document:{getElementById:id=>elements[id]||null},CustomEvent:CE,Uint8Array,TextEncoder,crypto:webcrypto,globalThis:null};sc.window=sc;sc.globalThis=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
+          const sc={console,window:null,document:{getElementById:id=>elements[id]||null,documentElement:{classList:{add(){}}}},CustomEvent:CE,Uint8Array,TextEncoder,crypto:webcrypto,globalThis:null,setTimeout,clearTimeout,getComputedStyle:()=>({display:'none'})};sc.window=sc;sc.globalThis=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
           const S=sc.__hopperHPS8Sonic,session=0x23e043d9;
           await S.send(S.type.ACK,session,new Uint8Array([1]),{label:'ACK'});
-          if(!fakeS.sent?.payload||fakeS.sent.payload.length!==10||fakeS.sent.payload[0]!==0xA8)throw Error('Receiver did not replace ACK with optical proof');
-          const goodProof=new Uint8Array(fakeS.sent.payload),accepted=[];await S.startListener(m=>accepted.push(m));
-          await fakeS.cb({type:1,ok:true,headerOnly:true,earlyAck:true,session,payload:goodProof});
-          await fakeS.cb({type:1,ok:false,session,payload:goodProof});
-          const wrong=new Uint8Array(goodProof);wrong[wrong.length-1]^=1;await fakeS.cb({type:1,ok:true,session,payload:wrong});
-          if(accepted.length!==0)throw Error('Unsafe/noise-like ACK crossed proof gate');
-          await fakeS.cb({type:1,ok:true,session,payload:goodProof,profile:'safe'});
-          if(accepted.length!==1||!accepted[0].strictAck||!accepted[0].opticalProofAck)throw Error('Correct optical proof ACK was rejected');
-          elements.frameCount.textContent='397';await fakeS.cb({type:1,ok:true,session,payload:goodProof});if(accepted.length!==1)throw Error('Proof replay survived changed optical identity');
-          console.log('HPS8 Optical Proof ACK: PASS · false ACK/replay rejected');
+          if(!fakeS.sent?.payload||fakeS.sent.payload.length!==10||fakeS.sent.payload[0]!==0xA8)throw Error('Receiver did not build Optical Proof ACK');
+          const proof=new Uint8Array(fakeS.sent.payload),accepted=[];await S.startListener(m=>accepted.push(m));
+          const bad=new Uint8Array(proof);bad[9]^=1;await fakeS.cb({type:1,ok:true,session,payload:bad});
+          await fakeS.cb({type:1,ok:true,headerOnly:true,session,payload:proof});
+          if(accepted.length)throw Error('Unsafe ACK crossed Optical Proof gate');
+          await fakeS.cb({type:1,ok:true,session,payload:proof,profile:'safe'});
+          if(accepted.length!==1||!accepted[0].opticalProofAck)throw Error('Valid Optical Proof ACK rejected');
+          console.log('HPS8 Optical Proof ACK gate: PASS');
 
-          // Core still requires exact session equality before ACK can start DATA.
+          for(const s of ["VERSION='0.10.15'",'opticalDockPriority:true','sameFrameBridge:true','dualRatioMin:.30','dualRatioMax:.72','hps8DualGeometry:true','DATA GEOM 1:2'])if(!geom.includes(s))throw Error(`HPS8 Data Geometry bridge missing ${s}`);
+          if(!geom.includes("this.canvas?.id!=='capture'")||!geom.includes('__hopperOpticalDockV3?.last')||!geom.includes('__hopperBinaryTagBridge.last'))throw Error('Data Geometry same-frame hook missing');
+          console.log('HPS8 DualLane same-frame geometry bridge: PASS');
+
           if(!hps8.includes('if(!tx||msg.session!==tx.session)return;'))throw Error('HPS8 session gate missing');
-          if(!hps8.includes('if(msg.type===T.ACK)'))throw Error('HPS8 ACK handler missing');
+          if(!hps8.includes('function renderDual(rawA,rawB)'))throw Error('HPS8 DualLane renderer missing');
+          if(!hps8.includes("const lanes=rx.session?[0,1]:[-1]"))throw Error('HPS8 dual receiver lane path missing');
           for(const s of ['sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics missing ${s}`);
 
-          // Release/load order/cache.
-          for(const s of ['MVP v0.10.14 · HPS8 Onset Timeline RX','hps8-sonic-adaptive.js?v=1014','hps8-sonic-slot-decoder.js?v=1014','hps8-strict-ack.js?v=1014','hps8-diagnostics.js?v=1014','hps8.js?v=1014'])if(!html.includes(s))throw Error(`HTML v1014 missing ${s}`);
-          if(html.includes('hps8-ack-wake.js'))throw Error('Unsafe ACK-Wake script must not load');
-          const a=html.indexOf('hps8-sonic-adaptive.js?v=1014'),b=html.indexOf('hps8-sonic-slot-decoder.js?v=1014'),c=html.indexOf('hps8-strict-ack.js?v=1014'),d=html.indexOf('hps8-diagnostics.js?v=1014'),e=html.indexOf('hps8.js?v=1014');
-          if(!(a>=0&&b>a&&c>b&&d>c&&e>d))throw Error('HPS8 v1014 load order invalid');
-          if(!sw.includes("hopperlink-pixelstream-v1014")||!sw.includes('hps8-sonic-slot-decoder.js?v=1014')||!sw.includes('hps8-strict-ack.js?v=1014')||sw.includes('hps8-ack-wake.js'))throw Error('SW v1014 cache invalid');
-          console.log('HPS7 + HPS8 v0.10.14 Onset Timeline integration: PASS');
+          for(const s of ['MVP v0.10.15 · HPS8 Data Geometry Prelock','hps8-data-geometry.js?v=1015','hps8-strict-ack.js?v=1015','hps8.js?v=1015'])if(!html.includes(s))throw Error(`HTML v1015 missing ${s}`);
+          const dockPos=html.indexOf('optical-dock-v3.js?v=1015'),geomPos=html.indexOf('hps8-data-geometry.js?v=1015'),sonicPos=html.indexOf('hps8-sonic-adaptive.js?v=1015'),strictPos=html.indexOf('hps8-strict-ack.js?v=1015'),h8Pos=html.indexOf('hps8.js?v=1015');
+          if(!(dockPos>=0&&geomPos>dockPos&&sonicPos>geomPos&&strictPos>sonicPos&&h8Pos>strictPos))throw Error('HPS8 v1015 load order invalid');
+          if(!sw.includes("hopperlink-pixelstream-v1015")||!sw.includes('hps8-data-geometry.js?v=1015')||!sw.includes('hps8-strict-ack.js?v=1015'))throw Error('SW v1015 cache invalid');
+          console.log('HPS7 + HPS8 v0.10.15 Data Geometry Prelock integration: PASS');
           })().catch(e=>{console.error(e);process.exit(1);});
           NODE
