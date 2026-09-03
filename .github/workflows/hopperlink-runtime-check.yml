@@ -20,14 +20,16 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 Precision + HPS8 Strict ACK v0.10.12
+      - name: Validate HPS7 Precision + HPS8 Optical Proof ACK v0.10.13
         run: |
           node <<'NODE'
-          const fs=require('fs'),vm=require('vm');
+          (async()=>{
+          const fs=require('fs'),vm=require('vm'),{webcrypto}=require('crypto');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
           const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js');
-          const sonic=read('hps8-sonic-adaptive.js'),slot=read('hps8-sonic-slot-decoder.js'),strict=read('hps8-strict-ack.js'),ackWake=read('hps8-ack-wake.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
+          const sonic=read('hps8-sonic-adaptive.js'),slot=read('hps8-sonic-slot-decoder.js'),strict=read('hps8-strict-ack.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
 
+          // Stable HPS7 must remain intact.
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grids changed');
           function extract(text,name){const a=text.indexOf('function replaceOne'),b=text.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw Error(`Cannot extract ${name}`);return new Function(`${text.slice(a,b)}; return ${name};`)();}
@@ -37,32 +39,48 @@ jobs:
           if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected||!body.includes('TRACK HOLD'))throw Error('HPS7 Precision regression');
           console.log('HPS7 Precision fallback: PASS');
 
+          // Sonic PHY/PLL remain available, but START/header-only have no start authority.
           for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Base Sonic missing ${s}`);
           for(const s of ["VERSION='0.10.10'",'deterministicPll:true','headerOnly:true','START_LOCK','SYNC_SEARCH','decodeCodewordSoft'])if(!slot.includes(s))throw Error(`Sonic PLL missing ${s}`);
 
-          for(const s of ["VERSION='0.10.12'",'fullCrcRequired:true','headerOnlyRejected:true','startLockCannotStartData:true','msg.ok!==true','msg.headerOnly===true','p.length===1&&p[0]===1','strictAckOnly=true'])if(!strict.includes(s))throw Error(`Strict ACK missing ${s}`);
-          const fakeS={type:{ACK:1},startListener:async cb=>{fakeS.cb=cb;return true;}};
-          const sc={console,window:null,document:{getElementById(){return null}},CustomEvent:CE,Uint8Array};sc.window=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
-          const accepted=[];sc.__hopperHPS8Sonic.startListener(m=>accepted.push(m));
-          fakeS.cb({type:1,ok:true,headerOnly:true,earlyAck:true,session:1,payload:new Uint8Array([1])});
-          fakeS.cb({type:1,ok:false,session:1,payload:new Uint8Array([1])});
-          fakeS.cb({type:1,ok:true,session:1,payload:new Uint8Array([9])});
-          if(accepted.length!==0)throw Error('Strict ACK accepted unsafe ACK');
-          fakeS.cb({type:1,ok:true,session:0x1234,payload:new Uint8Array([1])});
-          if(accepted.length!==1||!accepted[0].strictAck)throw Error('Strict ACK rejected full CRC ACK');
-          console.log('HPS8 Strict ACK filtering: PASS');
+          // Optical Proof ACK must bind ACK to the current optical session + file identity.
+          for(const s of ["VERSION='0.10.13'",'OPTICAL-ACK','PROOF_BYTES=8','opticalProofRequired:true','headerOnlyRejected:true','startLockCannotStartData:true','BAD_PROOF_FORMAT','OPTICAL_PROOF_MISMATCH','crypto.subtle.digest'])if(!strict.includes(s))throw Error(`Optical Proof ACK missing ${s}`);
+          const elements={
+            fileInput:{files:[{name:'demo.bin'}]},
+            frameCount:{textContent:'396'},
+            hps8FileName:{textContent:'demo.bin'},
+            hps8Fountain:{textContent:'0/396'}
+          };
+          const fakeS={type:{ACK:1},startListener:async cb=>{fakeS.cb=cb;return true;},send:async(type,session,payload,opts)=>{fakeS.sent={type,session,payload,opts};return true;}};
+          const sc={console,window:null,document:{getElementById:id=>elements[id]||null},CustomEvent:CE,Uint8Array,TextEncoder,crypto:webcrypto,globalThis:null};sc.window=sc;sc.globalThis=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
+          const S=sc.__hopperHPS8Sonic,session=0x23e043d9;
+          await S.send(S.type.ACK,session,new Uint8Array([1]),{label:'ACK'});
+          if(!fakeS.sent?.payload||fakeS.sent.payload.length!==10||fakeS.sent.payload[0]!==0xA8)throw Error('Receiver did not replace ACK with optical proof');
+          const goodProof=new Uint8Array(fakeS.sent.payload);
+          const accepted=[];await S.startListener(m=>accepted.push(m));
+          await fakeS.cb({type:1,ok:true,headerOnly:true,earlyAck:true,session,payload:goodProof});
+          await fakeS.cb({type:1,ok:false,session,payload:goodProof});
+          const wrong=new Uint8Array(goodProof);wrong[wrong.length-1]^=1;
+          await fakeS.cb({type:1,ok:true,session,payload:wrong});
+          if(accepted.length!==0)throw Error('Unsafe/noise-like ACK crossed proof gate');
+          await fakeS.cb({type:1,ok:true,session,payload:goodProof,profile:'safe'});
+          if(accepted.length!==1||!accepted[0].strictAck||!accepted[0].opticalProofAck)throw Error('Correct optical proof ACK was rejected');
+          elements.frameCount.textContent='397';
+          await fakeS.cb({type:1,ok:true,session,payload:goodProof});
+          if(accepted.length!==1)throw Error('Proof replay survived changed optical identity');
+          console.log('HPS8 Optical Proof ACK: PASS · noise/header/replay rejected · exact optical identity accepted');
 
-          for(const s of ["VERSION='0.10.12'",'active:false','startLockWake:false','autoStartFromStart:false','diagnosticOnly:true','strictAckOnly:true'])if(!ackWake.includes(s))throw Error(`ACK Wake disable missing ${s}`);
-          if(ackWake.includes('.click()')||ackWake.includes('triggerFallback')||ackWake.includes('setTimeout(triggerFallback'))throw Error('Unsafe ACK Wake auto-start still present');
-          console.log('Unsafe START/CLOCK auto-start removed: PASS');
-
+          // Core still requires exact session equality before ACK can start DATA.
           if(!hps8.includes('if(!tx||msg.session!==tx.session)return;'))throw Error('HPS8 session gate missing');
           if(!hps8.includes('if(msg.type===T.ACK)'))throw Error('HPS8 ACK handler missing');
           for(const s of ['sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics missing ${s}`);
 
-          for(const s of ['MVP v0.10.12 · HPS8 Strict ACK','hps8-sonic-adaptive.js?v=1012','hps8-sonic-slot-decoder.js?v=1012','hps8-strict-ack.js?v=1012','hps8-diagnostics.js?v=1012','hps8.js?v=1012'])if(!html.includes(s))throw Error(`HTML v1012 missing ${s}`);
-          const a=html.indexOf('hps8-sonic-adaptive.js?v=1012'),b=html.indexOf('hps8-sonic-slot-decoder.js?v=1012'),c=html.indexOf('hps8-strict-ack.js?v=1012'),d=html.indexOf('hps8-diagnostics.js?v=1012'),e=html.indexOf('hps8.js?v=1012');
-          if(!(a>=0&&b>a&&c>b&&d>c&&e>d))throw Error('Strict ACK load order invalid');
-          if(!sw.includes("hopperlink-pixelstream-v1012")||!sw.includes('hps8-strict-ack.js?v=1012')||sw.includes('hps8-ack-wake.js?v=1011'))throw Error('SW v1012 strict cache invalid');
-          console.log('HPS7 + HPS8 v0.10.12 Strict ACK integration: PASS');
+          // Release/load order/cache must contain proof layer and no ACK-Wake bypass.
+          for(const s of ['MVP v0.10.13 · HPS8 Optical Proof ACK','hps8-sonic-adaptive.js?v=1013','hps8-sonic-slot-decoder.js?v=1013','hps8-strict-ack.js?v=1013','hps8-diagnostics.js?v=1013','hps8.js?v=1013'])if(!html.includes(s))throw Error(`HTML v1013 missing ${s}`);
+          if(html.includes('hps8-ack-wake.js'))throw Error('Unsafe ACK-Wake script must not load');
+          const a=html.indexOf('hps8-sonic-adaptive.js?v=1013'),b=html.indexOf('hps8-sonic-slot-decoder.js?v=1013'),c=html.indexOf('hps8-strict-ack.js?v=1013'),d=html.indexOf('hps8-diagnostics.js?v=1013'),e=html.indexOf('hps8.js?v=1013');
+          if(!(a>=0&&b>a&&c>b&&d>c&&e>d))throw Error('Optical Proof ACK load order invalid');
+          if(!sw.includes("hopperlink-pixelstream-v1013")||!sw.includes('hps8-strict-ack.js?v=1013')||sw.includes('hps8-ack-wake.js'))throw Error('SW v1013 proof cache invalid');
+          console.log('HPS7 + HPS8 v0.10.13 Optical Proof integration: PASS');
+          })().catch(e=>{console.error(e);process.exit(1);});
           NODE
