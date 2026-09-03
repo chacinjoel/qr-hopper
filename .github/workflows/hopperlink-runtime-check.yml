@@ -20,20 +20,24 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 + HPS8 dual selector v0.10.6
+      - name: Validate HPS7 fullscreen action + HPS8 coexistence
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
           const sonic=read('hps8-sonic-adaptive.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js'),core=read('hps7.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js');
 
-          for(const s of ["VERSION='0.10.5'",'requestFullscreen','webkitRequestFullscreen','visualViewport','hps7-optical-fullscreen','maxSurface:true','protocolUnchanged:true','dataRegionUnchanged:true'])if(!fullscreen.includes(s))throw Error(`HPS7 fullscreen JS missing ${s}`);
-          for(const s of ['hps7-optical-fullscreen','--hps7-viewport-height','aspect-ratio:1/2'])if(!fullscreenCss.includes(s))throw Error(`HPS7 fullscreen CSS missing ${s}`);
+          // HPS7 Fullscreen must preserve the original deliberate start/continue action.
+          for(const s of ["VERSION='0.10.7'",'requestFullscreen','webkitRequestFullscreen','visualViewport','hps7-optical-fullscreen','hps7FullscreenAction','originalActionReady','syncActionMirror','original.click()','actionMirror:true','maxSurface:true','protocolUnchanged:true','dataRegionUnchanged:true'])if(!fullscreen.includes(s))throw Error(`HPS7 fullscreen action JS missing ${s}`);
+          for(const s of ['#hps7FullscreenAction','data-visible="1"','hps7-fullscreen-has-action','aspect-ratio:1/2'])if(!fullscreenCss.includes(s))throw Error(`HPS7 fullscreen action CSS missing ${s}`);
+          if(!core.includes("'Receptor listo · Iniciar HPS7'"))throw Error('Original HPS7 HELLO start action missing');
+          if(!core.includes("'Receptor mostró control · Leer NACK/COMPLETE'"))throw Error('Original HPS7 PASS_END action missing');
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grid compatibility changed');
           if(!core.includes('const CONTROL_GRID = 56;'))throw Error('HPS7 control grid changed');
-          console.log('HPS7 Fullscreen presentation invariants: PASS');
+          console.log('HPS7 fullscreen start/continue action mirror: PASS');
 
+          // HPS8 Sonic Robust remains untouched.
           for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','persistentDuplex:true','START=86','CLOCK=8','DATA=10','SYNC_ERRORS=2',"preferred='mid'",'LOCAL_TX_GUARD'])if(!sonic.includes(s))throw Error(`Sonic Robust missing ${s}`);
           for(const s of ["version:'0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics Robust missing ${s}`);
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail}}
@@ -50,10 +54,10 @@ jobs:
           if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
           console.log('HPS7 fallback + HPS8 PhotonFountain coexistence: PASS');
 
-          for(const s of ["VERSION='0.10.6'",'explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8','dispatchEvent(new Event(\'change\''])if(!selector.includes(s))throw Error(`Protocol selector JS missing ${s}`);
+          // Explicit dual selector remains available.
+          for(const s of ["VERSION='0.10.6'",'explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8'])if(!selector.includes(s))throw Error(`Protocol selector JS missing ${s}`);
           for(const s of ['.protocolChoiceGrid','.protocolChoice.active','.protocolNativeSelect','.protocolChoiceNote'])if(!styles.includes(s))throw Error(`Protocol selector CSS missing ${s}`);
-          for(const s of ['MVP v0.10.6 · HPS7 + HPS8 Dual Select','id="protocolHps7"','id="protocolHps8"','value="hps7"','value="hps8" selected','protocol-selector-ui.js?v=1006','hps7-fullscreen.js?v=1006','hps8.js?v=1006'])if(!html.includes(s))throw Error(`HTML dual selector missing ${s}`);
-          const selectorPos=html.indexOf('protocol-selector-ui.js?v=1006'),fullPos=html.indexOf('hps7-fullscreen.js?v=1006'),hps8Pos=html.indexOf('hps8-fountain.js?v=1006');if(!(selectorPos>=0&&fullPos>selectorPos&&hps8Pos>fullPos))throw Error('Protocol/fullscreen/HPS8 script load order invalid');
-          if(!sw.includes("hopperlink-pixelstream-v1006")||!sw.includes('protocol-selector-ui.js?v=1006')||!sw.includes('hps8.js?v=1006'))throw Error('SW v1006 dual-selector assets missing');
-          console.log('Explicit HPS7/HPS8 dual-selector invariants: PASS');
+          for(const s of ['id="protocolHps7"','id="protocolHps8"','value="hps7"','value="hps8" selected','hps7-fullscreen.js?v=1006','hps8.js?v=1006'])if(!html.includes(s))throw Error(`HTML dual selector missing ${s}`);
+          if(!sw.includes("hopperlink-pixelstream-v1007")||!sw.includes('hps7-fullscreen.js?v=1006')||!sw.includes('hps8.js?v=1006'))throw Error('SW v1007 refresh cache missing');
+          console.log('HPS7 fullscreen action fix + HPS8 selectable: PASS');
           NODE
