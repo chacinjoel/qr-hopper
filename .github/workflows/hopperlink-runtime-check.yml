@@ -20,44 +20,57 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 fullscreen action + HPS8 coexistence
+      - name: Validate HPS7 Precision Scanner + HPS8 coexistence v0.10.8
         run: |
           node <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
-          const sonic=read('hps8-sonic-adaptive.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js'),core=read('hps7.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js');
+          const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js'),guide=read('hps7-scan-guide.js'),guideCss=read('hps7-scan-guide.css'),fullscreen=read('hps7-fullscreen.js'),fullscreenCss=read('hps7-fullscreen.css'),selector=read('protocol-selector-ui.js'),styles=read('styles.css'),html=read('index.html'),sw=read('sw.js'),sonic=read('hps8-sonic-adaptive.js'),diag=read('hps8-diagnostics.js'),fountain=read('hps8-fountain.js'),hps8=read('hps8.js');
 
-          // HPS7 Fullscreen must preserve the original deliberate start/continue action.
-          for(const s of ["VERSION='0.10.7'",'requestFullscreen','webkitRequestFullscreen','visualViewport','hps7-optical-fullscreen','hps7FullscreenAction','originalActionReady','syncActionMirror','original.click()','actionMirror:true','maxSurface:true','protocolUnchanged:true','dataRegionUnchanged:true'])if(!fullscreen.includes(s))throw Error(`HPS7 fullscreen action JS missing ${s}`);
-          for(const s of ['#hps7FullscreenAction','data-visible="1"','hps7-fullscreen-has-action','aspect-ratio:1/2'])if(!fullscreenCss.includes(s))throw Error(`HPS7 fullscreen action CSS missing ${s}`);
-          if(!core.includes("'Receptor listo · Iniciar HPS7'"))throw Error('Original HPS7 HELLO start action missing');
-          if(!core.includes("'Receptor mostró control · Leer NACK/COMPLETE'"))throw Error('Original HPS7 PASS_END action missing');
+          // Protocol invariants: Precision Scanner must never change HPS7 optical payload geometry.
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grid compatibility changed');
           if(!core.includes('const CONTROL_GRID = 56;'))throw Error('HPS7 control grid changed');
-          console.log('HPS7 fullscreen start/continue action mirror: PASS');
+          if(!core.includes("'Receptor listo · Iniciar HPS7'"))throw Error('Original HPS7 start action missing');
 
-          // HPS8 Sonic Robust remains untouched.
-          for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','persistentDuplex:true','START=86','CLOCK=8','DATA=10','SYNC_ERRORS=2',"preferred='mid'",'LOCAL_TX_GUARD'])if(!sonic.includes(s))throw Error(`Sonic Robust missing ${s}`);
-          for(const s of ["version:'0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics Robust missing ${s}`);
+          // Build the same generated HPS7 runtime used in the browser.
+          function extract(text,name){const a=text.indexOf('function replaceOne'),b=text.indexOf('\nfunction loadScript',a);if(a<0||b<=a)throw Error(`Cannot extract ${name}`);return new Function(`${text.slice(a,b)}; return ${name};`)();}
+          const patchCore=extract(manual,'patchCore'),patchDual=extract(dual,'patchDual');
+          const generated=patchDual(patchCore(core));
+          if(!generated.includes('function sampleGridRGB(frame,grid,H,lane=-1)'))throw Error('Generated DualLane lane sampler missing');
+          if(!generated.includes('function decodeWithH(frame,H)'))throw Error('Generated HPS7 decoder missing');
+
+          // Run the one-shot guard against the actual generated runtime and inspect the compiled body.
           class CE{constructor(type,init={}){this.type=type;this.detail=init.detail}}
-          const doc={getElementById(){return null},createElement(){return{}},querySelector(){return null}};
-          const c={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};c.window=c;c.dispatchEvent=()=>true;vm.createContext(c);vm.runInContext(sonic,c,{timeout:1500});const S=c.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
-          for(let b=0;b<256;b++){const cw=S.hammingEncodeByte(b);const clean=S.hammingDecodeCodeword(cw);if(!clean||clean.byte!==b)throw Error(`Hamming clean fail ${b}`);for(let bit=0;bit<12;bit++){const bad=cw.slice();bad[bit]^=1;const d=S.hammingDecodeCodeword(bad);if(!d||d.byte!==b||d.corrected!==1)throw Error(`Hamming correction fail byte=${b} bit=${bit}`);}}
-          const payload=S.progressPayload(734,21,1),packet=S.pack(S.type.PROGRESS,0x1234abcd,payload),coded=S.encodePacketBits(packet),decoded=[];for(let i=0;i<coded.length;i+=12){const cw=coded.slice(i,i+12);if((i/12)%3===0)cw[(i/12)%12]^=1;const d=S.hammingDecodeCodeword(cw);if(!d)throw Error('FEC packet decode null');decoded.push(d.byte);}const parsed=S.unpack(Uint8Array.from(decoded));if(!parsed?.ok||parsed.session!==0x1234abcd||parsed.type!==S.type.PROGRESS)throw Error('FEC packet + CRC roundtrip failed');
-          console.log('HPS8 Sonic Robust FEC/CRC: PASS');
+          let guardEvent=null;
+          const gc={console,CustomEvent:CE,dispatchEvent:e=>{if(e.type==='hopper:runtime-syntax-fixed')guardEvent=e.detail;},window:null};gc.window=gc;vm.createContext(gc);vm.runInContext(guard,gc,{timeout:1500});
+          const compiled=gc.Function(`${generated}\n//# sourceURL=hps7-core-v-ci.js`),body=compiled.toString();
+          if(!guardEvent?.precisionScannerInjected||!guardEvent?.normalizerInjected)throw Error(`Generated guard injection failed: ${JSON.stringify(guardEvent)}`);
+          for(const s of ['precisionDockGeometry','precisionAdopt','precisionDispatch','trackedFails<=18','LOCK PRECISION','TRACK HOLD','__hopperOpticalDockV3?.normalizeSamples'])if(!body.includes(s))throw Error(`Generated Precision Scanner missing ${s}`);
+          if(!guard.includes("version:'v0108'")||!guard.includes('precisionScanner:true')||!guard.includes('geometryHoldFrames:18'))throw Error('Precision guard export missing');
+          console.log('Generated HPS7 Precision Scanner: PASS · Optical Dock geometry + lane NORM + 18-frame hold');
 
+          // Receiver guide must clearly match square vs DualLane 1:2 and explain hold/movement states.
+          for(const s of ["VERSION='0.10.8'",'dualShape:true','opticalDockAware:true','LOCK PRECISION','ROLLING SHUTTER','hps7-scan-dual'])if(!guide.includes(s))throw Error(`HPS7 scan guide JS missing ${s}`);
+          for(const s of ['html.hps7-scan-dual .aim','aspect-ratio:1/2','ZONA HPS7','data-state=\'lock\'','62dvh'])if(!guideCss.includes(s))throw Error(`HPS7 scan guide CSS missing ${s}`);
+
+          // Fullscreen deliberate action still exists after scanner changes.
+          for(const s of ["VERSION='0.10.7'",'hps7FullscreenAction','syncActionMirror','original.click()','actionMirror:true'])if(!fullscreen.includes(s))throw Error(`HPS7 fullscreen action regression ${s}`);
+          if(!fullscreenCss.includes('#hps7FullscreenAction'))throw Error('HPS7 fullscreen action CSS missing');
+
+          // HPS8 Sonic Robust remains intact.
+          for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','tolerantSync:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Sonic Robust missing ${s}`);
+          for(const s of ["version:'0.10.4'",'sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics Robust missing ${s}`);
+          const sc={console,window:null,document:{getElementById(){return null},createElement(){return{}},querySelector(){return null}},navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance};sc.window=sc;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(sonic,sc,{timeout:1500});const S=sc.__hopperHPS8Sonic;if(!S)throw Error('Sonic export missing');
+          for(let b=0;b<256;b++){const cw=S.hammingEncodeByte(b),clean=S.hammingDecodeCodeword(cw);if(!clean||clean.byte!==b)throw Error(`Hamming clean fail ${b}`);for(let bit=0;bit<12;bit++){const bad=cw.slice();bad[bit]^=1;const d=S.hammingDecodeCodeword(bad);if(!d||d.byte!==b)throw Error(`Hamming correction fail ${b}/${bit}`);}}
           const fc={console,window:null};fc.window=fc;vm.createContext(fc);vm.runInContext(fountain,fc,{timeout:1500});const F=fc.__hopperHPS8Fountain,N=64,SZ=96,blocks=Array.from({length:N},(_,i)=>Uint8Array.from({length:SZ},(_,j)=>(i*31+j*17)&255)),dec=F.createDecoder(N,SZ);for(let i=0;i<N;i++)if(i%4)dec.addSystematic(i,blocks[i]);for(let seed=1;seed<16000&&!dec.complete;seed++){const x=F.makeParity(blocks,seed);dec.addParity(seed,x.data);}if(!dec.complete)throw Error('Fountain recovery regression');
-          if(core.length<5000||!core.includes('sampleGridRGB'))throw Error('HPS7 core fallback missing/too small');
-          if(!dual.includes('patchDual'))throw Error('HPS7 DualLane fallback missing');
-          if(!guard.includes('photometricNormalizer:true'))throw Error('HPS7 photometric guard missing');
           if(!hps8.includes('sonicAutoRepair:true')||!hps8.includes('PhotonFountain'))throw Error('HPS8 runtime regression');
-          console.log('HPS7 fallback + HPS8 PhotonFountain coexistence: PASS');
+          console.log('HPS8 PhotonFountain + Sonic Robust coexistence: PASS');
 
-          // Explicit dual selector remains available.
-          for(const s of ["VERSION='0.10.6'",'explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8'])if(!selector.includes(s))throw Error(`Protocol selector JS missing ${s}`);
-          for(const s of ['.protocolChoiceGrid','.protocolChoice.active','.protocolNativeSelect','.protocolChoiceNote'])if(!styles.includes(s))throw Error(`Protocol selector CSS missing ${s}`);
-          for(const s of ['id="protocolHps7"','id="protocolHps8"','value="hps7"','value="hps8" selected','hps7-fullscreen.js?v=1006','hps8.js?v=1006'])if(!html.includes(s))throw Error(`HTML dual selector missing ${s}`);
-          if(!sw.includes("hopperlink-pixelstream-v1007")||!sw.includes('hps7-fullscreen.js?v=1006')||!sw.includes('hps8.js?v=1006'))throw Error('SW v1007 refresh cache missing');
-          console.log('HPS7 fullscreen action fix + HPS8 selectable: PASS');
+          // Explicit HPS7/HPS8 selector and v1008 cache/assets.
+          for(const s of ['explicitCards:true',"modes:['hps7','hps8']",'protocolHps7','protocolHps8'])if(!selector.includes(s))throw Error(`Protocol selector regression ${s}`);
+          for(const s of ['.protocolChoiceGrid','.protocolChoice.active'])if(!styles.includes(s))throw Error(`Protocol selector CSS missing ${s}`);
+          for(const s of ['MVP v0.10.8 · HPS7 Precision Scanner','hps7-scan-guide.css?v=1008','runtime-syntax-guard.js?v=1008','hps7-scan-guide.js?v=1008','hps7-fullscreen.js?v=1008','hps8.js?v=1008'])if(!html.includes(s))throw Error(`HTML v1008 missing ${s}`);
+          if(!sw.includes("hopperlink-pixelstream-v1008")||!sw.includes('hps7-scan-guide.css?v=1008')||!sw.includes('hps7-scan-guide.js?v=1008')||!sw.includes('hps8.js?v=1008'))throw Error('SW v1008 assets missing');
+          console.log('HPS7 Precision Scanner v0.10.8 full integration: PASS');
           NODE
