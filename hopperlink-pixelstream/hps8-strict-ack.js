@@ -3,15 +3,16 @@
 const S=window.__hopperHPS8Sonic;
 if(!S){console.error('HPS8 Optical Proof ACK: Sonic modem missing');return;}
 
-const VERSION='0.10.13';
-const MARKER=0xA8,PROOF_VERSION=1,PROOF_BYTES=8;
+const VERSION='0.10.15';
+const MARKER=0xA8,PROOF_VERSION=1,PROOF_BYTES=8,DATA_GEOMETRY_PRIME_MS=1300;
 const nativeStart=S.startListener.bind(S),nativeSend=S.send.bind(S);
 const enc=new TextEncoder();
-let accepted=0,rejected=0,proofTx=0,proofMismatch=0,identityMissing=0;
+let accepted=0,rejected=0,proofTx=0,proofMismatch=0,identityMissing=0,geometryPrimes=0;
 
 function $(id){return document.getElementById(id);}
 function emit(name,detail={}){try{window.dispatchEvent(new CustomEvent(`hopper:hps8-${name}`,{detail:{...detail,version:VERSION}}));}catch{}}
 function numericText(id){const m=(($(id)?.textContent)||'').match(/\d+/g);return m?.length?Number(m[m.length-1]):0;}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function localOpticalIdentity(){
   const file=$('fileInput')?.files?.[0]||null;
   if(file){
@@ -23,6 +24,10 @@ function localOpticalIdentity(){
   const sourceCount=fountain?Number(fountain[2]):0;
   if(name&&name!=='Sin transferencia'&&name!=='Esperando archivo HPS8'&&sourceCount>0)return{name,sourceCount,source:'receiver-optical-lock'};
   return null;
+}
+function senderHello(){
+  const phase=$('phaseStatus')?.textContent||'',overlay=$('streamOverlay'),file=$('fileInput')?.files?.[0];
+  return !!file&&$('protocolMode')?.value==='hps8'&&/EMISOR\s*·\s*HPS8\s*HELLO/i.test(phase)&&overlay&&getComputedStyle(overlay).display!=='none';
 }
 function fallbackDigest(bytes){
   let a=0x811c9dc5>>>0,b=0x9e3779b9>>>0;
@@ -40,6 +45,29 @@ async function proofFor(session,identity){
 function makePayload(proof){const out=new Uint8Array(2+PROOF_BYTES);out[0]=MARKER;out[1]=PROOF_VERSION;out.set(proof,2);return out;}
 function equalBytes(a,b){if(!a||!b||a.length!==b.length)return false;let x=0;for(let i=0;i<a.length;i++)x|=a[i]^b[i];return x===0;}
 function fullCrcAck(msg){return !!msg&&msg.type===S.type.ACK&&msg.ok===true&&msg.headerOnly!==true&&msg.earlyAck!==true;}
+
+async function primeDataGeometry(msg){
+  if(!senderHello())return false;
+  const c=$('pixelCanvas');if(!c||!c.width||!c.height)return false;
+  const w=c.width,h=c.height;if(h===w*2){await sleep(220);return true;}
+  const ctx=c.getContext('2d',{alpha:false});if(!ctx)return false;
+  let src;try{src=ctx.getImageData(0,0,w,h);}catch{return false;}
+  c.width=w;c.height=w*2;
+  const out=ctx.createImageData(w,w*2),rowBytes=w*4;
+  for(let y=0;y<w;y++){
+    const sy=Math.min(h-1,Math.floor(y*h/w)),s0=sy*rowBytes,d0=y*rowBytes,d1=(y+w)*rowBytes;
+    out.data.set(src.data.subarray(s0,s0+rowBytes),d0);
+    out.data.set(src.data.subarray(s0,s0+rowBytes),d1);
+  }
+  document.documentElement.classList.add('stream-tall');
+  if($('streamMeta'))$('streamMeta').textContent='HPS8 · DATA GEOMETRY PRELOCK';
+  if($('streamBottom'))$('streamBottom').textContent=`ACK Proof ✓ · estabilizando DualLane 1:2 · ${(DATA_GEOMETRY_PRIME_MS/1000).toFixed(1)}s`;
+  ctx.putImageData(out,0,0);
+  geometryPrimes++;
+  emit('data-geometry-prime',{session:msg.session,profile:msg.profile||null,durationMs:DATA_GEOMETRY_PRIME_MS,width:w,height:w*2});
+  await sleep(DATA_GEOMETRY_PRIME_MS);
+  return true;
+}
 
 S.send=async function(type,session,payload,opts={}){
   if(type!==S.type.ACK)return nativeSend(type,session,payload,opts);
@@ -69,6 +97,7 @@ S.startListener=async function(onMessage){
       }
       accepted++;msg.strictAck=true;msg.opticalProofAck=true;msg.proofVersion=PROOF_VERSION;
       emit('ack-validated',{session:msg.session,profile:msg.profile||null,crcVerified:true,opticalProof:true,sourceCount:identity.sourceCount,name:identity.name});
+      if(senderHello())await primeDataGeometry(msg);
     }
     try{onMessage?.(msg);}catch(e){console.error(e);}
   });
@@ -77,9 +106,11 @@ S.startListener=async function(onMessage){
 S.strictAckOnly=true;
 S.strictAckVersion=VERSION;
 S.opticalProofAck=true;
+S.dataGeometryPrime=true;
 window.__hopperHPS8StrictAck={
   version:VERSION,active:true,fullCrcRequired:true,headerOnlyRejected:true,startLockCannotStartData:true,
   opticalProofRequired:true,proofBytes:PROOF_BYTES,proofVersion:PROOF_VERSION,proofFor,localOpticalIdentity,
-  state:()=>({accepted,rejected,proofTx,proofMismatch,identityMissing})
+  dataGeometryPrime:true,dataGeometryPrimeMs:DATA_GEOMETRY_PRIME_MS,primeDataGeometry,
+  state:()=>({accepted,rejected,proofTx,proofMismatch,identityMissing,geometryPrimes})
 };
 })();
