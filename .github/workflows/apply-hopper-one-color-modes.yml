@@ -1,0 +1,53 @@
+name: Apply HopperLink ONE Color Modes
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-hopper-one-color-modes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconstruct verified patch
+        shell: bash
+        run: |
+          cat hopperlink-pixelstream/tools/color-patch/part-*.b64 > /tmp/apply-color-modes.py.gz.b64
+          base64 --decode /tmp/apply-color-modes.py.gz.b64 | gzip --decompress > /tmp/apply-color-modes.py
+          echo '88316210aff4a7dab1f2d5583409fb3f31cf917e357f707ba01aad3d865e5e1e  /tmp/apply-color-modes.py' | sha256sum --check
+          python -m py_compile /tmp/apply-color-modes.py
+      - name: Apply selectable 2-bit, 3-bit and 4-bit modes
+        run: python /tmp/apply-color-modes.py
+      - name: Format canonical runtime
+        run: npx --yes prettier@3.6.2 --write hopperlink-pixelstream/src/hopper-one-runtime.js
+      - name: Build compressed browser runtime
+        run: HOPPER_BUILD=1200 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Validate implementation
+        run: |
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node --check hopperlink-pixelstream/hopper-one.js
+          node --check hopperlink-pixelstream/sw.js
+          node --check hopperlink-pixelstream/tools/build-runtime.mjs
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+      - name: Remove one-time staging files
+        run: |
+          rm -rf hopperlink-pixelstream/tools/color-patch
+          rm -f .github/workflows/apply-hopper-one-color-modes.yml
+      - name: Commit HopperLink ONE 1.2
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: add selectable 2-bit 3-bit and 4-bit color modes'
+          git push
