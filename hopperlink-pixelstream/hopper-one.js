@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const MANIFEST='./hopper-one.runtime.json?v=1200';
+const MANIFEST='./hopper-one.runtime.json?v=1201';
 const fatal=error=>{
   console.error('HopperLink ONE boot failed',error);
   const host=document.getElementById('engineStatus');

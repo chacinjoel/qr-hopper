@@ -31,7 +31,7 @@
   opacity:0;pointer-events:none;transition:opacity .2s
 }
 .triframe-grid{
-  min-height:0;flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;
+  min-height:0;flex:1;display:grid;grid-template-columns:1fr;grid-template-rows:repeat(3,minmax(0,1fr));gap:6px;
   padding:3px max(5px,var(--safe-right)) 4px max(5px,var(--safe-left));
 }
 .optical-lane{position:relative;min-width:0;min-height:0;display:flex;align-items:stretch;justify-content:stretch}
@@ -133,3 +133,7 @@ html.triframe-open .app-shell{visibility:hidden;pointer-events:none}
 .stage-status{flex-wrap:wrap}
 .transmission-stage[data-optical-mode="turbo4"] .optical-frame{box-shadow:0 0 0 2px #050505,0 0 30px rgba(167,139,250,.28),inset 0 0 0 2px #050505}
 @media(orientation:landscape) and (max-height:520px){.stage-status span{padding:4px 6px;font-size:7px}}
+
+/* Portrait-only TriFrame stack v1.2.1 */
+.orientation-note{display:none!important}
+.triframe-grid{grid-template-columns:1fr!important;grid-template-rows:repeat(3,minmax(0,1fr))!important}

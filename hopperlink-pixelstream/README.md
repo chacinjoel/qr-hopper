@@ -1,6 +1,6 @@
-# HopperLink ONE · HopperCore 1.2
+# HopperLink ONE · HopperCore 1.2.1
 
-HopperLink ONE utiliza un único motor óptico adaptativo con tres cuadrantes fullscreen. La modulación es seleccionable antes de preparar el archivo y el receptor la detecta automáticamente.
+HopperLink ONE utiliza un único motor óptico adaptativo con tres cuadrantes apilados en fullscreen vertical. La modulación es seleccionable antes de preparar el archivo y el receptor la detecta automáticamente.
 
 ## Modos ópticos
 
@@ -15,6 +15,7 @@ Cada modo conserva los tres lanes físicos. Los 64 pilotos RGB de cada cuadrante
 ## Arquitectura activa
 
 - **TriFrame 3-Lane:** tres paquetes físicos independientes por actualización de pantalla.
+- **Portrait Stack:** A, B y C permanecen en una sola columna; la app solicita orientación retrato y nunca reorganiza el emisor en tres columnas.
 - **Fullscreen real:** Fullscreen API, Wake Lock y orientación cuando el navegador lo permite.
 - **Geometría constante:** HELLO y DATA mantienen los mismos tres cuadrantes.
 - **AutoDock 3:** detecta, ordena y corrige la perspectiva de los tres marcos cian.

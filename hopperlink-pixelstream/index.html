@@ -9,9 +9,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Transferencia premium de archivos sin internet mediante tres canales ópticos sincronizados y asistencia sónica.">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="premium-one.css?v=1200">
-  <link rel="stylesheet" href="premium-one-receiver.css?v=1200">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1200">
+  <link rel="stylesheet" href="premium-one.css?v=1201">
+  <link rel="stylesheet" href="premium-one-receiver.css?v=1201">
+  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1201">
   <title>HopperLink ONE · Color TriFrame</title>
 </head>
 <body>
@@ -141,7 +141,7 @@
 
           <div class="action-row">
             <button class="primary-button" id="prepareBtn">Preparar archivo</button>
-            <button class="secondary-button accent" id="launchBtn" disabled>Abrir fullscreen TriFrame</button>
+            <button class="secondary-button accent" id="launchBtn" disabled>Abrir fullscreen vertical</button>
           </div>
 
           <div class="assurance-grid">
@@ -232,7 +232,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.2 · TriFrame 3-Lane</span>
+      <span>HopperLink ONE · HopperCore 1.2.1 · TriFrame vertical 3-Lane</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -253,7 +253,7 @@
       <button class="stage-close" id="stageCloseBtn" aria-label="Cerrar transmisión">×</button>
     </header>
 
-    <div class="orientation-note" id="orientationNote">Gira el teléfono: en horizontal los tres cuadrantes aprovechan más superficie.</div>
+    <div class="orientation-note" id="orientationNote">Modo vertical: los cuadrantes A, B y C permanecen apilados en una columna.</div>
 
     <div class="triframe-grid" id="triframeGrid">
       <article class="optical-lane lane-a">
@@ -273,7 +273,7 @@
     <footer class="stage-controls">
       <div class="stage-message">
         <b id="stageMessageTitle">Muestra esta pantalla al receptor</b>
-        <span id="stageMessageDetail">Los tres HELLO contienen la misma sesión para adquisición inmediata.</span>
+        <span id="stageMessageDetail">Los tres HELLO apilados contienen la misma sesión para adquisición inmediata.</span>
       </div>
       <div class="stage-buttons">
         <button class="stage-button start" id="stageStartBtn">Iniciar DATA</button>
@@ -283,6 +283,6 @@
   </section>
 
   <canvas id="captureCanvas" hidden></canvas>
-  <script src="hopper-one.js?v=1200" defer></script>
+  <script src="hopper-one.js?v=1201" defer></script>
 </body>
 </html>

@@ -4,8 +4,8 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline premium con tres lanes fullscreen y modulación seleccionable Robusto 2-bit, Color Adaptativo 3-bit y Color Turbo 4-bit."
+  "description": "Transferencia offline premium en fullscreen vertical con tres lanes apilados y modulación seleccionable de 2, 3 y 4 bits."
 }

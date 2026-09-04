@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.2.0";
+  const VERSION = "1.2.1";
   const PROTOCOL = 2;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
@@ -276,10 +276,7 @@
     ).join("");
   }
   function activeGrid() {
-    const portrait = window.innerHeight > window.innerWidth;
-    return portrait
-      ? { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: true }
-      : { cols: SHORT_SIDE, rows: LONG_SIDE, portrait: false };
+    return { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: true };
   }
   function pilotEntries(cols, rows, modeInput = DEFAULT_MODE) {
     const mode = resolveMode(modeInput);
@@ -1234,14 +1231,14 @@
     } catch {}
     app.wakeLock = null;
   }
-  async function tryLandscapeLock() {
+  async function tryPortraitLock() {
     try {
       if (screen.orientation?.lock) {
-        await screen.orientation.lock("landscape");
+        await screen.orientation.lock("portrait");
         flight.record(
           "fullscreen",
           "orientation-lock",
-          { orientation: "landscape" },
+          { orientation: "portrait" },
           100,
         );
         return true;
@@ -1270,7 +1267,7 @@
     await requestFullscreen(document.documentElement);
     showStage();
     acquireWakeLock();
-    tryLandscapeLock();
+    tryPortraitLock();
     setPhase("TX_HELLO");
     app.tx.phase = "HELLO";
     app.tx.running = false;
@@ -2988,7 +2985,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1200",
+        "./sw.js?v=1201",
         { scope: "./" },
       );
       flight.record(
