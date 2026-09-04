@@ -25,9 +25,11 @@ jobs:
           node --check hopperlink-pixelstream/hopper-one.js
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Rebuild deterministic StackScan V2 runtime
-        run: HOPPER_BUILD=1203 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Rebuild deterministic Precision Dock runtime
+        run: HOPPER_BUILD=1204 node hopperlink-pixelstream/tools/build-runtime.mjs
       - name: Validate color modes and adaptive vertical scanner
         run: node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+      - name: Guard unobstructed optical surface
+        run: node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
       - name: Ensure generated files are committed
         run: git diff --exit-code -- hopperlink-pixelstream/hopper-one.runtime.json hopperlink-pixelstream/runtime

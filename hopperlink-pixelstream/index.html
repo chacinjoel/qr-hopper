@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-ui-build="1204-clean1">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -11,8 +11,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="premium-one.css?v=1203">
   <link rel="stylesheet" href="premium-one-receiver.css?v=1203">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1203">
-  <title>HopperLink ONE · StackScan Vertical</title>
+  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1204-clean1">
+  <title>HopperLink ONE · Precision Dock</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -232,7 +232,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.2.4 · Precision Dock</span>
+      <span>HopperLink ONE · HopperCore 1.2.4 · Precision Dock · Pantalla limpia</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -256,16 +256,13 @@
     <div class="orientation-note" id="orientationNote">Modo vertical: los cuadrantes A, B y C permanecen apilados en una columna.</div>
 
     <div class="triframe-grid" id="triframeGrid">
-      <article class="optical-lane lane-a">
-        <span class="lane-label">LANE A · SYSTEMATIC</span>
+      <article class="optical-lane lane-a" aria-label="Cuadrante A">
         <div class="optical-frame"><canvas id="laneCanvasA"></canvas></div>
       </article>
-      <article class="optical-lane lane-b">
-        <span class="lane-label">LANE B · SYSTEMATIC/FEC</span>
+      <article class="optical-lane lane-b" aria-label="Cuadrante B">
         <div class="optical-frame"><canvas id="laneCanvasB"></canvas></div>
       </article>
-      <article class="optical-lane lane-c">
-        <span class="lane-label">LANE C · FOUNTAIN</span>
+      <article class="optical-lane lane-c" aria-label="Cuadrante C">
         <div class="optical-frame"><canvas id="laneCanvasC"></canvas></div>
       </article>
     </div>

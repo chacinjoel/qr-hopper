@@ -1,14 +1,14 @@
-const CACHE='hopperlink-one-v1204';
+const CACHE='hopperlink-one-v1204-clean1';
 const ASSETS=[
   './',
   './index.html',
   './premium-one.css?v=1203',
   './premium-one-receiver.css?v=1203',
-  './premium-one-fullscreen.css?v=1203',
-  './hopper-one.js?v=1203',
+  './premium-one-fullscreen.css?v=1204-clean1',
+  './hopper-one.js?v=1204',
   './hopper-one.runtime.json?v=1203',
-  './runtime/hopper-one.bundle-01.txt?v=1203',
-  './runtime/hopper-one.bundle-02.txt?v=1203',
+  './runtime/hopper-one.bundle-01.txt?v=1204',
+  './runtime/hopper-one.bundle-02.txt?v=1204',
   './manifest.json'
 ];
 
@@ -28,7 +28,7 @@ self.addEventListener('install',event=>{
 self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)));
+    await Promise.all(keys.filter(key=>key.startsWith('hopperlink-one-')&&key!==CACHE).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
@@ -41,7 +41,7 @@ self.addEventListener('fetch',event=>{
       try{
         const fresh=await fetch(request);
         const cache=await caches.open(CACHE);
-        cache.put(request,fresh.clone());
+        await cache.put(request,fresh.clone());
         return fresh;
       }catch{
         return (await caches.match(request))||(await caches.match('./index.html'));
@@ -54,7 +54,7 @@ self.addEventListener('fetch',event=>{
     if(cached)return cached;
     const fresh=await fetch(request);
     const cache=await caches.open(CACHE);
-    cache.put(request,fresh.clone());
+    await cache.put(request,fresh.clone());
     return fresh;
   })());
 });
