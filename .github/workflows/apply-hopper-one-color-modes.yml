@@ -38,11 +38,14 @@ jobs:
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
           node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
-      - name: Remove one-time staging files
+      - name: Keep workflow files outside the bot commit
         run: |
-          rm -rf hopperlink-pixelstream/tools/color-patch
-          rm -f .github/workflows/apply-hopper-one-color-modes.yml
-      - name: Commit HopperLink ONE 1.2
+          git checkout HEAD -- .github/workflows/hopperlink-one-check.yml
+          git checkout HEAD -- .github/workflows/materialize-hopper-one-source.yml
+          git checkout HEAD -- .github/workflows/apply-hopper-one-color-modes.yml
+      - name: Remove one-time payload segments
+        run: rm -rf hopperlink-pixelstream/tools/color-patch
+      - name: Commit HopperLink ONE 1.2 application files
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
