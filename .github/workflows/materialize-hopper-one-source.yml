@@ -33,11 +33,15 @@ jobs:
           fs.writeFileSync(path.join(root,'src','hopper-one-runtime.js'),source);
           console.log(`Materialized ${source.length} bytes · ${sha}`);
           NODE
+      - name: Format canonical source
+        run: npx --yes prettier@3.6.2 --write hopperlink-pixelstream/src/hopper-one-runtime.js
+      - name: Validate formatted source
+        run: node --check hopperlink-pixelstream/src/hopper-one-runtime.js
       - name: Commit canonical source
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add hopperlink-pixelstream/src/hopper-one-runtime.js
           git diff --cached --quiet && exit 0
-          git commit -m "chore: add canonical HopperLink ONE runtime source"
+          git commit -m "chore: format canonical HopperLink ONE runtime source"
           git push
