@@ -155,7 +155,7 @@
           <div class="card-heading">
             <div>
               <div class="eyebrow">RECEPTOR</div>
-              <h3>StackScan V2 detecta los cuatro rieles y separa automáticamente A/B/C</h3>
+              <h3>Precision Dock detecta A/B/C por geometría monocroma antes de leer la modulación</h3>
             </div>
             <span class="engine-badge">SIN ENCUADRE MANUAL</span>
           </div>
@@ -166,7 +166,7 @@
             <div class="camera-empty" id="cameraEmpty">
               <div class="scanner-glyph"><i></i><i></i><i></i></div>
               <b>Cámara detenida</b>
-              <span>Incluye completa la torre A/B/C dentro de la guía. El visor recorta los lados para verla más grande.</span>
+              <span>Incluye completa la torre A/B/C. Primero se adquieren los marcos de alto contraste; después se interpreta la modulación.</span>
             </div>
             <div class="camera-head">
               <span id="cameraState">CÁMARA EN ESPERA</span>
@@ -232,7 +232,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.2.3 · StackScan V2</span>
+      <span>HopperLink ONE · HopperCore 1.2.4 · Precision Dock</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -283,6 +283,6 @@
   </section>
 
   <canvas id="captureCanvas" hidden></canvas>
-  <script src="hopper-one.js?v=1203" defer></script>
+  <script src="hopper-one.js?v=1204" defer></script>
 </body>
 </html>

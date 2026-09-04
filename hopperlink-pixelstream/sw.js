@@ -1,4 +1,4 @@
-const CACHE='hopperlink-one-v1203';
+const CACHE='hopperlink-one-v1204';
 const ASSETS=[
   './',
   './index.html',

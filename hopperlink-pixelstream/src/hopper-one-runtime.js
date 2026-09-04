@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.2.3";
+  const VERSION = "1.2.4";
   const PROTOCOL = 2;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
@@ -1288,7 +1288,7 @@
     $("stageMessageTitle").textContent =
       "Muestra esta pantalla completa al receptor";
     $("stageMessageDetail").textContent =
-      `AutoDock 3 detectará ${resolveMode(app.tx.modeId).symbols} colores por lane sin encuadre manual.`;
+      `Precision Dock adquiere primero la geometría y después detecta automáticamente ${resolveMode(app.tx.modeId).bits} bits por celda.`;
     renderHelloTriFrame();
     flight.record(
       "tx",
@@ -2036,7 +2036,130 @@
     }
     return validatePortraitStack(items, width, height) ? items : [];
   }
+  function isPrecisionWhitePixel(data, offset) {
+    const r = data[offset],
+      g = data[offset + 1],
+      b = data[offset + 2],
+      hi = Math.max(r, g, b),
+      lo = Math.min(r, g, b),
+      luma = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    return luma >= 198 && hi - lo <= 48;
+  }
+  function detectPrecisionFrameRings(image, width, height) {
+    const data = image.data,
+      stride = Math.max(2, Math.floor(Math.min(width, height) / 340)),
+      gridWidth = Math.ceil(width / stride),
+      gridHeight = Math.ceil(height / stride),
+      mask = new Uint8Array(gridWidth * gridHeight);
+    for (let gy = 0; gy < gridHeight; gy++) {
+      const y = Math.min(height - 1, gy * stride + (stride >> 1));
+      for (let gx = 0; gx < gridWidth; gx++) {
+        const x = Math.min(width - 1, gx * stride + (stride >> 1));
+        if (isPrecisionWhitePixel(data, (y * width + x) * 4))
+          mask[gy * gridWidth + gx] = 1;
+      }
+    }
+    const seen = new Uint8Array(mask.length),
+      candidates = [];
+    for (let start = 0; start < mask.length; start++) {
+      if (!mask[start] || seen[start]) continue;
+      const stack = [start];
+      seen[start] = 1;
+      let count = 0,
+        minX = Infinity,
+        minY = Infinity,
+        maxX = -1,
+        maxY = -1,
+        minSum = Infinity,
+        maxSum = -Infinity,
+        minDiff = Infinity,
+        maxDiff = -Infinity,
+        tl = null,
+        tr = null,
+        bl = null,
+        br = null;
+      while (stack.length) {
+        const cur = stack.pop(),
+          cy = Math.floor(cur / gridWidth),
+          cx = cur - cy * gridWidth;
+        count++;
+        minX = Math.min(minX, cx);
+        maxX = Math.max(maxX, cx);
+        minY = Math.min(minY, cy);
+        maxY = Math.max(maxY, cy);
+        const sum = cx + cy,
+          diff = cx - cy;
+        if (sum < minSum) {
+          minSum = sum;
+          tl = { x: cx, y: cy };
+        }
+        if (sum > maxSum) {
+          maxSum = sum;
+          br = { x: cx, y: cy };
+        }
+        if (diff > maxDiff) {
+          maxDiff = diff;
+          tr = { x: cx, y: cy };
+        }
+        if (diff < minDiff) {
+          minDiff = diff;
+          bl = { x: cx, y: cy };
+        }
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const nx = cx + dx,
+              ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight)
+              continue;
+            const ni = ny * gridWidth + nx;
+            if (mask[ni] && !seen[ni]) {
+              seen[ni] = 1;
+              stack.push(ni);
+            }
+          }
+      }
+      if (!tl || !tr || !bl || !br || count < 20) continue;
+      const cellW = maxX - minX + 1,
+        cellH = maxY - minY + 1,
+        bw = cellW * stride,
+        bh = cellH * stride,
+        ratio = bw / Math.max(1, bh),
+        fill = count / Math.max(1, cellW * cellH);
+      if (
+        bw < width * 0.14 ||
+        bh < height * 0.06 ||
+        ratio < 1.05 ||
+        ratio > 4.6 ||
+        fill < 0.01 ||
+        fill > 0.38
+      )
+        continue;
+      const perimeterCells = Math.max(1, 2 * (cellW + cellH));
+      if (count < perimeterCells * 0.16) continue;
+      let quad = componentToQuad({ tl, tr, bl, br }, stride, width, height);
+      quad = insetQuad(quad, 0.035);
+      candidates.push({
+        quad,
+        score: bw * bh * (0.4 + Math.min(0.6, count / perimeterCells)),
+        source: "precision-ring",
+      });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const selected = [];
+    for (const candidate of candidates) {
+      if (
+        selected.every((item) => overlapRatio(item.quad, candidate.quad) < 0.34)
+      )
+        selected.push(candidate);
+      if (selected.length === 3) break;
+    }
+    const ordered = orderQuads(selected);
+    return validatePortraitStack(ordered, width, height) ? ordered : [];
+  }
   function detectCyanComponents(image, width, height) {
+    const precisionFrames = detectPrecisionFrameRings(image, width, height);
+    if (precisionFrames.length === 3) return precisionFrames;
     const data = image.data,
       stride = Math.max(2, Math.floor(Math.min(width, height) / 300));
     const gridWidth = Math.ceil(width / stride),
@@ -3019,7 +3142,7 @@
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "STACKSCAN V2·BUSCANDO A/B/C";
+      $("cameraState").textContent = "PRECISION DOCK·BUSCANDO A/B/C";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
@@ -3135,11 +3258,13 @@
     updateLaneLocks();
     const validItems = items.filter((item) => item.decoded?.packet),
       detected = items.length;
-    const scanStrategy = items.some((item) => item.source === "portrait-rails")
-      ? "STACKSCAN V2"
-      : items.some((item) => item.source === "portrait-split")
-        ? "STACKSPLIT"
-        : "AUTODOCK 3";
+    const scanStrategy = items.some((item) => item.source === "precision-ring")
+      ? "PRECISION DOCK"
+      : items.some((item) => item.source === "portrait-rails")
+        ? "STACKSCAN V2"
+        : items.some((item) => item.source === "portrait-split")
+          ? "STACKSPLIT"
+          : "AUTODOCK 3";
     $("cameraState").textContent =
       detected === 3
         ? validItems.length
@@ -3340,7 +3465,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1203",
+        "./sw.js?v=1204",
         { scope: "./" },
       );
       flight.record(
@@ -3402,6 +3527,7 @@
           };
         }),
         fullscreen: true,
+        precisionDock: true,
         autoDock3: true,
         fountain: true,
         sonicAssist: true,
@@ -3496,6 +3622,7 @@
     classifyColorSamples,
     receiverScanDimensions,
     detectCyanComponents,
+    detectPrecisionFrameRings,
     detectPortraitRailStack,
     findPortraitRailBands,
     validatePortraitStack,
