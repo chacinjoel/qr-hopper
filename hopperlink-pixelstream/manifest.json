@@ -1,5 +1,5 @@
 {
-  "name": "HopperLink ONE Vertical TriFrame",
+  "name": "HopperLink ONE StackScan",
   "short_name": "HopperLink",
   "start_url": "./index.html",
   "scope": "./",
@@ -7,5 +7,5 @@
   "orientation": "portrait",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline premium con emisor y receptor verticales, visor de cámara 9:16, tres lanes apilados y modulación de 2, 3 y 4 bits."
+  "description": "Transferencia offline premium con StackScan V2, visor vertical 2:3, detección adaptativa de rieles y tres lanes ópticos apilados."
 }

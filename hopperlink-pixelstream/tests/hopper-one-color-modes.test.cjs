@@ -25,7 +25,7 @@ vm.createContext(context);
 vm.runInContext(source,context,{timeout:3000});
 const I=context.__hopperLinkOneInternals;
 assert(I,'test internals were not exported');
-assert.strictEqual(I.VERSION,'1.2.2');
+assert.strictEqual(I.VERSION,'1.2.3');
 assert.strictEqual(I.PROTOCOL,2);
 assert.deepStrictEqual(Array.from(I.MODE_ORDER),['robust2','adaptive3','turbo4']);
 assert.strictEqual(I.PILOT_CELL_COUNT,64);
@@ -65,7 +65,7 @@ for(const [modeId,want] of Object.entries(expected)){
 }
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'hopper-one.runtime.json'),'utf8'));
-assert.strictEqual(manifest.build,'1202');
+assert.strictEqual(manifest.build,'1203');
 const encoded=manifest.parts.map(part=>fs.readFileSync(path.join(root,part),'utf8').replace(/\s+/g,'')).join('');
 const runtime=zlib.gunzipSync(Buffer.from(encoded,'base64'));
 assert.strictEqual(runtime.length,manifest.bytes);
@@ -77,7 +77,7 @@ assert(html.includes('id="stageMode"'));
 assert(html.includes('id="rxMode"'));
 assert(!/hps[78]|protocol-selector/i.test(html));
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert(sw.includes('hopperlink-one-v1202'));
+assert(sw.includes('hopperlink-one-v1203'));
 const fullscreenCss=fs.readFileSync(path.join(root,'premium-one-fullscreen.css'),'utf8');
 assert(fullscreenCss.includes('grid-template-columns:1fr!important'));
 assert(fullscreenCss.includes('grid-template-rows:repeat(3,minmax(0,1fr))!important'));
@@ -88,15 +88,41 @@ const webManifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'ut
 assert.strictEqual(webManifest.orientation,'portrait');
 assert(!html.includes('Gira el teléfono'));
 const receiverCss=fs.readFileSync(path.join(root,'premium-one-receiver.css'),'utf8');
-assert(receiverCss.includes('aspect-ratio:9/16'));
-assert(receiverCss.includes('object-fit:contain'));
-assert(receiverCss.includes('width:min(100vw,56.25dvh)'));
-assert(source.includes('width: { ideal: 1080 }'));
-assert(source.includes('height: { ideal: 1920 }'));
-assert(source.includes('aspectRatio: { ideal: 9 / 16 }'));
+assert(receiverCss.includes('aspect-ratio:2/3'));
+assert(receiverCss.includes('object-fit:cover'));
+assert(receiverCss.includes('width:min(100vw,66.6667dvh)'));
+assert(source.includes('width: { ideal: 1920 }'));
+assert(source.includes('height: { ideal: 1440 }'));
+assert(source.includes('aspectRatio: { ideal: 4 / 3 }'));
 const portraitScan=I.receiverScanDimensions({videoWidth:1080,videoHeight:1920});
 assert.strictEqual(portraitScan.width,720);
 assert.strictEqual(portraitScan.height,1280);
 assert.strictEqual(portraitScan.portrait,true);
-assert(html.includes('Vista fullscreen 9:16'));
-console.log('HopperLink ONE Color Modes + Portrait TX/RX: PASS');
+assert(html.includes('Vista fullscreen 2:3'));
+function makeStackScanFixture(width=1280,height=720){
+  const data=new Uint8ClampedArray(width*height*4);
+  for(let offset=0;offset<data.length;offset+=4){data[offset]=7;data[offset+1]=12;data[offset+2]=15;data[offset+3]=255;}
+  const put=(x,y,r,g,b)=>{if(x<0||y<0||x>=width||y>=height)return;const offset=(y*width+x)*4;data[offset]=r;data[offset+1]=g;data[offset+2]=b;};
+  const rails=[24,242,460,678],leftTop=430,rightTop=850,leftBottom=410,rightBottom=840;
+  for(let lane=0;lane<3;lane++){
+    const y1=rails[lane],y2=rails[lane+1];
+    for(let y=y1;y<=y2;y++){
+      const t=y/(height-1),left=Math.round(leftTop+(leftBottom-leftTop)*t),right=Math.round(rightTop+(rightBottom-rightTop)*t);
+      for(let edge=0;edge<7;edge++){put(left+edge,y,92,178,158);put(right-edge,y,88,184,164);}
+    }
+    for(const y of [y1,y2])for(let dy=-3;dy<=3;dy++)for(let x=410;x<=855;x++)put(x,y+dy,98,187,160);
+    const palette=[[20,20,20],[232,232,232],[228,48,48],[44,204,70],[48,72,226],[236,190,34],[204,52,184],[234,108,34]];
+    for(let y=y1+12;y<y2-12;y++)for(let x=440;x<825;x++)if((x*13+y*7)%17<8){const color=palette[(x+y)%palette.length];put(x,y,color[0],color[1],color[2]);}
+  }
+  for(let y=0;y<height;y++)for(let edge=0;edge<3;edge++)put(1160+edge,y,50,130,80);
+  return {data,width,height};
+}
+const stackItems=I.detectCyanComponents(makeStackScanFixture(),1280,720);
+assert.strictEqual(stackItems.length,3,'StackScan returns three lanes from a fused green-shifted tower');
+assert(stackItems.every(item=>item.source==='portrait-rails'),'StackScan rail strategy selected');
+const stackCenters=stackItems.map(item=>(item.quad.tl.y+item.quad.tr.y+item.quad.bl.y+item.quad.br.y)/4);
+assert(stackCenters[0]<stackCenters[1]&&stackCenters[1]<stackCenters[2],'StackScan lanes ordered top to bottom');
+assert(source.includes('currentTime - app.trackedAt < 1800'));
+assert(source.includes('advanced.zoom = capabilities.zoom.min'));
+assert(source.includes('STACKSCAN V2'));
+console.log('HopperLink ONE Color Modes + StackScan V2: PASS');

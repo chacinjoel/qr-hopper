@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Transferencia premium de archivos sin internet mediante tres canales ópticos sincronizados y asistencia sónica.">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="premium-one.css?v=1202">
-  <link rel="stylesheet" href="premium-one-receiver.css?v=1202">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1202">
-  <title>HopperLink ONE · Color TriFrame Vertical</title>
+  <link rel="stylesheet" href="premium-one.css?v=1203">
+  <link rel="stylesheet" href="premium-one-receiver.css?v=1203">
+  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1203">
+  <title>HopperLink ONE · StackScan Vertical</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -155,7 +155,7 @@
           <div class="card-heading">
             <div>
               <div class="eyebrow">RECEPTOR</div>
-              <h3>AutoDock 3 encuadra la columna vertical y recorta los tres cuadrantes</h3>
+              <h3>StackScan V2 detecta los cuatro rieles y separa automáticamente A/B/C</h3>
             </div>
             <span class="engine-badge">SIN ENCUADRE MANUAL</span>
           </div>
@@ -166,7 +166,7 @@
             <div class="camera-empty" id="cameraEmpty">
               <div class="scanner-glyph"><i></i><i></i><i></i></div>
               <b>Cámara detenida</b>
-              <span>Sostén ambos dispositivos verticales e incluye completa la columna A/B/C.</span>
+              <span>Incluye completa la torre A/B/C dentro de la guía. El visor recorta los lados para verla más grande.</span>
             </div>
             <div class="camera-head">
               <span id="cameraState">CÁMARA EN ESPERA</span>
@@ -183,7 +183,7 @@
             <div class="receiver-file">
               <span>Transferencia detectada</span>
               <b id="rxFileName">Esperando HELLO TriFrame…</b>
-              <small id="rxSession">La vista 9:16 conserva la columna A/B/C en HELLO y DATA.</small>
+              <small id="rxSession">La vista 2:3 amplía la torre A/B/C sin deformar la cámara.</small>
             </div>
             <strong id="rxPercent">0%</strong>
           </div>
@@ -199,7 +199,7 @@
 
           <div class="action-row">
             <button class="primary-button" id="cameraBtn">Iniciar cámara</button>
-            <button class="secondary-button" id="receiverFullscreenBtn" disabled>Vista fullscreen 9:16</button>
+            <button class="secondary-button" id="receiverFullscreenBtn" disabled>Vista fullscreen 2:3</button>
             <button class="danger-button" id="stopCameraBtn" disabled>Detener</button>
           </div>
 
@@ -232,7 +232,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.2.2 · TriFrame vertical 3-Lane</span>
+      <span>HopperLink ONE · HopperCore 1.2.3 · StackScan V2</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -283,6 +283,6 @@
   </section>
 
   <canvas id="captureCanvas" hidden></canvas>
-  <script src="hopper-one.js?v=1202" defer></script>
+  <script src="hopper-one.js?v=1203" defer></script>
 </body>
 </html>

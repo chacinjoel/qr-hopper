@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.2.2";
+  const VERSION = "1.2.3";
   const PROTOCOL = 2;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
@@ -1641,9 +1641,26 @@
   function isCyanPixel(data, offset) {
     const r = data[offset],
       g = data[offset + 1],
-      b = data[offset + 2];
-    return g > 82 && b > 96 && Math.min(g, b) - r > 38 && Math.abs(g - b) < 105;
+      b = data[offset + 2],
+      minGb = Math.min(g, b),
+      maxValue = Math.max(r, g, b),
+      minValue = Math.min(r, g, b),
+      brightness = (r + g + b) / 3,
+      chroma = maxValue - minValue,
+      cyanBias = minGb - r,
+      greenBias = g - r,
+      blueBias = b - r;
+    return (
+      brightness > 34 &&
+      ((minGb > 58 && cyanBias > 16 && Math.abs(g - b) < 140) ||
+        (g > 70 && greenBias > 6 && g - b > -8 && chroma > 11) ||
+        (brightness > 150 &&
+          greenBias > 5 &&
+          blueBias > -4 &&
+          Math.abs(g - b) < 55))
+    );
   }
+
   function quadCenter(quad) {
     return {
       x: (quad.tl.x + quad.tr.x + quad.bl.x + quad.br.x) / 4,
@@ -1745,6 +1762,280 @@
       br: convert(component.br),
     };
   }
+  function longestMarkerRun(mask, rowOffset, width, maxGap = 3) {
+    let best = null,
+      start = -1,
+      last = -1,
+      gap = 0;
+    const closeRun = () => {
+      if (start < 0 || last < start) return;
+      const length = last - start + 1;
+      if (!best || length > best.length)
+        best = { left: start, right: last, length };
+    };
+    for (let x = 0; x < width; x++) {
+      if (mask[rowOffset + x]) {
+        if (start < 0) start = x;
+        last = x;
+        gap = 0;
+      } else if (start >= 0 && ++gap > maxGap) {
+        closeRun();
+        start = -1;
+        last = -1;
+        gap = 0;
+      }
+    }
+    closeRun();
+    return best;
+  }
+  function findPortraitRailBands(mask, gridWidth, gridHeight) {
+    const runs = new Array(gridHeight),
+      scores = new Float32Array(gridHeight);
+    let peak = 0;
+    for (let y = 0; y < gridHeight; y++) {
+      const run = longestMarkerRun(mask, y * gridWidth, gridWidth, 3),
+        score = run?.length || 0;
+      runs[y] = run;
+      scores[y] = score;
+      peak = Math.max(peak, score);
+    }
+    if (peak < Math.max(10, gridWidth * 0.07)) return [];
+    const threshold = Math.max(8, gridWidth * 0.045, peak * 0.44),
+      groups = [];
+    let current = [];
+    for (let y = 0; y < gridHeight; y++) {
+      if (scores[y] < threshold) continue;
+      if (current.length && y - current[current.length - 1] > 3) {
+        groups.push(current);
+        current = [];
+      }
+      current.push(y);
+    }
+    if (current.length) groups.push(current);
+    const bands = [];
+    for (const rows of groups) {
+      const rowRuns = rows.map((y) => runs[y]).filter(Boolean);
+      if (!rowRuns.length) continue;
+      const bestLength = Math.max(...rowRuns.map((run) => run.length)),
+        reliable = rowRuns.filter((run) => run.length >= bestLength * 0.72),
+        strength = rows.reduce((sum, y) => sum + scores[y], 0);
+      if (!strength || !reliable.length) continue;
+      bands.push({
+        start: rows[0],
+        end: rows[rows.length - 1],
+        y: rows.reduce((sum, y) => sum + y * scores[y], 0) / strength,
+        left: median(reliable.map((run) => run.left)),
+        right: median(reliable.map((run) => run.right)),
+        width: bestLength,
+        strength,
+      });
+    }
+    return bands;
+  }
+  function choosePortraitRailSequence(inputBands, gridWidth, gridHeight) {
+    if (inputBands.length < 4) return null;
+    const bands = (
+      inputBands.length > 14
+        ? inputBands
+            .slice()
+            .sort((a, b) => b.strength - a.strength)
+            .slice(0, 14)
+        : inputBands.slice()
+    ).sort((a, b) => a.y - b.y);
+    let best = null;
+    for (let a = 0; a < bands.length - 3; a++)
+      for (let b = a + 1; b < bands.length - 2; b++)
+        for (let c = b + 1; c < bands.length - 1; c++)
+          for (let d = c + 1; d < bands.length; d++) {
+            const rails = [bands[a], bands[b], bands[c], bands[d]],
+              gaps = [
+                rails[1].y - rails[0].y,
+                rails[2].y - rails[1].y,
+                rails[3].y - rails[2].y,
+              ],
+              minGap = Math.min(...gaps),
+              maxGap = Math.max(...gaps),
+              meanGap = gaps.reduce((sum, value) => sum + value, 0) / 3;
+            if (
+              minGap < Math.max(8, gridHeight * 0.045) ||
+              maxGap / Math.max(1, minGap) > 1.55
+            )
+              continue;
+            const maxWidth = Math.max(...rails.map((rail) => rail.width)),
+              reliable = rails.filter((rail) => rail.width >= maxWidth * 0.62),
+              laneAspect = maxWidth / Math.max(1, meanGap);
+            if (
+              maxWidth < gridWidth * 0.075 ||
+              reliable.length < 2 ||
+              laneAspect < 0.72 ||
+              laneAspect > 5.4
+            )
+              continue;
+            const centers = reliable.map(
+                (rail) => (rail.left + rail.right) / 2,
+              ),
+              centerSpread = Math.max(...centers) - Math.min(...centers);
+            if (centerSpread > maxWidth * 0.42) continue;
+            const gapError =
+                gaps.reduce(
+                  (sum, value) => sum + Math.abs(value - meanGap),
+                  0,
+                ) / Math.max(1, meanGap),
+              strength = rails.reduce((sum, rail) => sum + rail.strength, 0),
+              score =
+                maxWidth * 5 +
+                meanGap * 2 +
+                strength * 0.08 +
+                100 / (1 + gapError * 8) -
+                centerSpread;
+            if (!best || score > best.score)
+              best = { rails, gaps, meanGap, maxWidth, score };
+          }
+    return best;
+  }
+  function fitRailEndpoint(samples, key) {
+    if (!samples.length) return () => 0;
+    if (samples.length === 1) {
+      const value = samples[0][key];
+      return () => value;
+    }
+    const meanY =
+        samples.reduce((sum, sample) => sum + sample.y, 0) / samples.length,
+      meanX =
+        samples.reduce((sum, sample) => sum + sample[key], 0) / samples.length;
+    let numerator = 0,
+      denominator = 0;
+    for (const sample of samples) {
+      numerator += (sample.y - meanY) * (sample[key] - meanX);
+      denominator += (sample.y - meanY) ** 2;
+    }
+    const slope = denominator > 1e-6 ? numerator / denominator : 0,
+      intercept = meanX - slope * meanY;
+    return (y) => intercept + slope * y;
+  }
+  function refinePortraitRails(sequence) {
+    const rails = sequence.rails.map((rail) => ({ ...rail })),
+      maxWidth = sequence.maxWidth;
+    let reliable = rails.filter((rail) => rail.width >= maxWidth * 0.88);
+    if (reliable.length < 2)
+      reliable = rails
+        .slice()
+        .sort((a, b) => b.width - a.width)
+        .slice(0, 2);
+    const leftAt = fitRailEndpoint(reliable, "left"),
+      rightAt = fitRailEndpoint(reliable, "right");
+    return rails.map((rail) => {
+      const predictedLeft = leftAt(rail.y),
+        predictedRight = rightAt(rail.y),
+        observedReliable =
+          rail.width >= maxWidth * 0.92 &&
+          Math.abs(
+            (rail.left + rail.right - predictedLeft - predictedRight) / 2,
+          ) <
+            maxWidth * 0.2;
+      let left = observedReliable
+          ? rail.left * 0.62 + predictedLeft * 0.38
+          : predictedLeft,
+        right = observedReliable
+          ? rail.right * 0.62 + predictedRight * 0.38
+          : predictedRight;
+      if (right - left < maxWidth * 0.72) {
+        left = predictedLeft;
+        right = predictedRight;
+      }
+      return { ...rail, left, right };
+    });
+  }
+  function validatePortraitStack(items, width, height) {
+    if (items.length !== 3) return false;
+    const dimensions = items.map((item) => quadDimensions(item.quad));
+    if (
+      dimensions.some(
+        (item) =>
+          item.width < width * 0.07 ||
+          item.height < height * 0.055 ||
+          item.width / Math.max(1, item.height) < 0.65 ||
+          item.width / Math.max(1, item.height) > 5.8,
+      )
+    )
+      return false;
+    const widths = dimensions.map((item) => item.width),
+      heights = dimensions.map((item) => item.height),
+      averageWidth = widths.reduce((sum, value) => sum + value, 0) / 3,
+      averageHeight = heights.reduce((sum, value) => sum + value, 0) / 3;
+    if (
+      Math.max(...widths) / Math.max(1, Math.min(...widths)) > 1.65 ||
+      Math.max(...heights) / Math.max(1, Math.min(...heights)) > 1.65
+    )
+      return false;
+    const centers = items.map((item) => quadCenter(item.quad)),
+      centerSpread =
+        Math.max(...centers.map((center) => center.x)) -
+        Math.min(...centers.map((center) => center.x)),
+      gaps = [centers[1].y - centers[0].y, centers[2].y - centers[1].y];
+    return (
+      centerSpread <= averageWidth * 0.35 &&
+      Math.min(...gaps) > averageHeight * 0.55 &&
+      Math.max(...gaps) / Math.max(1, Math.min(...gaps)) < 1.55
+    );
+  }
+  function detectPortraitRailStack(
+    mask,
+    gridWidth,
+    gridHeight,
+    stride,
+    width,
+    height,
+  ) {
+    const sequence = choosePortraitRailSequence(
+      findPortraitRailBands(mask, gridWidth, gridHeight),
+      gridWidth,
+      gridHeight,
+    );
+    if (!sequence) return [];
+    const rails = refinePortraitRails(sequence),
+      toPixel = (x, y) => ({
+        x: clamp((x + 0.5) * stride, 0, width - 1),
+        y: clamp((y + 0.5) * stride, 0, height - 1),
+      }),
+      items = [];
+    for (let lane = 0; lane < 3; lane++)
+      items.push({
+        quad: {
+          tl: toPixel(rails[lane].left, rails[lane].y),
+          tr: toPixel(rails[lane].right, rails[lane].y),
+          bl: toPixel(rails[lane + 1].left, rails[lane + 1].y),
+          br: toPixel(rails[lane + 1].right, rails[lane + 1].y),
+        },
+        score: sequence.score,
+        source: "portrait-rails",
+      });
+    return validatePortraitStack(items, width, height) ? items : [];
+  }
+  function splitPortraitTower(candidate, width, height) {
+    const dimensions = quadDimensions(candidate.quad);
+    if (
+      dimensions.height < dimensions.width * 1.22 ||
+      dimensions.height < height * 0.2
+    )
+      return [];
+    const items = [];
+    for (let lane = 0; lane < 3; lane++) {
+      const top = lane / 3,
+        bottom = (lane + 1) / 3;
+      items.push({
+        quad: {
+          tl: projectQuadPoint(candidate.quad, 0, top),
+          tr: projectQuadPoint(candidate.quad, 1, top),
+          bl: projectQuadPoint(candidate.quad, 0, bottom),
+          br: projectQuadPoint(candidate.quad, 1, bottom),
+        },
+        score: candidate.score * 0.8,
+        source: "portrait-split",
+      });
+    }
+    return validatePortraitStack(items, width, height) ? items : [];
+  }
   function detectCyanComponents(image, width, height) {
     const data = image.data,
       stride = Math.max(2, Math.floor(Math.min(width, height) / 300));
@@ -1764,6 +2055,15 @@
         }
       }
     }
+    const portraitRails = detectPortraitRailStack(
+      mask,
+      gridWidth,
+      gridHeight,
+      stride,
+      width,
+      height,
+    );
+    if (portraitRails.length === 3) return portraitRails;
     const seen = new Uint8Array(mask.length),
       candidates = [];
     const minCount = Math.max(
@@ -1857,6 +2157,10 @@
         selected.push(candidate);
       if (selected.length === 3) break;
     }
+    if (selected.length === 1) {
+      const split = splitPortraitTower(selected[0], width, height);
+      if (split.length === 3) return split;
+    }
     if (selected.length < 3 && points.length > minCount * 3) {
       const clustered = clusterCyanPoints(points, stride, width, height);
       for (const item of clustered) {
@@ -1872,8 +2176,7 @@
     return selected.slice(0, 3);
   }
   function clusterCyanPoints(points, stride, width, height) {
-    const horizontal = width >= height,
-      axis = (point) => (horizontal ? point.x : point.y);
+    const axis = (point) => point.y;
     const values = points.map(axis).sort((a, b) => a - b);
     if (values.length < 60) return [];
     let centers = [
@@ -2626,6 +2929,8 @@
         capabilities.whiteBalanceMode.includes("continuous")
       )
         advanced.whiteBalanceMode = "continuous";
+      if (capabilities.zoom && Number.isFinite(capabilities.zoom.min))
+        advanced.zoom = capabilities.zoom.min;
       if (Object.keys(advanced).length)
         await track.applyConstraints({ advanced: [advanced] });
       flight.record("camera", "track-tuned", { advanced }, 100);
@@ -2696,10 +3001,9 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1080 },
-          height: { ideal: 1920 },
-          aspectRatio: { ideal: 9 / 16 },
-          resizeMode: { ideal: "crop-and-scale" },
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
+          aspectRatio: { ideal: 4 / 3 },
           frameRate: { ideal: 30, min: 15 },
         },
         audio: false,
@@ -2715,7 +3019,7 @@
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "AUTODOCK 3·VERTICAL·BUSCANDO";
+      $("cameraState").textContent = "STACKSCAN V2·BUSCANDO A/B/C";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
@@ -2796,7 +3100,7 @@
     } else if (
       items.length < 3 &&
       app.lastTrackedQuads.length === 3 &&
-      currentTime - app.trackedAt < 1150
+      currentTime - app.trackedAt < 1800
     ) {
       const existing = items.map((item) => item.quad);
       for (const tracked of app.lastTrackedQuads) {
@@ -2831,12 +3135,17 @@
     updateLaneLocks();
     const validItems = items.filter((item) => item.decoded?.packet),
       detected = items.length;
+    const scanStrategy = items.some((item) => item.source === "portrait-rails")
+      ? "STACKSCAN V2"
+      : items.some((item) => item.source === "portrait-split")
+        ? "STACKSPLIT"
+        : "AUTODOCK 3";
     $("cameraState").textContent =
       detected === 3
         ? validItems.length
-          ? "AUTODOCK 3·DECODIFICANDO"
-          : "AUTODOCK 3·GEOMETRÍA 3/3"
-        : `AUTODOCK 3·BUSCANDO ${detected}/3`;
+          ? `${scanStrategy}·DECODIFICANDO`
+          : `${scanStrategy}·GEOMETRÍA 3/3`
+        : `${scanStrategy}·BUSCANDO ${detected}/3`;
     app.scanFrames++;
     if (currentTime - app.scanFpsAt >= 1000) {
       app.scanFps = (app.scanFrames * 1000) / (currentTime - app.scanFpsAt);
@@ -2863,6 +3172,7 @@
           total: app.rx?.sourceCount || 0,
           mode: app.rx?.modeId || null,
           bits: app.rx ? resolveMode(app.rx.modeId).bits : null,
+          scanStrategy,
         },
         average,
       );
@@ -3030,7 +3340,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1202",
+        "./sw.js?v=1203",
         { scope: "./" },
       );
       flight.record(
@@ -3185,6 +3495,10 @@
     symbolsToBytes,
     classifyColorSamples,
     receiverScanDimensions,
+    detectCyanComponents,
+    detectPortraitRailStack,
+    findPortraitRailBands,
+    validatePortraitStack,
     crc32,
   };
   if (document.readyState === "loading")
