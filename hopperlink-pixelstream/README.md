@@ -1,4 +1,4 @@
-# HopperLink ONE · HopperCore 1.2.1
+# HopperLink ONE · HopperCore 1.2.2
 
 HopperLink ONE utiliza un único motor óptico adaptativo con tres cuadrantes apilados en fullscreen vertical. La modulación es seleccionable antes de preparar el archivo y el receptor la detecta automáticamente.
 
@@ -19,6 +19,7 @@ Cada modo conserva los tres lanes físicos. Los 64 pilotos RGB de cada cuadrante
 - **Fullscreen real:** Fullscreen API, Wake Lock y orientación cuando el navegador lo permite.
 - **Geometría constante:** HELLO y DATA mantienen los mismos tres cuadrantes.
 - **AutoDock 3:** detecta, ordena y corrige la perspectiva de los tres marcos cian.
+- **Receiver Portrait 9:16:** solicita cámara 1080×1920, conserva la proporción sin estirar el video y alinea el canvas de AutoDock con la imagen visible.
 - **Color calibration:** genera centroides RGB por lane a partir de cuatro bloques piloto 4×4.
 - **Auto-detección:** antes del lock prueba 2, 3 y 4 bits; después del HELLO mantiene el modo de la sesión.
 - **Fountain Recovery:** systematic + ecuaciones XOR para recuperar bloques perdidos.

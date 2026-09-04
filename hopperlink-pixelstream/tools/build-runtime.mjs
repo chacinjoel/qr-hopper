@@ -9,7 +9,7 @@ const root = path.resolve(here, '..');
 const sourcePath = path.join(root, 'src', 'hopper-one-runtime.js');
 const runtimeDir = path.join(root, 'runtime');
 const manifestPath = path.join(root, 'hopper-one.runtime.json');
-const build = process.env.HOPPER_BUILD || '1201';
+const build = process.env.HOPPER_BUILD || '1202';
 
 const source = fs.readFileSync(sourcePath);
 const text = source.toString('utf8');

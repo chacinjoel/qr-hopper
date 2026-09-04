@@ -1,5 +1,5 @@
 {
-  "name": "HopperLink ONE Color TriFrame",
+  "name": "HopperLink ONE Vertical TriFrame",
   "short_name": "HopperLink",
   "start_url": "./index.html",
   "scope": "./",
@@ -7,5 +7,5 @@
   "orientation": "portrait",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline premium en fullscreen vertical con tres lanes apilados y modulación seleccionable de 2, 3 y 4 bits."
+  "description": "Transferencia offline premium con emisor y receptor verticales, visor de cámara 9:16, tres lanes apilados y modulación de 2, 3 y 4 bits."
 }

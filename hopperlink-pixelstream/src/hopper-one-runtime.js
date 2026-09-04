@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.2.1";
+  const VERSION = "1.2.2";
   const PROTOCOL = 2;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
@@ -2638,6 +2638,45 @@
       );
     }
   }
+  function receiverScanDimensions(video) {
+    const sourceWidth = Math.max(1, Number(video?.videoWidth) || 1080);
+    const sourceHeight = Math.max(1, Number(video?.videoHeight) || 1920);
+    const shortSide = Math.min(sourceWidth, sourceHeight);
+    const longSide = Math.max(sourceWidth, sourceHeight);
+    const scale = Math.min(1, 720 / shortSide, 1280 / longSide);
+    return {
+      width: Math.max(1, Math.round(sourceWidth * scale)),
+      height: Math.max(1, Math.round(sourceHeight * scale)),
+      sourceWidth,
+      sourceHeight,
+      portrait: sourceHeight >= sourceWidth,
+    };
+  }
+  function syncReceiverViewport(video, track) {
+    const geometry = receiverScanDimensions(video);
+    const shell = $("cameraShell");
+    shell.dataset.feedOrientation = geometry.portrait
+      ? "portrait"
+      : "landscape";
+    shell.style.setProperty(
+      "--camera-source-aspect",
+      `${geometry.sourceWidth} / ${geometry.sourceHeight}`,
+    );
+    flight.record(
+      "camera",
+      "portrait-viewport-ready",
+      {
+        sourceWidth: geometry.sourceWidth,
+        sourceHeight: geometry.sourceHeight,
+        scanWidth: geometry.width,
+        scanHeight: geometry.height,
+        portrait: geometry.portrait,
+        settings: track?.getSettings?.() || {},
+      },
+      geometry.portrait ? 100 : 72,
+    );
+    return geometry;
+  }
   async function startCamera() {
     if (app.cameraStream) return;
     switchRole("receive");
@@ -2657,8 +2696,10 @@
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+          aspectRatio: { ideal: 9 / 16 },
+          resizeMode: { ideal: "crop-and-scale" },
           frameRate: { ideal: 30, min: 15 },
         },
         audio: false,
@@ -2668,11 +2709,13 @@
       video.srcObject = stream;
       await video.play();
       await tuneCameraTrack(stream.getVideoTracks()[0]);
+      syncReceiverViewport(video, stream.getVideoTracks()[0]);
+      await acquireWakeLock();
       $("cameraEmpty").style.display = "none";
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "AUTODOCK 3·BUSCANDO";
+      $("cameraState").textContent = "AUTODOCK 3·VERTICAL·BUSCANDO";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
@@ -2700,6 +2743,10 @@
     app.scanRaf = 0;
     for (const track of app.cameraStream?.getTracks?.() || []) track.stop();
     app.cameraStream = null;
+    releaseWakeLock();
+    try {
+      screen.orientation?.unlock?.();
+    } catch {}
     const video = $("cameraVideo");
     video.pause();
     video.srcObject = null;
@@ -2723,10 +2770,7 @@
     app.scanLastAt = timestamp;
     const video = $("cameraVideo");
     if (video.readyState < 2 || !video.videoWidth) return;
-    const maxWidth = 900,
-      scale = Math.min(1, maxWidth / video.videoWidth);
-    const width = Math.max(320, Math.round(video.videoWidth * scale)),
-      height = Math.max(220, Math.round(video.videoHeight * scale));
+    const { width, height } = receiverScanDimensions(video);
     const canvas = $("captureCanvas"),
       ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
     if (canvas.width !== width || canvas.height !== height) {
@@ -2838,6 +2882,7 @@
     const shell = $("cameraShell");
     if (!app.receiverFullscreen) {
       const native = await requestFullscreen(shell);
+      await tryPortraitLock();
       shell.classList.add("receiver-fullscreen");
       app.receiverFullscreen = true;
       $("receiverFullExitBtn").hidden = false;
@@ -2985,7 +3030,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1201",
+        "./sw.js?v=1202",
         { scope: "./" },
       );
       flight.record(
@@ -3139,6 +3184,7 @@
     rawToSymbols,
     symbolsToBytes,
     classifyColorSamples,
+    receiverScanDimensions,
     crc32,
   };
   if (document.readyState === "loading")

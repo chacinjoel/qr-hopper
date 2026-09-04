@@ -25,7 +25,7 @@ vm.createContext(context);
 vm.runInContext(source,context,{timeout:3000});
 const I=context.__hopperLinkOneInternals;
 assert(I,'test internals were not exported');
-assert.strictEqual(I.VERSION,'1.2.1');
+assert.strictEqual(I.VERSION,'1.2.2');
 assert.strictEqual(I.PROTOCOL,2);
 assert.deepStrictEqual(Array.from(I.MODE_ORDER),['robust2','adaptive3','turbo4']);
 assert.strictEqual(I.PILOT_CELL_COUNT,64);
@@ -65,7 +65,7 @@ for(const [modeId,want] of Object.entries(expected)){
 }
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'hopper-one.runtime.json'),'utf8'));
-assert.strictEqual(manifest.build,'1201');
+assert.strictEqual(manifest.build,'1202');
 const encoded=manifest.parts.map(part=>fs.readFileSync(path.join(root,part),'utf8').replace(/\s+/g,'')).join('');
 const runtime=zlib.gunzipSync(Buffer.from(encoded,'base64'));
 assert.strictEqual(runtime.length,manifest.bytes);
@@ -77,7 +77,7 @@ assert(html.includes('id="stageMode"'));
 assert(html.includes('id="rxMode"'));
 assert(!/hps[78]|protocol-selector/i.test(html));
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert(sw.includes('hopperlink-one-v1201'));
+assert(sw.includes('hopperlink-one-v1202'));
 const fullscreenCss=fs.readFileSync(path.join(root,'premium-one-fullscreen.css'),'utf8');
 assert(fullscreenCss.includes('grid-template-columns:1fr!important'));
 assert(fullscreenCss.includes('grid-template-rows:repeat(3,minmax(0,1fr))!important'));
@@ -87,4 +87,16 @@ assert(source.includes('return { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: tr
 const webManifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
 assert.strictEqual(webManifest.orientation,'portrait');
 assert(!html.includes('Gira el teléfono'));
-console.log('HopperLink ONE Color Modes + Portrait Stack: PASS');
+const receiverCss=fs.readFileSync(path.join(root,'premium-one-receiver.css'),'utf8');
+assert(receiverCss.includes('aspect-ratio:9/16'));
+assert(receiverCss.includes('object-fit:contain'));
+assert(receiverCss.includes('width:min(100vw,56.25dvh)'));
+assert(source.includes('width: { ideal: 1080 }'));
+assert(source.includes('height: { ideal: 1920 }'));
+assert(source.includes('aspectRatio: { ideal: 9 / 16 }'));
+const portraitScan=I.receiverScanDimensions({videoWidth:1080,videoHeight:1920});
+assert.strictEqual(portraitScan.width,720);
+assert.strictEqual(portraitScan.height,1280);
+assert.strictEqual(portraitScan.portrait,true);
+assert(html.includes('Vista fullscreen 9:16'));
+console.log('HopperLink ONE Color Modes + Portrait TX/RX: PASS');
