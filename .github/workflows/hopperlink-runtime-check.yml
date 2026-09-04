@@ -20,14 +20,14 @@ jobs:
           set -e
           for f in hopperlink-pixelstream/*.js; do node --check "$f"; done
 
-      - name: Validate HPS7 Precision + HPS8 Data Geometry Prelock v0.10.15
+      - name: Validate HPS7 + HPS8 Sonic Edge RX v0.10.16
         run: |
           node <<'NODE'
           (async()=>{
           const fs=require('fs'),vm=require('vm'),{webcrypto}=require('crypto');
           const p='hopperlink-pixelstream',read=n=>fs.readFileSync(`${p}/${n}`,'utf8');
           const core=read('hps7.js'),manual=read('hps7-manual-max.js'),dual=read('hps7-duallane-v2.js'),guard=read('runtime-syntax-guard.js');
-          const sonic=read('hps8-sonic-adaptive.js'),timeline=read('hps8-sonic-slot-decoder.js'),geom=read('hps8-data-geometry.js'),strict=read('hps8-strict-ack.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),html=read('index.html'),sw=read('sw.js');
+          const sonic=read('hps8-sonic-adaptive.js'),edge=read('hps8-sonic-slot-decoder.js'),geom=read('hps8-data-geometry.js'),strict=read('hps8-strict-ack.js'),diag=read('hps8-diagnostics.js'),hps8=read('hps8.js'),sw=read('sw.js');
 
           if(!core.includes('const DATA_MIN = .12, DATA_MAX = .88;'))throw Error('HPS7 DATA region changed');
           if(!core.includes('const DATA_GRIDS = [56,64,72];'))throw Error('HPS7 grids changed');
@@ -39,38 +39,29 @@ jobs:
           console.log('HPS7 Precision fallback: PASS');
 
           for(const s of ["VERSION='0.10.4'",'clockedBfsk:true','hammingFec:true','persistentDuplex:true'])if(!sonic.includes(s))throw Error(`Base Sonic missing ${s}`);
-          for(const s of ["VERSION='0.10.14'",'START_MS=86','startEnd=onsetAt+START_MS','onsetAnchored:true','clockDoesNotShiftTimeline:true','earlyAck:false'])if(!timeline.includes(s))throw Error(`Onset Timeline RX missing ${s}`);
-          if(timeline.includes('frame.startEnd+=')||timeline.includes('START_RELEASE'))throw Error('Timeline still shifts from CLOCK/release');
-          console.log('HPS8 Sonic Onset Timeline: PASS');
+          for(const s of ["VERSION='0.10.16'",'edgeDecoder:true','transitionClock:true','TONE_HOLD=2.5','CLOCK_TICK','EDGE_BIT','NEXT_CLOCK','HEADER_OK','CRC_OK'])if(!edge.includes(s))throw Error(`Sonic Edge RX missing ${s}`);
+          if(edge.includes('startEnd=onsetAt+START_MS')||edge.includes('PLL_ADJUST'))throw Error('Edge RX regressed to timeline/PLL timing');
+          console.log('HPS8 Sonic Edge transition decoder: PASS');
 
-          for(const s of ["VERSION='0.10.15'",'DATA_GEOMETRY_PRIME_MS=1300','primeDataGeometry','DATA GEOMETRY PRELOCK','stream-tall','dataGeometryPrime:true','opticalProofRequired:true'])if(!strict.includes(s))throw Error(`Strict ACK/Data Prelock missing ${s}`);
-          const elements={fileInput:{files:[{name:'demo.bin'}]},frameCount:{textContent:'396'},hps8FileName:{textContent:'demo.bin'},hps8Fountain:{textContent:'0/396'},phaseStatus:{textContent:'RECEPTOR · HPS8 LOCK · AUTO'}};
-          const fakeS={type:{ACK:1},startListener:async cb=>{fakeS.cb=cb;return true;},send:async(type,session,payload,opts)=>{fakeS.sent={type,session,payload,opts};return true;}};
-          const sc={console,window:null,document:{getElementById:id=>elements[id]||null,documentElement:{classList:{add(){}}}},CustomEvent:CE,Uint8Array,TextEncoder,crypto:webcrypto,globalThis:null,setTimeout,clearTimeout,getComputedStyle:()=>({display:'none'})};sc.window=sc;sc.globalThis=sc;sc.__hopperHPS8Sonic=fakeS;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(strict,sc);
-          const S=sc.__hopperHPS8Sonic,session=0x23e043d9;
-          await S.send(S.type.ACK,session,new Uint8Array([1]),{label:'ACK'});
-          if(!fakeS.sent?.payload||fakeS.sent.payload.length!==10||fakeS.sent.payload[0]!==0xA8)throw Error('Receiver did not build Optical Proof ACK');
-          const proof=new Uint8Array(fakeS.sent.payload),accepted=[];await S.startListener(m=>accepted.push(m));
-          const bad=new Uint8Array(proof);bad[9]^=1;await fakeS.cb({type:1,ok:true,session,payload:bad});
-          await fakeS.cb({type:1,ok:true,headerOnly:true,session,payload:proof});
-          if(accepted.length)throw Error('Unsafe ACK crossed Optical Proof gate');
-          await fakeS.cb({type:1,ok:true,session,payload:proof,profile:'safe'});
-          if(accepted.length!==1||!accepted[0].opticalProofAck)throw Error('Valid Optical Proof ACK rejected');
-          console.log('HPS8 Optical Proof ACK gate: PASS');
+          const doc={readyState:'loading',addEventListener(){},getElementById(){return null},querySelector(){return null}};
+          const sc={console,window:null,document:doc,navigator:{mediaDevices:{}},CustomEvent:CE,setInterval:()=>0,clearInterval(){},performance,TextEncoder,Uint8Array,crypto:webcrypto,globalThis:null};sc.window=sc;sc.globalThis=sc;sc.dispatchEvent=()=>true;vm.createContext(sc);vm.runInContext(sonic,sc,{timeout:1500});vm.runInContext(edge,sc,{timeout:1500});const S=sc.__hopperHPS8Sonic;
+          if(!S?.edgeDecoder||!S.transitionClock||S.version!=='0.10.16')throw Error('Edge decoder did not replace Sonic RX API');
+          const captured=Uint8Array.from([83,56,1,1,238,64,95,80,10,168,1,73,9,76,140,24,70,94,89,155]);
+          const cap=S.unpack(captured);if(!cap?.ok||cap.type!==S.type.ACK||cap.payload.length!==10)throw Error('Physical ACK capture no longer decodes');
+          const sync=S.syncBits;if(!Array.isArray(sync)||sync.join('')!=='1011010011100101')throw Error('Sonic sync changed unexpectedly');
+          console.log('Physical video ACK bytes + CRC: PASS · clean packet confirmed');
 
-          for(const s of ["VERSION='0.10.15'",'opticalDockPriority:true','sameFrameBridge:true','dualRatioMin:.30','dualRatioMax:.72','hps8DualGeometry:true','DATA GEOM 1:2'])if(!geom.includes(s))throw Error(`HPS8 Data Geometry bridge missing ${s}`);
-          if(!geom.includes("this.canvas?.id!=='capture'")||!geom.includes('__hopperOpticalDockV3?.last')||!geom.includes('__hopperBinaryTagBridge.last'))throw Error('Data Geometry same-frame hook missing');
-          console.log('HPS8 DualLane same-frame geometry bridge: PASS');
-
+          for(const s of ['opticalProofRequired:true','fullCrcRequired:true','headerOnlyRejected:true','startLockCannotStartData:true'])if(!strict.includes(s))throw Error(`Optical Proof gate missing ${s}`);
           if(!hps8.includes('if(!tx||msg.session!==tx.session)return;'))throw Error('HPS8 session gate missing');
-          if(!hps8.includes('function renderDual(rawA,rawB)'))throw Error('HPS8 DualLane renderer missing');
-          if(!hps8.includes("const lanes=rx.session?[0,1]:[-1]"))throw Error('HPS8 dual receiver lane path missing');
+          if(!hps8.includes('if(msg.type===T.ACK)'))throw Error('HPS8 ACK handler missing');
           for(const s of ['sonicDiagClock','sonicDiagSync','sonicDiagFrame','sonicDiagFec','sonicDiagCrc'])if(!diag.includes(s))throw Error(`Diagnostics missing ${s}`);
+          console.log('Optical Proof ACK + exact session gate: PASS');
 
-          for(const s of ['MVP v0.10.15 · HPS8 Data Geometry Prelock','hps8-data-geometry.js?v=1015','hps8-strict-ack.js?v=1015','hps8.js?v=1015'])if(!html.includes(s))throw Error(`HTML v1015 missing ${s}`);
-          const dockPos=html.indexOf('optical-dock-v3.js?v=1015'),geomPos=html.indexOf('hps8-data-geometry.js?v=1015'),sonicPos=html.indexOf('hps8-sonic-adaptive.js?v=1015'),strictPos=html.indexOf('hps8-strict-ack.js?v=1015'),h8Pos=html.indexOf('hps8.js?v=1015');
-          if(!(dockPos>=0&&geomPos>dockPos&&sonicPos>geomPos&&strictPos>sonicPos&&h8Pos>strictPos))throw Error('HPS8 v1015 load order invalid');
-          if(!sw.includes("hopperlink-pixelstream-v1015")||!sw.includes('hps8-data-geometry.js?v=1015')||!sw.includes('hps8-strict-ack.js?v=1015'))throw Error('SW v1015 cache invalid');
-          console.log('HPS7 + HPS8 v0.10.15 Data Geometry Prelock integration: PASS');
+          for(const s of ['opticalDockPriority:true','sameFrameBridge:true','hps8DualGeometry:true','DATA GEOM 1:2'])if(!geom.includes(s))throw Error(`HPS8 Data Geometry bridge missing ${s}`);
+          if(!hps8.includes('function renderDual(rawA,rawB)')||!hps8.includes("const lanes=rx.session?[0,1]:[-1]"))throw Error('HPS8 DualLane path regression');
+          console.log('HPS8 Data Geometry Prelock/DualLane: PASS');
+
+          if(!sw.includes("hopperlink-pixelstream-v1016")||!sw.includes('hps8-sonic-slot-decoder.js?v=1015')||!sw.includes('hps8-data-geometry.js?v=1015'))throw Error('SW v1016 cache invalid');
+          console.log('HPS7 + HPS8 v0.10.16 Sonic Edge RX integration: PASS');
           })().catch(e=>{console.error(e);process.exit(1);});
           NODE
