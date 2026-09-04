@@ -25,9 +25,9 @@ jobs:
           node --check hopperlink-pixelstream/hopper-one.js
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Rebuild deterministic portrait runtime
-        run: HOPPER_BUILD=1201 node hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Validate color modes and portrait stack
+      - name: Rebuild deterministic portrait TX/RX runtime
+        run: HOPPER_BUILD=1202 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Validate color modes and portrait transmitter/receiver
         run: node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
       - name: Ensure generated files are committed
         run: git diff --exit-code -- hopperlink-pixelstream/hopper-one.runtime.json hopperlink-pixelstream/runtime
