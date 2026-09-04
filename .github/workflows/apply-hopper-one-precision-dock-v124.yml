@@ -1,0 +1,247 @@
+name: Apply HopperLink ONE Precision Dock 1.2.4
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-hopper-one-precision-dock-v124.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply Precision Dock scanner
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          root=Path('hopperlink-pixelstream')
+          src=root/'src'/'hopper-one-runtime.js'
+          s=src.read_text(encoding='utf-8')
+          s=s.replace('const VERSION = "1.2.3";', 'const VERSION = "1.2.4";')
+          marker='  function detectCyanComponents(image, width, height) {'
+          if marker not in s:
+              raise SystemExit('detectCyanComponents marker missing')
+          precision=r'''  function isPrecisionWhitePixel(data, offset) {
+    const r = data[offset],
+      g = data[offset + 1],
+      b = data[offset + 2],
+      hi = Math.max(r, g, b),
+      lo = Math.min(r, g, b),
+      luma = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    return luma >= 202 && hi - lo <= 42;
+  }
+  function detectPrecisionFrameRings(image, width, height) {
+    const data = image.data,
+      stride = Math.max(2, Math.floor(Math.min(width, height) / 340)),
+      gridWidth = Math.ceil(width / stride),
+      gridHeight = Math.ceil(height / stride),
+      mask = new Uint8Array(gridWidth * gridHeight);
+    for (let gy = 0; gy < gridHeight; gy++) {
+      const y = Math.min(height - 1, gy * stride + (stride >> 1));
+      for (let gx = 0; gx < gridWidth; gx++) {
+        const x = Math.min(width - 1, gx * stride + (stride >> 1));
+        if (isPrecisionWhitePixel(data, (y * width + x) * 4))
+          mask[gy * gridWidth + gx] = 1;
+      }
+    }
+    const seen = new Uint8Array(mask.length),
+      candidates = [];
+    for (let start = 0; start < mask.length; start++) {
+      if (!mask[start] || seen[start]) continue;
+      const stack = [start];
+      seen[start] = 1;
+      let count = 0,
+        minX = Infinity,
+        minY = Infinity,
+        maxX = -1,
+        maxY = -1,
+        minSum = Infinity,
+        maxSum = -Infinity,
+        minDiff = Infinity,
+        maxDiff = -Infinity,
+        tl = null,
+        tr = null,
+        bl = null,
+        br = null;
+      while (stack.length) {
+        const cur = stack.pop(),
+          cy = Math.floor(cur / gridWidth),
+          cx = cur - cy * gridWidth;
+        count++;
+        minX = Math.min(minX, cx);
+        maxX = Math.max(maxX, cx);
+        minY = Math.min(minY, cy);
+        maxY = Math.max(maxY, cy);
+        const sum = cx + cy,
+          diff = cx - cy;
+        if (sum < minSum) {
+          minSum = sum;
+          tl = { x: cx, y: cy };
+        }
+        if (sum > maxSum) {
+          maxSum = sum;
+          br = { x: cx, y: cy };
+        }
+        if (diff > maxDiff) {
+          maxDiff = diff;
+          tr = { x: cx, y: cy };
+        }
+        if (diff < minDiff) {
+          minDiff = diff;
+          bl = { x: cx, y: cy };
+        }
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const nx = cx + dx,
+              ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight)
+              continue;
+            const ni = ny * gridWidth + nx;
+            if (mask[ni] && !seen[ni]) {
+              seen[ni] = 1;
+              stack.push(ni);
+            }
+          }
+      }
+      if (!tl || !tr || !bl || !br || count < 24) continue;
+      const cellW = maxX - minX + 1,
+        cellH = maxY - minY + 1,
+        bw = cellW * stride,
+        bh = cellH * stride,
+        ratio = bw / Math.max(1, bh),
+        fill = count / Math.max(1, cellW * cellH);
+      if (
+        bw < width * 0.14 ||
+        bh < height * 0.065 ||
+        ratio < 1.08 ||
+        ratio > 4.2 ||
+        fill < 0.012 ||
+        fill > 0.34
+      )
+        continue;
+      const perimeterCells = Math.max(1, 2 * (cellW + cellH));
+      if (count < perimeterCells * 0.2) continue;
+      let quad = componentToQuad({ tl, tr, bl, br }, stride, width, height);
+      quad = insetQuad(quad, 0.034);
+      candidates.push({
+        quad,
+        score: bw * bh * (0.45 + Math.min(0.55, count / perimeterCells)),
+        source: "precision-ring",
+      });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    const selected = [];
+    for (const candidate of candidates) {
+      if (selected.every((item) => overlapRatio(item.quad, candidate.quad) < 0.34))
+        selected.push(candidate);
+      if (selected.length === 3) break;
+    }
+    const ordered = orderQuads(selected);
+    return validatePortraitStack(ordered, width, height) ? ordered : [];
+  }
+'''
+          s=s.replace(marker, precision+marker, 1)
+          old='''  function detectCyanComponents(image, width, height) {\n    const data = image.data,'''
+          new='''  function detectCyanComponents(image, width, height) {\n    const precisionFrames = detectPrecisionFrameRings(image, width, height);\n    if (precisionFrames.length === 3) return precisionFrames;\n    const data = image.data,'''
+          if old not in s:
+              raise SystemExit('detectCyanComponents body marker missing')
+          s=s.replace(old,new,1)
+          s=s.replace('$("cameraState").textContent = "STACKSCAN V2·BUSCANDO A/B/C";', '$("cameraState").textContent = "PRECISION DOCK·BUSCANDO A/B/C";')
+          old_strategy='''    const scanStrategy = items.some((item) => item.source === "portrait-rails")\n      ? "STACKSCAN V2"\n      : items.some((item) => item.source === "portrait-split")\n        ? "STACKSPLIT"\n        : "AUTODOCK 3";'''
+          new_strategy='''    const scanStrategy = items.some((item) => item.source === "precision-ring")\n      ? "PRECISION DOCK"\n      : items.some((item) => item.source === "portrait-rails")\n        ? "STACKSCAN V2"\n        : items.some((item) => item.source === "portrait-split")\n          ? "STACKSPLIT"\n          : "AUTODOCK 3";'''
+          if old_strategy not in s:
+              raise SystemExit('scan strategy marker missing')
+          s=s.replace(old_strategy,new_strategy,1)
+          s=s.replace('`AutoDock 3 detectará ${resolveMode(app.tx.modeId).symbols} colores por lane sin encuadre manual.`;', '`Precision Dock localizará primero la geometría en blanco/negro y luego detectará automáticamente ${resolveMode(app.tx.modeId).bits} bits por celda.`;')
+          s=s.replace('"./sw.js?v=1203"', '"./sw.js?v=1204"')
+          s=s.replace('        autoDock3: true,', '        precisionDock: true,\n        autoDock3: true,')
+          s=s.replace('    detectCyanComponents,\n    detectPortraitRailStack,', '    detectCyanComponents,\n    detectPrecisionFrameRings,\n    detectPortraitRailStack,')
+          src.write_text(s,encoding='utf-8')
+
+          css=root/'premium-one-fullscreen.css'
+          c=css.read_text(encoding='utf-8')
+          c=c.replace('grid-template-rows:repeat(3,minmax(0,1fr));gap:6px;', 'grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;')
+          old_frame='''  border:clamp(5px,.72vmin,10px) solid #00eaff;\n  outline:clamp(3px,.42vmin,6px) solid #fff;\n  outline-offset:calc(clamp(3px,.42vmin,6px) * -2);\n  background:#0a0a0a;\n  box-shadow:0 0 0 2px #050505,0 0 28px rgba(0,234,255,.25),inset 0 0 0 2px #050505;'''
+          new_frame='''  border:clamp(6px,.78vmin,10px) solid #050505;\n  outline:none;\n  background:#0a0a0a;\n  box-shadow:inset 0 0 0 clamp(3px,.42vmin,6px) #00eaff,0 0 0 3px #fff,0 0 0 5px #050505,0 0 28px rgba(0,234,255,.22);'''
+          if old_frame not in c:
+              raise SystemExit('optical-frame CSS marker missing')
+          c=c.replace(old_frame,new_frame,1)
+          c=c.replace('.transmission-stage.data-live .triframe-grid{padding:2px;gap:3px}', '.transmission-stage.data-live .triframe-grid{padding:5px;gap:9px}')
+          c=c.replace('.transmission-stage.data-live .optical-frame{border-width:clamp(4px,.55vmin,8px);outline-width:2px}', '.transmission-stage.data-live .optical-frame{border-width:clamp(5px,.62vmin,8px)}')
+          c+='''\n\n/* Precision Dock 1.2.4 · HPS7/HPS8-inspired monochrome acquisition ring */\n.optical-frame{isolation:isolate}\n'''
+          css.write_text(c,encoding='utf-8')
+
+          idx=root/'index.html'
+          h=idx.read_text(encoding='utf-8')
+          h=h.replace('HopperCore 1.2.3 · StackScan V2', 'HopperCore 1.2.4 · Precision Dock')
+          h=h.replace('StackScan V2 detecta los cuatro rieles y separa automáticamente A/B/C', 'Precision Dock detecta A/B/C por geometría monocroma antes de leer la modulación')
+          h=h.replace('Incluye completa la torre A/B/C dentro de la guía. El visor recorta los lados para verla más grande.', 'Incluye completa la torre A/B/C. Los marcos blanco/negro se detectan primero; el color se interpreta después.')
+          h=h.replace('Vista fullscreen 2:3', 'Vista fullscreen 2:3')
+          h=h.replace('hopper-one.js?v=1203', 'hopper-one.js?v=1204')
+          idx.write_text(h,encoding='utf-8')
+
+          readme=root/'README.md'
+          r=readme.read_text(encoding='utf-8').replace('# HopperLink ONE · HopperCore 1.2.3', '# HopperLink ONE · HopperCore 1.2.4')
+          r=r.replace('- **StackScan V2:** detecta cuatro rieles horizontales, compensa cambios de color hacia verde/amarillo, separa una torre visualmente fusionada en A/B/C y mantiene un fallback por componentes.', '- **Precision Dock:** recupera la estrategia robusta de HPS7/HPS8: primero adquiere tres marcos mediante anillos monocromos de alto contraste, independientes de la modulación y del balance de blancos; después decodifica color. StackScan/AutoDock quedan como fallback.')
+          readme.write_text(r,encoding='utf-8')
+
+          sw=root/'sw.js'
+          w=sw.read_text(encoding='utf-8').replace('hopperlink-one-v1203','hopperlink-one-v1204')
+          sw.write_text(w,encoding='utf-8')
+
+          test=root/'tests'/'hopper-one-color-modes.test.cjs'
+          t=test.read_text(encoding='utf-8')
+          t=t.replace("assert.strictEqual(I.VERSION,'1.2.3');", "assert.strictEqual(I.VERSION,'1.2.4');")
+          t=t.replace("assert.strictEqual(manifest.build,'1203');", "assert.strictEqual(manifest.build,'1204');")
+          t=t.replace("assert(sw.includes('hopperlink-one-v1203'));", "assert(sw.includes('hopperlink-one-v1204'));")
+          insert="""
+function makePrecisionRingFixture(width=720,height=1280){
+  const data=new Uint8ClampedArray(width*height*4);
+  for(let p=0;p<data.length;p+=4){data[p]=12;data[p+1]=14;data[p+2]=16;data[p+3]=255;}
+  const put=(x,y,v=244)=>{if(x<0||y<0||x>=width||y>=height)return;const p=(y*width+x)*4;data[p]=v;data[p+1]=v;data[p+2]=v;};
+  const ring=(x1,y1,x2,y2)=>{for(let k=0;k<5;k++){for(let x=x1;x<=x2;x++){put(x,y1+k);put(x,y2-k);}for(let y=y1;y<=y2;y++){put(x1+k,y);put(x2-k,y);}}};
+  ring(120,70,600,390);ring(116,475,604,795);ring(112,880,608,1200);
+  return {data,width,height};
+}
+const precisionItems=I.detectPrecisionFrameRings(makePrecisionRingFixture(),720,1280);
+assert.strictEqual(precisionItems.length,3,'Precision Dock detects three monochrome lane rings');
+assert(precisionItems.every(item=>item.source==='precision-ring'),'Precision Dock strategy selected');
+"""
+          anchor="function makeStackScanFixture(width=1280,height=720){"
+          if insert.strip() not in t:
+              if anchor not in t: raise SystemExit('test anchor missing')
+              t=t.replace(anchor,insert+'\n'+anchor,1)
+          t=t.replace("console.log('HopperLink ONE Color Modes + StackScan V2: PASS');", "console.log('HopperLink ONE Color Modes + Precision Dock: PASS');")
+          test.write_text(t,encoding='utf-8')
+          print('Precision Dock 1.2.4 patch applied')
+          PY
+      - name: Format runtime
+        run: npx --yes prettier@3.6.2 --write hopperlink-pixelstream/src/hopper-one-runtime.js
+      - name: Build runtime
+        run: HOPPER_BUILD=1204 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Validate
+        run: |
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node --check hopperlink-pixelstream/hopper-one.js
+          node --check hopperlink-pixelstream/sw.js
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+      - name: Publish application files
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: restore HPS7-style precision optical acquisition in HopperLink ONE'
+          git push
