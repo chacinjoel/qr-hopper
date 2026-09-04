@@ -38,18 +38,17 @@ jobs:
 
           runtime = root / 'src' / 'hopper-one-runtime.js'
           replace_one(runtime, 'const VERSION = "1.2.0";', 'const VERSION = "1.2.1";')
-          replace_one(
-              runtime,
-              '''  function activeGrid() {
-            const portrait = window.innerHeight > window.innerWidth;
-            return portrait
-              ? { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: true }
-              : { cols: SHORT_SIDE, rows: LONG_SIDE, portrait: false };
-          }''',
-              '''  function activeGrid() {
+          runtime_text = runtime.read_text(encoding='utf-8')
+          start = runtime_text.find('  function activeGrid() {')
+          end = runtime_text.find('\n  function pilotEntries(', start)
+          if start < 0 or end < 0:
+              raise RuntimeError('activeGrid function boundaries not found')
+          runtime_text = runtime_text[:start] + '''  function activeGrid() {
             return { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: true };
-          }'''
-          )
+          }
+          ''' + runtime_text[end + 1:]
+          runtime.write_text(runtime_text, encoding='utf-8')
+
           replace_one(runtime, 'async function tryLandscapeLock()', 'async function tryPortraitLock()')
           replace_one(runtime, 'screen.orientation.lock("landscape")', 'screen.orientation.lock("portrait")')
           replace_one(runtime, '{ orientation: "landscape" }', '{ orientation: "portrait" }')
