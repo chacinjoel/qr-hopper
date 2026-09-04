@@ -127,3 +127,9 @@ html.triframe-open .app-shell{visibility:hidden;pointer-events:none}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+/* Color Modes v1.2 */
+.stage-status{flex-wrap:wrap}
+.transmission-stage[data-optical-mode="turbo4"] .optical-frame{box-shadow:0 0 0 2px #050505,0 0 30px rgba(167,139,250,.28),inset 0 0 0 2px #050505}
+@media(orientation:landscape) and (max-height:520px){.stage-status span{padding:4px 6px;font-size:7px}}

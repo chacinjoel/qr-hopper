@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const MANIFEST='./hopper-one.runtime.json?v=1101';
+const MANIFEST='./hopper-one.runtime.json?v=1200';
 const fatal=error=>{
   console.error('HopperLink ONE boot failed',error);
   const host=document.getElementById('engineStatus');
@@ -38,6 +38,6 @@ const gunzip=async bytes=>{
   if(actual&&actual!==manifest.sha256)throw new Error('Runtime SHA-256 mismatch');
   const source=new TextDecoder().decode(sourceBytes);
   if(source.length!==manifest.length)throw new Error(`Runtime length ${source.length} != ${manifest.length}`);
-  (0,eval)(source+'\n//# sourceURL=hopper-one-runtime-v1101.js');
+  (0,eval)(source+'\n//# sourceURL=hopper-one-runtime-v1200.js');
 })().catch(fatal);
 })();

@@ -1,14 +1,14 @@
-const CACHE='hopperlink-one-v1101';
+const CACHE='hopperlink-one-v1200';
 const ASSETS=[
   './',
   './index.html',
-  './premium-one.css?v=1101',
-  './premium-one-receiver.css?v=1101',
-  './premium-one-fullscreen.css?v=1101',
-  './hopper-one.js?v=1101',
-  './hopper-one.runtime.json?v=1101',
-  './runtime/hopper-one.bundle-01.txt?v=1101',
-  './runtime/hopper-one.bundle-02.txt?v=1101',
+  './premium-one.css?v=1200',
+  './premium-one-receiver.css?v=1200',
+  './premium-one-fullscreen.css?v=1200',
+  './hopper-one.js?v=1200',
+  './hopper-one.runtime.json?v=1200',
+  './runtime/hopper-one.bundle-01.txt?v=1200',
+  './runtime/hopper-one.bundle-02.txt?v=1200',
   './manifest.json'
 ];
 

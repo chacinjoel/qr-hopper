@@ -1,19 +1,129 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.1.0";
-  const PROTOCOL = 1;
+  const VERSION = "1.2.0";
+  const PROTOCOL = 2;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
   const HEADER_BYTES = 36;
   const SHORT_SIDE = 36;
   const LONG_SIDE = 60;
-  const BITS_PER_CELL = 2;
-  const CHUNK_BYTES = 480;
-  const PILOT_VALUES = Object.freeze([
-    0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3,
-  ]);
-  const OPTICAL_LEVELS = Object.freeze([20, 91, 164, 239]);
+  const PILOT_SIDE = 4;
+  const PILOT_CELL_COUNT = PILOT_SIDE * PILOT_SIDE * 4;
+  const DEFAULT_MODE = "adaptive3";
+  const MODE_ORDER = Object.freeze(["robust2", "adaptive3", "turbo4"]);
+  const MODE_DEFINITIONS = Object.freeze({
+    robust2: Object.freeze({
+      id: "robust2",
+      code: 2,
+      bits: 2,
+      symbols: 4,
+      chunkBytes: 480,
+      label: "Robusto 2-bit",
+      shortLabel: "ROBUSTO",
+      description:
+        "Máxima tolerancia a distancia, reflejos y exposición irregular.",
+      minFps: 8,
+      maxFps: 12,
+      defaultFps: 10,
+      minPilotSeparation: 24,
+      palette: Object.freeze([
+        Object.freeze([18, 18, 18]),
+        Object.freeze([88, 88, 88]),
+        Object.freeze([166, 166, 166]),
+        Object.freeze([240, 240, 240]),
+      ]),
+    }),
+    adaptive3: Object.freeze({
+      id: "adaptive3",
+      code: 3,
+      bits: 3,
+      symbols: 8,
+      chunkBytes: 736,
+      label: "Color Adaptativo 3-bit",
+      shortLabel: "COLOR 3-BIT",
+      description: "Equilibrio premium entre velocidad, color y estabilidad.",
+      minFps: 8,
+      maxFps: 12,
+      defaultFps: 9,
+      minPilotSeparation: 28,
+      palette: Object.freeze([
+        Object.freeze([22, 22, 22]),
+        Object.freeze([236, 236, 236]),
+        Object.freeze([228, 48, 48]),
+        Object.freeze([44, 204, 70]),
+        Object.freeze([48, 72, 226]),
+        Object.freeze([236, 190, 34]),
+        Object.freeze([204, 52, 184]),
+        Object.freeze([234, 108, 34]),
+      ]),
+    }),
+    turbo4: Object.freeze({
+      id: "turbo4",
+      code: 4,
+      bits: 4,
+      symbols: 16,
+      chunkBytes: 1000,
+      label: "Color Turbo 4-bit",
+      shortLabel: "COLOR TURBO",
+      description:
+        "Máxima densidad para pantallas brillantes y cámaras cercanas.",
+      minFps: 8,
+      maxFps: 12,
+      defaultFps: 8,
+      minPilotSeparation: 18,
+      palette: Object.freeze([
+        Object.freeze([16, 16, 16]),
+        Object.freeze([76, 76, 76]),
+        Object.freeze([158, 158, 158]),
+        Object.freeze([242, 242, 242]),
+        Object.freeze([224, 42, 42]),
+        Object.freeze([118, 24, 24]),
+        Object.freeze([244, 126, 32]),
+        Object.freeze([122, 62, 18]),
+        Object.freeze([230, 208, 32]),
+        Object.freeze([112, 102, 18]),
+        Object.freeze([42, 206, 66]),
+        Object.freeze([20, 106, 38]),
+        Object.freeze([50, 78, 228]),
+        Object.freeze([24, 40, 118]),
+        Object.freeze([208, 48, 188]),
+        Object.freeze([106, 24, 96]),
+      ]),
+    }),
+  });
+  function modeByBits(bits) {
+    return (
+      MODE_ORDER.map((id) => MODE_DEFINITIONS[id]).find(
+        (mode) => mode.bits === Number(bits),
+      ) || null
+    );
+  }
+  function resolveMode(input = DEFAULT_MODE) {
+    if (input && typeof input === "object" && input.id)
+      return MODE_DEFINITIONS[input.id] || MODE_DEFINITIONS[DEFAULT_MODE];
+    if (typeof input === "number")
+      return modeByBits(input) || MODE_DEFINITIONS[DEFAULT_MODE];
+    return MODE_DEFINITIONS[input] || MODE_DEFINITIONS[DEFAULT_MODE];
+  }
+  function loadModePreference() {
+    try {
+      const stored = localStorage.getItem("hopperlink-one-optical-mode");
+      return MODE_DEFINITIONS[stored] ? stored : DEFAULT_MODE;
+    } catch {
+      return DEFAULT_MODE;
+    }
+  }
+  function activeMode() {
+    return resolveMode(app.modeId);
+  }
+  function theoreticalRange(modeInput, lanes = 3) {
+    const mode = resolveMode(modeInput);
+    return {
+      minKib: (mode.chunkBytes * lanes * mode.minFps) / 1024,
+      maxKib: (mode.chunkBytes * lanes * mode.maxFps) / 1024,
+    };
+  }
   const MAX_FLIGHT_EVENTS = 5000;
   const encoder = new TextEncoder();
   const decoderText = new TextDecoder();
@@ -23,6 +133,8 @@
   const nowIso = () => new Date().toISOString();
   const app = {
     role: "send",
+    modeId: loadModePreference(),
+    rxModeId: null,
     phase: "IDLE",
     selectedFile: null,
     tx: null,
@@ -43,6 +155,7 @@
     recentQuality: [],
     detection: { locks: [0, 0, 0], valid: 0, rejected: 0, lastMetricAt: 0 },
     currentLanePackets: [null, null, null],
+    currentLaneModes: [DEFAULT_MODE, DEFAULT_MODE, DEFAULT_MODE],
     renderScheduled: false,
   };
   function formatBytes(bytes) {
@@ -168,35 +281,33 @@
       ? { cols: LONG_SIDE, rows: SHORT_SIDE, portrait: true }
       : { cols: SHORT_SIDE, rows: LONG_SIDE, portrait: false };
   }
-  function pilotEntries(cols, rows) {
-    const last = (rows - 1) * cols;
-    const positions = [
-      0,
-      1,
-      2,
-      3,
-      cols - 4,
-      cols - 3,
-      cols - 2,
-      cols - 1,
-      last,
-      last + 1,
-      last + 2,
-      last + 3,
-      last + cols - 4,
-      last + cols - 3,
-      last + cols - 2,
-      last + cols - 1,
+  function pilotEntries(cols, rows, modeInput = DEFAULT_MODE) {
+    const mode = resolveMode(modeInput);
+    const anchors = [
+      [0, 0],
+      [cols - PILOT_SIDE, 0],
+      [0, rows - PILOT_SIDE],
+      [cols - PILOT_SIDE, rows - PILOT_SIDE],
     ];
-    return positions.map((position, index) => [position, PILOT_VALUES[index]]);
+    const entries = [];
+    for (const [originX, originY] of anchors)
+      for (let y = 0; y < PILOT_SIDE; y++)
+        for (let x = 0; x < PILOT_SIDE; x++) {
+          const symbol = (y * PILOT_SIDE + x) % mode.symbols;
+          entries.push([(originY + y) * cols + originX + x, symbol]);
+        }
+    return entries;
   }
-  function opticalRawCapacity(cols, rows) {
-    return Math.floor(
-      ((cols * rows - PILOT_VALUES.length) * BITS_PER_CELL) / 8,
-    );
+  function opticalRawCapacity(cols, rows, modeInput = DEFAULT_MODE) {
+    const mode = resolveMode(modeInput);
+    return Math.floor(((cols * rows - PILOT_CELL_COUNT) * mode.bits) / 8);
   }
-  function packetPayloadCapacity(cols = SHORT_SIDE, rows = LONG_SIDE) {
-    return opticalRawCapacity(cols, rows) - HEADER_BYTES;
+  function packetPayloadCapacity(
+    modeInput = DEFAULT_MODE,
+    cols = SHORT_SIDE,
+    rows = LONG_SIDE,
+  ) {
+    return opticalRawCapacity(cols, rows, modeInput) - HEADER_BYTES;
   }
   function makePacket({
     type,
@@ -204,41 +315,50 @@
     session,
     sequence,
     sourceCount,
-    chunkSize = CHUNK_BYTES,
+    chunkSize = null,
     symbol = 0,
     aux = 0,
     payload = new Uint8Array(0),
     flags = 0,
+    mode = activeMode(),
   }) {
+    const selectedMode = resolveMode(mode);
+    const effectiveChunkSize = chunkSize ?? selectedMode.chunkBytes;
     payload = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
-    const max = packetPayloadCapacity();
+    const max = packetPayloadCapacity(selectedMode);
     if (payload.length > max)
-      throw new Error(`Payload ${payload.length}excede ${max}`);
+      throw new Error(
+        `Payload ${payload.length} excede ${max} en ${selectedMode.label}`,
+      );
     const header = new Uint8Array(HEADER_BYTES);
     header.set(MAGIC, 0);
     header[4] = PROTOCOL;
     header[5] = type;
     header[6] = lane & 3;
-    header[7] = flags & 255;
+    header[7] = (flags & 0xf0) | selectedMode.bits;
     writeU32(header, 8, session >>> 0);
     writeU32(header, 12, sequence >>> 0);
     writeU32(header, 16, sourceCount >>> 0);
-    writeU16(header, 20, chunkSize >>> 0);
+    writeU16(header, 20, effectiveChunkSize >>> 0);
     writeU16(header, 22, payload.length);
     writeU32(header, 24, symbol >>> 0);
     writeU32(header, 28, aux >>> 0);
     writeU32(header, 32, crc32(concatBytes(header.slice(0, 32), payload)));
     return concatBytes(header, payload);
   }
-  function parsePacket(bytes) {
+  function parsePacket(bytes, expectedModeInput = null) {
     if (!bytes || bytes.length < HEADER_BYTES) return null;
     for (let i = 0; i < MAGIC.length; i++)
       if (bytes[i] !== MAGIC[i]) return null;
     if (bytes[4] !== PROTOCOL) return null;
     const type = bytes[5],
       lane = bytes[6],
-      flags = bytes[7];
-    if (!Object.values(TYPE).includes(type) || lane > 2) return null;
+      flags = bytes[7],
+      bits = flags & 0x0f,
+      mode = modeByBits(bits);
+    if (!mode || !Object.values(TYPE).includes(type) || lane > 2) return null;
+    if (expectedModeInput && resolveMode(expectedModeInput).id !== mode.id)
+      return null;
     const session = readU32(bytes, 8),
       sequence = readU32(bytes, 12),
       sourceCount = readU32(bytes, 16);
@@ -251,14 +371,25 @@
       !session ||
       !sourceCount ||
       !chunkSize ||
-      payloadLength > packetPayloadCapacity() ||
+      chunkSize > mode.chunkBytes ||
+      payloadLength > packetPayloadCapacity(mode) ||
       HEADER_BYTES + payloadLength > bytes.length
     )
       return null;
     const payload = bytes.slice(HEADER_BYTES, HEADER_BYTES + payloadLength);
     const actual = crc32(concatBytes(bytes.slice(0, 32), payload));
     if (actual !== expected)
-      return { bad: true, type, lane, session, sequence, expected, actual };
+      return {
+        bad: true,
+        type,
+        lane,
+        session,
+        sequence,
+        expected,
+        actual,
+        modeId: mode.id,
+        bits: mode.bits,
+      };
     return {
       type,
       lane,
@@ -271,19 +402,25 @@
       symbol,
       aux,
       payload,
+      modeId: mode.id,
+      bits: mode.bits,
+      symbols: mode.symbols,
     };
   }
-  function rawToSymbols(raw, cols, rows) {
+  function rawToSymbols(raw, cols, rows, modeInput = null) {
+    const mode = resolveMode(
+      modeInput || modeByBits(raw?.[7] & 0x0f) || activeMode(),
+    );
     const cellCount = cols * rows;
     const symbols = new Uint8Array(cellCount);
-    const pilots = new Map(pilotEntries(cols, rows));
+    const pilots = new Map(pilotEntries(cols, rows, mode));
     for (const [position, value] of pilots) symbols[position] = value;
     let bitIndex = 0;
     const totalBits = raw.length * 8;
     for (let cell = 0; cell < cellCount; cell++) {
       if (pilots.has(cell)) continue;
       let value = 0;
-      for (let bit = 0; bit < BITS_PER_CELL; bit++) {
+      for (let bit = 0; bit < mode.bits; bit++) {
         value <<= 1;
         if (bitIndex < totalBits) {
           const byteIndex = bitIndex >> 3,
@@ -296,16 +433,17 @@
     }
     return symbols;
   }
-  function symbolsToBytes(symbols, cols, rows) {
-    const capacity = opticalRawCapacity(cols, rows);
+  function symbolsToBytes(symbols, cols, rows, modeInput = DEFAULT_MODE) {
+    const mode = resolveMode(modeInput);
+    const capacity = opticalRawCapacity(cols, rows, mode);
     const bytes = new Uint8Array(capacity);
     const pilots = new Set(
-      pilotEntries(cols, rows).map(([position]) => position),
+      pilotEntries(cols, rows, mode).map(([position]) => position),
     );
     let bitIndex = 0;
     for (let cell = 0; cell < symbols.length; cell++) {
       if (pilots.has(cell)) continue;
-      for (let bit = BITS_PER_CELL - 1; bit >= 0; bit--) {
+      for (let bit = mode.bits - 1; bit >= 0; bit--) {
         if (bitIndex >= capacity * 8) break;
         const byteIndex = bitIndex >> 3,
           shift = 7 - (bitIndex & 7);
@@ -318,17 +456,18 @@
   function renderPacketToCanvas(canvas, raw) {
     if (!canvas || !raw) return;
     const { cols, rows } = activeGrid();
-    const symbols = rawToSymbols(raw, cols, rows);
+    const mode = modeByBits(raw[7] & 0x0f) || activeMode();
+    const symbols = rawToSymbols(raw, cols, rows, mode);
     canvas.width = cols;
     canvas.height = rows;
     const ctx = canvas.getContext("2d", { alpha: false });
     const image = ctx.createImageData(cols, rows);
     for (let i = 0; i < symbols.length; i++) {
-      const level = OPTICAL_LEVELS[symbols[i]],
+      const rgb = mode.palette[symbols[i]] || mode.palette[0],
         offset = i * 4;
-      image.data[offset] = level;
-      image.data[offset + 1] = level;
-      image.data[offset + 2] = level;
+      image.data[offset] = rgb[0];
+      image.data[offset + 1] = rgb[1];
+      image.data[offset + 2] = rgb[2];
       image.data[offset + 3] = 255;
     }
     ctx.putImageData(image, 0, 0);
@@ -825,9 +964,81 @@
     }
   }
   const sonic = new SonicAssist();
+  function modeMetrics(modeInput = app.modeId) {
+    const mode = resolveMode(modeInput),
+      range = theoreticalRange(mode);
+    return {
+      mode,
+      range,
+      rangeText: `${range.minKib.toFixed(1)}–${range.maxKib.toFixed(1)} KiB/s teóricos`,
+      capacityText: `${mode.chunkBytes.toLocaleString()} B/lane`,
+    };
+  }
+  function updateModeUI() {
+    const { mode, rangeText, capacityText } = modeMetrics();
+    document.documentElement.dataset.opticalMode = mode.id;
+    document.querySelectorAll("[data-optical-mode]").forEach((button) => {
+      const active = button.dataset.opticalMode === mode.id;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if ($("selectedModeName")) $("selectedModeName").textContent = mode.label;
+    if ($("selectedModeSpeed")) $("selectedModeSpeed").textContent = rangeText;
+    if ($("selectedModeCapacity"))
+      $("selectedModeCapacity").textContent = capacityText;
+    if ($("txChunkSize") && !app.tx)
+      $("txChunkSize").textContent = `${mode.chunkBytes} B`;
+    if ($("stageMode"))
+      $("stageMode").textContent = `${mode.shortLabel}·${mode.bits}b`;
+    if ($("rxMode") && !app.rx) $("rxMode").textContent = "AUTO 2/3/4-bit";
+  }
+  function invalidatePreparedTransfer(reason) {
+    if (app.tx) {
+      app.tx.running = false;
+      app.tx.loopToken++;
+    }
+    app.tx = null;
+    $("launchBtn").disabled = true;
+    $("txSourceCount").textContent = "—";
+    $("txSession").textContent = "—";
+    setTxProgress(0, reason || "Vuelve a preparar el archivo");
+  }
+  function selectOpticalMode(modeId) {
+    const mode = resolveMode(modeId);
+    if (app.stageOpen || app.tx?.running) {
+      alertError("Cierra la transmisión antes de cambiar la modulación.");
+      return;
+    }
+    if (mode.id === app.modeId) return;
+    const previous = app.modeId;
+    app.modeId = mode.id;
+    try {
+      localStorage.setItem("hopperlink-one-optical-mode", mode.id);
+    } catch {}
+    if (app.tx)
+      invalidatePreparedTransfer(
+        `Modo cambiado a ${mode.label}·vuelve a preparar`,
+      );
+    updateModeUI();
+    flight.record(
+      "adaptive",
+      "optical-mode-selected",
+      {
+        from: previous,
+        to: mode.id,
+        bits: mode.bits,
+        symbols: mode.symbols,
+        chunkBytes: mode.chunkBytes,
+        theoretical: theoreticalRange(mode),
+      },
+      100,
+    );
+  }
   function selectFile(file) {
     if (!file) return;
     app.selectedFile = file;
+    if (app.tx)
+      invalidatePreparedTransfer("Archivo cambiado·vuelve a preparar");
     $("dropTitle").textContent = file.name;
     $("dropDetail").textContent =
       `${formatBytes(file.size)}·${file.type || "tipo desconocido"}·listo para preparar`;
@@ -870,20 +1081,21 @@
       alertError("Selecciona un archivo antes de prepararlo.");
       return;
     }
+    const mode = activeMode();
     const button = $("prepareBtn");
     button.disabled = true;
     button.textContent = "Preparando…";
     setPhase("PREPARING");
     setEngineStatus("PREPARANDO MOTOR", "mid");
-    setTxProgress(8, "Leyendo archivo localmente…");
+    setTxProgress(8, `Leyendo archivo·${mode.label}…`);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       setTxProgress(34, "Calculando CRC32…");
       const fileCrc = crc32(bytes);
       setTxProgress(55, "Calculando SHA-256…");
       const sha256 = await sha256Hex(bytes);
-      setTxProgress(72, "Construyendo bloques Fountain…");
-      const blocks = splitBlocks(bytes, CHUNK_BYTES),
+      setTxProgress(72, `Construyendo bloques de ${mode.chunkBytes} B…`);
+      const blocks = splitBlocks(bytes, mode.chunkBytes),
         session = randomSession();
       let safeName = file.name.slice(0, 120);
       let meta, payload;
@@ -891,7 +1103,10 @@
         meta = {
           engine: ENGINE_NAME,
           version: VERSION,
+          protocol: PROTOCOL,
           transport: "TriFrame-3",
+          mode: mode.id,
+          modeLabel: mode.label,
           name: safeName,
           type: (file.type || "application/octet-stream").slice(0, 80),
           size: file.size,
@@ -899,19 +1114,21 @@
           fileCrc,
           sha256,
           sourceCount: blocks.length,
-          chunkSize: CHUNK_BYTES,
-          bits: BITS_PER_CELL,
+          chunkSize: mode.chunkBytes,
+          bits: mode.bits,
+          symbols: mode.symbols,
           gridCells: SHORT_SIDE * LONG_SIDE,
+          pilotCells: PILOT_CELL_COUNT,
         };
         payload = encoder.encode(JSON.stringify(meta));
-        if (payload.length > packetPayloadCapacity())
+        if (payload.length > packetPayloadCapacity(mode))
           safeName = safeName.slice(0, Math.max(16, safeName.length - 16));
       } while (
-        payload.length > packetPayloadCapacity() &&
+        payload.length > packetPayloadCapacity(mode) &&
         safeName.length > 16
       );
-      if (payload.length > packetPayloadCapacity())
-        throw new Error("La metadata no cabe en HELLO");
+      if (payload.length > packetPayloadCapacity(mode))
+        throw new Error(`La metadata no cabe en HELLO ${mode.label}`);
       app.tx = {
         file,
         bytes,
@@ -919,6 +1136,7 @@
         meta,
         helloPayload: payload,
         session,
+        modeId: mode.id,
         sequence: 1,
         systematicIndex: 0,
         repeatIndex: 0,
@@ -928,7 +1146,7 @@
         running: false,
         paused: false,
         completed: false,
-        fps: 9,
+        fps: mode.defaultFps,
         renderSamples: [],
         startedAt: 0,
         lastMetricAt: 0,
@@ -938,9 +1156,9 @@
       $("txSourceCount").textContent = blocks.length.toLocaleString();
       $("txSession").textContent =
         `${session.toString(16).toUpperCase().padStart(8, "0")}`;
-      $("txChunkSize").textContent = `${CHUNK_BYTES}B`;
+      $("txChunkSize").textContent = `${mode.chunkBytes} B`;
       $("launchBtn").disabled = false;
-      setTxProgress(100, "Preparado·fullscreen TriFrame disponible");
+      setTxProgress(100, `Preparado·${mode.label}·fullscreen disponible`);
       setPhase("READY");
       setEngineStatus("MOTOR PREPARADO", "online");
       flight.record(
@@ -948,18 +1166,22 @@
         "file-prepared",
         {
           session,
+          mode: mode.id,
+          bits: mode.bits,
+          symbols: mode.symbols,
           sourceCount: blocks.length,
-          chunkSize: CHUNK_BYTES,
+          chunkSize: mode.chunkBytes,
           fileSize: file.size,
           crc32: fileCrc.toString(16).padStart(8, "0"),
           sha256,
+          theoretical: theoreticalRange(mode),
         },
         100,
       );
     } catch (error) {
       app.tx = null;
       setTxProgress(0, "No se pudo preparar");
-      alertError(`No se pudo preparar el archivo:${error.message}`, error);
+      alertError(`No se pudo preparar el archivo: ${error.message}`, error);
     } finally {
       button.disabled = false;
       button.textContent = app.tx ? "Repreparar archivo" : "Preparar archivo";
@@ -1059,6 +1281,8 @@
       `${app.tx.file.name}·${formatBytes(app.tx.file.size)}`;
     $("stagePhase").textContent = "HELLO·3/3";
     $("stageRate").textContent = "ESTÁTICO";
+    $("stageMode").textContent =
+      `${resolveMode(app.tx.modeId).shortLabel}·${resolveMode(app.tx.modeId).bits}b`;
     $("stageCoverage").textContent = "0%";
     $("stageStartBtn").hidden = false;
     $("stageStartBtn").disabled = false;
@@ -1067,7 +1291,7 @@
     $("stageMessageTitle").textContent =
       "Muestra esta pantalla completa al receptor";
     $("stageMessageDetail").textContent =
-      "AutoDock 3 detectará y recortará los tres cuadrantes sin encuadre manual.";
+      `AutoDock 3 detectará ${resolveMode(app.tx.modeId).symbols} colores por lane sin encuadre manual.`;
     renderHelloTriFrame();
     flight.record(
       "tx",
@@ -1075,6 +1299,8 @@
       {
         session: app.tx.session,
         lanes: 3,
+        mode: app.tx.modeId,
+        bits: resolveMode(app.tx.modeId).bits,
         fullscreen: !!(
           document.fullscreenElement || document.webkitFullscreenElement
         ),
@@ -1113,6 +1339,7 @@
   }
   function renderHelloTriFrame() {
     if (!app.tx) return;
+    const mode = resolveMode(app.tx.modeId);
     for (let lane = 0; lane < 3; lane++) {
       const packet = makePacket({
         type: TYPE.HELLO,
@@ -1120,16 +1347,19 @@
         session: app.tx.session,
         sequence: nextSequence(),
         sourceCount: app.tx.blocks.length,
-        chunkSize: CHUNK_BYTES,
+        chunkSize: mode.chunkBytes,
         symbol: 0,
         aux: app.tx.meta.fileCrc,
         payload: app.tx.helloPayload,
+        mode,
       });
       app.currentLanePackets[lane] = packet;
+      app.currentLaneModes[lane] = mode.id;
     }
     renderCurrentTriFrame();
   }
   function nextParityPacket(lane) {
+    const mode = resolveMode(app.tx.modeId);
     app.tx.paritySeed = (app.tx.paritySeed + 0x9e3779b9) >>> 0 || 1;
     const parity = makeParity(app.tx.blocks, app.tx.paritySeed);
     return makePacket({
@@ -1138,23 +1368,26 @@
       session: app.tx.session,
       sequence: nextSequence(),
       sourceCount: app.tx.blocks.length,
-      chunkSize: CHUNK_BYTES,
+      chunkSize: mode.chunkBytes,
       symbol: parity.seed,
       aux: parity.degree,
       payload: parity.data,
+      mode,
     });
   }
   function systematicPacket(lane, index) {
+    const mode = resolveMode(app.tx.modeId);
     return makePacket({
       type: TYPE.SYSTEMATIC,
       lane,
       session: app.tx.session,
       sequence: nextSequence(),
       sourceCount: app.tx.blocks.length,
-      chunkSize: CHUNK_BYTES,
+      chunkSize: mode.chunkBytes,
       symbol: index,
       aux: 0,
       payload: app.tx.blocks[index],
+      mode,
     });
   }
   function nextTriFramePackets() {
@@ -1173,10 +1406,11 @@
         session: tx.session,
         sequence: nextSequence(),
         sourceCount: tx.blocks.length,
-        chunkSize: CHUNK_BYTES,
+        chunkSize: tx.meta.chunkSize,
         symbol: 0,
         aux: tx.meta.fileCrc,
         payload: tx.helloPayload,
+        mode: tx.modeId,
       });
     }
     if (tx.systematicIndex >= tx.blocks.length && tx.frames % 11 === 0) {
@@ -1198,9 +1432,11 @@
       tx.renderSamples.length;
     tx.renderSamples = [];
     const frameBudget = 1000 / tx.fps;
+    const mode = resolveMode(tx.modeId);
     let next = tx.fps;
-    if (average > frameBudget * 0.68) next = Math.max(8, tx.fps - 1);
-    else if (average < frameBudget * 0.34 && tx.fps < 12) next = tx.fps + 1;
+    if (average > frameBudget * 0.68) next = Math.max(mode.minFps, tx.fps - 1);
+    else if (average < frameBudget * 0.34 && tx.fps < mode.maxFps)
+      next = tx.fps + 1;
     if (next !== tx.fps) {
       const old = tx.fps;
       tx.fps = next;
@@ -1233,6 +1469,8 @@
     $("transmissionStage").classList.add("data-live");
     $("stagePhase").textContent = "DATA·TRI-LANE";
     $("stageRate").textContent = `${tx.fps}frames/s`;
+    $("stageMode").textContent =
+      `${resolveMode(tx.modeId).shortLabel}·${resolveMode(tx.modeId).bits}b`;
     $("stageStartBtn").hidden = true;
     $("stagePauseBtn").hidden = false;
     $("stagePauseBtn").textContent = "Pausar";
@@ -1242,7 +1480,14 @@
     flight.record(
       "tx",
       "data-started",
-      { reason, fps: tx.fps, lanes: 3, sourceCount: tx.blocks.length },
+      {
+        reason,
+        fps: tx.fps,
+        lanes: 3,
+        mode: tx.modeId,
+        bits: resolveMode(tx.modeId).bits,
+        sourceCount: tx.blocks.length,
+      },
       100,
     );
     transmitLoop(tx.loopToken);
@@ -1271,7 +1516,7 @@
       const elapsed = (performance.now() - tx.startedAt) / 1000;
       const shownBytes = Math.min(
         tx.file.size,
-        tx.systematicIndex * CHUNK_BYTES,
+        tx.systematicIndex * tx.meta.chunkSize,
       );
       setTxProgress(
         tx.systematicIndex < tx.blocks.length ? coverage : 100,
@@ -1290,6 +1535,9 @@
             frames: tx.frames,
             packets: tx.packets,
             fps: tx.fps,
+            mode: tx.modeId,
+            bits: resolveMode(tx.modeId).bits,
+            chunkBytes: tx.meta.chunkSize,
             coverage: Math.round(coverage),
             elapsed: formatDuration(elapsed),
             layout: activeGrid().portrait ? "3-rows" : "3-columns",
@@ -1846,12 +2094,143 @@
       ),
     };
   }
+  function rgbAt(data, width, height, x, y, radius = 0) {
+    x = Math.round(x);
+    y = Math.round(y);
+    const totals = [0, 0, 0];
+    let count = 0;
+    for (
+      let yy = Math.max(0, y - radius);
+      yy <= Math.min(height - 1, y + radius);
+      yy++
+    )
+      for (
+        let xx = Math.max(0, x - radius);
+        xx <= Math.min(width - 1, x + radius);
+        xx++
+      ) {
+        const offset = (yy * width + xx) * 4;
+        totals[0] += data[offset];
+        totals[1] += data[offset + 1];
+        totals[2] += data[offset + 2];
+        count++;
+      }
+    return count ? totals.map((value) => value / count) : [0, 0, 0];
+  }
+  function colorDistance(a, b) {
+    const dr = (a[0] - b[0]) * 0.88,
+      dg = (a[1] - b[1]) * 1.12,
+      db = (a[2] - b[2]) * 0.94;
+    const la = a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722,
+      lb = b[0] * 0.2126 + b[1] * 0.7152 + b[2] * 0.0722,
+      dl = (la - lb) * 0.22;
+    return Math.hypot(dr, dg, db, dl);
+  }
+  function orientRgbSamples(samples, cols, rows, rotation = 0) {
+    if (rotation !== 180) return samples;
+    const oriented = new Float32Array(samples.length);
+    for (let y = 0; y < rows; y++)
+      for (let x = 0; x < cols; x++) {
+        const source = ((rows - 1 - y) * cols + (cols - 1 - x)) * 3,
+          target = (y * cols + x) * 3;
+        oriented[target] = samples[source];
+        oriented[target + 1] = samples[source + 1];
+        oriented[target + 2] = samples[source + 2];
+      }
+    return oriented;
+  }
+  function classifyColorSamples(
+    rawSamples,
+    cols,
+    rows,
+    modeInput,
+    rotation = 0,
+  ) {
+    const mode = resolveMode(modeInput),
+      samples = orientRgbSamples(rawSamples, cols, rows, rotation),
+      entries = pilotEntries(cols, rows, mode),
+      sums = Array.from({ length: mode.symbols }, () => [0, 0, 0, 0]);
+    for (const [position, symbol] of entries) {
+      const offset = position * 3,
+        sum = sums[symbol];
+      sum[0] += samples[offset];
+      sum[1] += samples[offset + 1];
+      sum[2] += samples[offset + 2];
+      sum[3]++;
+    }
+    if (sums.some((sum) => sum[3] < 2)) return null;
+    const centers = sums.map((sum) => [
+      sum[0] / sum[3],
+      sum[1] / sum[3],
+      sum[2] / sum[3],
+    ]);
+    let minSeparation = Infinity;
+    for (let a = 0; a < centers.length; a++)
+      for (let b = a + 1; b < centers.length; b++)
+        minSeparation = Math.min(
+          minSeparation,
+          colorDistance(centers[a], centers[b]),
+        );
+    let pilotError = 0;
+    for (const [position, symbol] of entries) {
+      const offset = position * 3;
+      pilotError += colorDistance(
+        [samples[offset], samples[offset + 1], samples[offset + 2]],
+        centers[symbol],
+      );
+    }
+    pilotError /= entries.length;
+    if (
+      !Number.isFinite(minSeparation) ||
+      minSeparation < mode.minPilotSeparation ||
+      pilotError > Math.max(18, minSeparation * 0.7)
+    )
+      return null;
+    const symbols = new Uint8Array(cols * rows);
+    let aggregateMargin = 0;
+    for (let cell = 0; cell < symbols.length; cell++) {
+      const offset = cell * 3,
+        rgb = [samples[offset], samples[offset + 1], samples[offset + 2]];
+      let best = 0,
+        bestDistance = colorDistance(rgb, centers[0]),
+        secondDistance = Infinity;
+      for (let symbol = 1; symbol < centers.length; symbol++) {
+        const distance = colorDistance(rgb, centers[symbol]);
+        if (distance < bestDistance) {
+          secondDistance = bestDistance;
+          bestDistance = distance;
+          best = symbol;
+        } else if (distance < secondDistance) secondDistance = distance;
+      }
+      symbols[cell] = best;
+      aggregateMargin += Math.max(0, secondDistance - bestDistance);
+    }
+    const averageMargin = aggregateMargin / symbols.length;
+    const quality = clamp(
+      34 +
+        (minSeparation - mode.minPilotSeparation) * 0.72 +
+        averageMargin * 0.34 -
+        pilotError * 1.05,
+      0,
+      100,
+    );
+    return {
+      mode,
+      symbols,
+      centers,
+      quality,
+      pilotError,
+      minSeparation,
+      averageMargin,
+      rotation,
+    };
+  }
   function decodeOpticalQuad(image, width, height, quad) {
     const dimensions = quadDimensions(quad),
       wide = dimensions.width > dimensions.height;
     const cols = wide ? LONG_SIDE : SHORT_SIDE,
       rows = wide ? SHORT_SIDE : LONG_SIDE;
-    const lumas = new Float32Array(cols * rows);
+    const samples = new Float32Array(cols * rows * 3);
     const estimatedCell = Math.min(
       dimensions.width / cols,
       dimensions.height / rows,
@@ -1860,62 +2239,60 @@
     const marginU = margins.u,
       marginV = margins.v;
     const radius = estimatedCell > 6 ? 1 : 0;
-    let offset = 0;
+    let sampleOffset = 0;
     for (let y = 0; y < rows; y++)
       for (let x = 0; x < cols; x++) {
         const u = marginU + ((x + 0.5) / cols) * (1 - marginU * 2);
         const v = marginV + ((y + 0.5) / rows) * (1 - marginV * 2);
-        const point = projectQuadPoint(quad, u, v);
-        lumas[offset++] = lumaAt(
-          image.data,
-          width,
-          height,
-          point.x,
-          point.y,
-          radius,
+        const point = projectQuadPoint(quad, u, v),
+          rgb = rgbAt(image.data, width, height, point.x, point.y, radius);
+        samples[sampleOffset++] = rgb[0];
+        samples[sampleOffset++] = rgb[1];
+        samples[sampleOffset++] = rgb[2];
+      }
+    const preferred = app.rx?.modeId || app.modeId;
+    const modeIds = [preferred, ...MODE_ORDER].filter(
+      (modeId, index, all) =>
+        MODE_DEFINITIONS[modeId] && all.indexOf(modeId) === index,
+    );
+    let bestBad = null;
+    for (const modeId of modeIds)
+      for (const rotation of [0, 180]) {
+        const classified = classifyColorSamples(
+          samples,
+          cols,
+          rows,
+          modeId,
+          rotation,
         );
-      }
-    const entries = pilotEntries(cols, rows),
-      groups = [[], [], [], []];
-    for (const [position, value] of entries)
-      groups[value].push(lumas[position]);
-    const means = groups.map(
-      (group) =>
-        group.reduce((sum, value) => sum + value, 0) /
-        Math.max(1, group.length),
-    );
-    const monotonic =
-      means[0] < means[1] && means[1] < means[2] && means[2] < means[3];
-    const spread = means[3] - means[0];
-    if (!monotonic || spread < 42) return null;
-    let pilotError = 0;
-    for (const [position, value] of entries)
-      pilotError += Math.abs(lumas[position] - means[value]);
-    pilotError /= entries.length;
-    const symbols = new Uint8Array(cols * rows);
-    for (let i = 0; i < lumas.length; i++) {
-      let best = 0,
-        distance = Math.abs(lumas[i] - means[0]);
-      for (let symbol = 1; symbol < 4; symbol++) {
-        const next = Math.abs(lumas[i] - means[symbol]);
-        if (next < distance) {
-          distance = next;
-          best = symbol;
+        if (!classified) continue;
+        const bytes = symbolsToBytes(
+            classified.symbols,
+            cols,
+            rows,
+            classified.mode,
+          ),
+          packet = parsePacket(bytes, classified.mode);
+        const result = {
+          packet,
+          quality: classified.quality,
+          quad,
+          cols,
+          rows,
+          mode: classified.mode,
+          rotation,
+          centers: classified.centers,
+          pilotError: classified.pilotError,
+          minSeparation: classified.minSeparation,
+        };
+        if (packet?.bad) {
+          if (!bestBad || result.quality > bestBad.quality)
+            bestBad = { ...result, bad: true };
+          continue;
         }
+        if (packet) return result;
       }
-      symbols[i] = best;
-    }
-    const bytes = symbolsToBytes(symbols, cols, rows),
-      packet = parsePacket(bytes);
-    const quality = clamp(
-      (spread - 42) * 0.7 + (30 - pilotError) * 1.6,
-      0,
-      100,
-    );
-    if (packet?.bad)
-      return { bad: true, packet, quality, quad, cols, rows, means };
-    if (!packet) return null;
-    return { packet, quality, quad, cols, rows, means };
+    return bestBad;
   }
   function drawGuide(width, height, items) {
     const canvas = $("guideCanvas"),
@@ -1934,7 +2311,7 @@
       const label =
         lane == null
           ? `Q${index + 1}`
-          : `${String.fromCharCode(65 + lane)}·${Math.round(item.decoded.quality)}%`;
+          : `${String.fromCharCode(65 + lane)}·${item.decoded.mode?.bits || "?"}b·${Math.round(item.decoded.quality)}%`;
       ctx.strokeStyle = packet ? "#34d399" : "#fbbf24";
       ctx.fillStyle = packet ? "#34d399" : "#fbbf24";
       ctx.beginPath();
@@ -1971,10 +2348,13 @@
       URL.revokeObjectURL(app.receiverObjectUrl);
       app.receiverObjectUrl = null;
     }
+    const mode = resolveMode(meta.mode || packet.modeId || packet.bits);
     $("receivedFile").hidden = true;
+    app.rxModeId = mode.id;
     app.rx = {
       session: packet.session,
       meta,
+      modeId: mode.id,
       sourceCount: packet.sourceCount,
       chunkSize: packet.chunkSize,
       decoder: null,
@@ -2001,6 +2381,7 @@
     $("rxFileName").textContent = meta.name || "Archivo sin nombre";
     $("rxSession").textContent =
       `Sesión ${packet.session.toString(16).toUpperCase().padStart(8, "0")}·${formatBytes(meta.size)}`;
+    $("rxMode").textContent = `${mode.label}·${mode.bits}b`;
     flight.record(
       "rx",
       "session-locked",
@@ -2008,6 +2389,9 @@
         session: packet.session,
         name: meta.name,
         size: meta.size,
+        mode: mode.id,
+        bits: mode.bits,
+        symbols: mode.symbols,
         sourceCount: packet.sourceCount,
         chunkSize: packet.chunkSize,
         crc32: Number(meta.fileCrc).toString(16).padStart(8, "0"),
@@ -2048,11 +2432,18 @@
       } catch {
         return;
       }
+      const mode = modeByBits(packet.bits);
       if (
+        !mode ||
         meta.engine !== ENGINE_NAME ||
+        meta.protocol !== PROTOCOL ||
         meta.transport !== "TriFrame-3" ||
+        meta.mode !== mode.id ||
+        meta.bits !== mode.bits ||
+        meta.symbols !== mode.symbols ||
         meta.sourceCount !== packet.sourceCount ||
-        meta.chunkSize !== packet.chunkSize
+        meta.chunkSize !== packet.chunkSize ||
+        packet.chunkSize !== mode.chunkBytes
       )
         return;
       if (!app.rx || app.rx.session !== packet.session)
@@ -2065,7 +2456,13 @@
       return;
     }
     const rx = app.rx;
-    if (!rx || rx.session !== packet.session || rx.complete) return;
+    if (
+      !rx ||
+      rx.session !== packet.session ||
+      rx.complete ||
+      packet.modeId !== rx.modeId
+    )
+      return;
     const key = `${packet.type}:${packet.sequence}:${packet.symbol}:${packet.lane}`;
     if (rx.seen.has(key)) return;
     rx.seen.add(key);
@@ -2114,6 +2511,9 @@
         app.recentQuality.length
       : 0;
     $("rxQuality").textContent = average ? `${Math.round(average)}%` : "—";
+    $("rxMode").textContent = rx
+      ? `${resolveMode(rx.modeId).shortLabel}·${resolveMode(rx.modeId).bits}b`
+      : "AUTO 2/3/4-bit";
     if (!rx) {
       $("rxKnown").textContent = "0/—";
       $("rxPercent").textContent = "0%";
@@ -2420,6 +2820,8 @@
           rejectedCrc: app.detection.rejected,
           known: app.rx?.decoder?.snapshot?.().known || 0,
           total: app.rx?.sourceCount || 0,
+          mode: app.rx?.modeId || null,
+          bits: app.rx ? resolveMode(app.rx.modeId).bits : null,
         },
         average,
       );
@@ -2460,6 +2862,13 @@
   function installHandlers() {
     $("sendTab").addEventListener("click", () => switchRole("send"));
     $("receiveTab").addEventListener("click", () => switchRole("receive"));
+    document
+      .querySelectorAll("[data-optical-mode]")
+      .forEach((button) =>
+        button.addEventListener("click", () =>
+          selectOpticalMode(button.dataset.opticalMode),
+        ),
+      );
     $("fileInput").addEventListener("change", (event) =>
       selectFile(event.target.files?.[0]),
     );
@@ -2579,7 +2988,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1101",
+        "./sw.js?v=1200",
         { scope: "./" },
       );
       flight.record(
@@ -2611,6 +3020,7 @@
   function initialize() {
     ensureReceiverExitButton();
     installHandlers();
+    updateModeUI();
     flight.render();
     setPhase("IDLE");
     setEngineStatus("MOTOR LISTO", "online");
@@ -2628,8 +3038,17 @@
         lanes: 3,
         gridLandscape: `${SHORT_SIDE}×${LONG_SIDE}`,
         gridPortrait: `${LONG_SIDE}×${SHORT_SIDE}`,
-        payloadPerLane: packetPayloadCapacity(),
-        chunkSize: CHUNK_BYTES,
+        selectedMode: app.modeId,
+        modes: MODE_ORDER.map((id) => {
+          const mode = MODE_DEFINITIONS[id];
+          return {
+            id,
+            bits: mode.bits,
+            symbols: mode.symbols,
+            chunkBytes: mode.chunkBytes,
+            payloadCapacity: packetPayloadCapacity(mode),
+          };
+        }),
         fullscreen: true,
         autoDock3: true,
         fountain: true,
@@ -2643,19 +3062,45 @@
       version: VERSION,
       protocol: PROTOCOL,
       lanes: 3,
-      config: {
-        shortSide: SHORT_SIDE,
-        longSide: LONG_SIDE,
-        bits: BITS_PER_CELL,
-        chunkSize: CHUNK_BYTES,
-        payloadCapacity: packetPayloadCapacity(),
+      get selectedMode() {
+        return app.modeId;
+      },
+      modes: MODE_ORDER.map((id) => {
+        const mode = MODE_DEFINITIONS[id],
+          speed = theoreticalRange(mode);
+        return {
+          id: mode.id,
+          label: mode.label,
+          bits: mode.bits,
+          symbols: mode.symbols,
+          chunkSize: mode.chunkBytes,
+          payloadCapacity: packetPayloadCapacity(mode),
+          theoreticalKib: speed,
+        };
+      }),
+      setMode: selectOpticalMode,
+      config: () => {
+        const mode = activeMode();
+        return {
+          shortSide: SHORT_SIDE,
+          longSide: LONG_SIDE,
+          pilotCells: PILOT_CELL_COUNT,
+          mode: mode.id,
+          bits: mode.bits,
+          symbols: mode.symbols,
+          chunkSize: mode.chunkBytes,
+          payloadCapacity: packetPayloadCapacity(mode),
+        };
       },
       diagnostics: () => ({
         role: app.role,
         phase: app.phase,
+        selectedMode: app.modeId,
         tx: app.tx
           ? {
               session: app.tx.session,
+              mode: app.tx.modeId,
+              bits: resolveMode(app.tx.modeId).bits,
               frames: app.tx.frames,
               packets: app.tx.packets,
               fps: app.tx.fps,
@@ -2664,6 +3109,8 @@
         rx: app.rx
           ? {
               session: app.rx.session,
+              mode: app.rx.modeId,
+              bits: resolveMode(app.rx.modeId).bits,
               ...app.rx.decoder.snapshot(),
               valid: app.rx.valid,
               rejected: app.rx.rejected,
@@ -2673,6 +3120,30 @@
       }),
     };
   }
+  window.__hopperLinkOneInternals = {
+    ENGINE_NAME,
+    VERSION,
+    PROTOCOL,
+    TYPE,
+    HEADER_BYTES,
+    SHORT_SIDE,
+    LONG_SIDE,
+    PILOT_CELL_COUNT,
+    MODE_ORDER,
+    MODE_DEFINITIONS,
+    resolveMode,
+    modeByBits,
+    theoreticalRange,
+    pilotEntries,
+    opticalRawCapacity,
+    packetPayloadCapacity,
+    makePacket,
+    parsePacket,
+    rawToSymbols,
+    symbolsToBytes,
+    classifyColorSamples,
+    crc32,
+  };
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", initialize, { once: true });
   else initialize();

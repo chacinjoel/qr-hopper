@@ -1,5 +1,5 @@
 {
-  "name": "HopperLink ONE",
+  "name": "HopperLink ONE Color TriFrame",
   "short_name": "HopperLink",
   "start_url": "./index.html",
   "scope": "./",
@@ -7,5 +7,5 @@
   "orientation": "any",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline premium con pantalla completa, tres lanes ópticos, AutoDock 3, Fountain Recovery y Flight Recorder."
+  "description": "Transferencia offline premium con tres lanes fullscreen y modulación seleccionable Robusto 2-bit, Color Adaptativo 3-bit y Color Turbo 4-bit."
 }

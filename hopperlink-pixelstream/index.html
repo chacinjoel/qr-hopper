@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Transferencia premium de archivos sin internet mediante tres canales ópticos sincronizados y asistencia sónica.">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="premium-one.css?v=1101">
-  <link rel="stylesheet" href="premium-one-receiver.css?v=1101">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1101">
-  <title>HopperLink ONE · TriFrame</title>
+  <link rel="stylesheet" href="premium-one.css?v=1200">
+  <link rel="stylesheet" href="premium-one-receiver.css?v=1200">
+  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1200">
+  <title>HopperLink ONE · Color TriFrame</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -25,7 +25,7 @@
         <div>
           <div class="eyebrow">TRANSFERENCIA OFFLINE PREMIUM</div>
           <h1>HopperLink <span>ONE</span></h1>
-          <p>HopperCore · TriFrame · AutoDock 3 · Sonic Assist</p>
+          <p>HopperCore · Color TriFrame · AutoDock 3 · Sonic Assist</p>
         </div>
       </div>
       <div class="header-actions">
@@ -60,6 +60,44 @@
         </button>
       </nav>
 
+      <section class="modulation-panel" aria-labelledby="modulationTitle">
+        <div class="modulation-heading">
+          <div>
+            <div class="eyebrow">MODULACIÓN ÓPTICA SELECCIONABLE</div>
+            <h3 id="modulationTitle">Elige densidad y tolerancia antes de preparar</h3>
+          </div>
+          <div class="selected-mode-summary">
+            <span>Modo activo</span>
+            <b id="selectedModeName">Color Adaptativo 3-bit</b>
+            <small id="selectedModeSpeed">17.3–25.9 KiB/s teóricos</small>
+          </div>
+        </div>
+        <div class="modulation-grid" role="group" aria-label="Seleccionar modulación óptica">
+          <button type="button" class="mode-card" data-optical-mode="robust2" aria-pressed="false">
+            <span class="mode-top"><b>Robusto</b><i>2 BIT</i></span>
+            <span class="mode-spectrum spectrum-2" aria-hidden="true"></span>
+            <strong>4 símbolos · 480 B/lane</strong>
+            <small>11.3–16.9 KiB/s · máxima tolerancia a distancia, reflejos y exposición.</small>
+          </button>
+          <button type="button" class="mode-card active" data-optical-mode="adaptive3" aria-pressed="true">
+            <span class="mode-top"><b>Color Adaptativo</b><i>3 BIT</i></span>
+            <span class="mode-spectrum spectrum-3" aria-hidden="true"></span>
+            <strong>8 colores · 736 B/lane</strong>
+            <small>17.3–25.9 KiB/s · equilibrio recomendado entre velocidad y estabilidad.</small>
+          </button>
+          <button type="button" class="mode-card" data-optical-mode="turbo4" aria-pressed="false">
+            <span class="mode-top"><b>Color Turbo</b><i>4 BIT</i></span>
+            <span class="mode-spectrum spectrum-4" aria-hidden="true"></span>
+            <strong>16 colores · 1,000 B/lane</strong>
+            <small>23.4–35.2 KiB/s · máxima densidad para cámara cercana y pantalla brillante.</small>
+          </button>
+        </div>
+        <div class="modulation-foot">
+          <span><b id="selectedModeCapacity">736 B/lane</b> útiles por cuadrante</span>
+          <span>El receptor detecta 2, 3 o 4 bits automáticamente mediante pilotos RGB + CRC32.</span>
+        </div>
+      </section>
+
       <section class="workspace-grid">
         <article class="workspace-card active" id="sendView">
           <div class="card-heading">
@@ -92,7 +130,7 @@
           <div class="metric-strip">
             <div><span>Archivo</span><b id="txFileSize">—</b></div>
             <div><span>Bloques fuente</span><b id="txSourceCount">—</b></div>
-            <div><span>Carga por lane</span><b id="txChunkSize">480 B</b></div>
+            <div><span>Carga por lane</span><b id="txChunkSize">736 B</b></div>
             <div><span>Sesión</span><b id="txSession">—</b></div>
           </div>
 
@@ -155,6 +193,7 @@
             <div><span>Bloques resueltos</span><b id="rxKnown">0 / —</b></div>
             <div><span>Paquetes válidos</span><b id="rxValid">0</b></div>
             <div><span>CRC rechazados</span><b id="rxRejected">0</b></div>
+            <div><span>Modo detectado</span><b id="rxMode">AUTO 2/3/4-bit</b></div>
             <div><span>Calidad AutoDock</span><b id="rxQuality">—</b></div>
           </div>
 
@@ -193,7 +232,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.1 · TriFrame 3-Lane</span>
+      <span>HopperLink ONE · HopperCore 1.2 · TriFrame 3-Lane</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -207,6 +246,7 @@
       <div class="stage-status">
         <span id="stagePhase">HELLO</span>
         <span id="stageRate">0 frames/s</span>
+        <span id="stageMode">COLOR 3-BIT · 3b</span>
         <span id="stageCoverage">0%</span>
         <span id="stageSonic">SONIC · ESPERA</span>
       </div>
@@ -243,6 +283,6 @@
   </section>
 
   <canvas id="captureCanvas" hidden></canvas>
-  <script src="hopper-one.js?v=1101" defer></script>
+  <script src="hopper-one.js?v=1200" defer></script>
 </body>
 </html>
