@@ -109,7 +109,10 @@ jobs:
           readme.write_text(readme_text, encoding='utf-8')
 
           test = root / 'tests' / 'hopper-one-color-modes.test.cjs'
-          test_text = test.read_text(encoding='utf-8').replace("manifest.build,'1200'", "manifest.build,'1201'").replace("sw.includes('hopperlink-one-v1200')", "sw.includes('hopperlink-one-v1201')")
+          test_text = test.read_text(encoding='utf-8')
+          test_text = test_text.replace("I.VERSION,'1.2.0'", "I.VERSION,'1.2.1'")
+          test_text = test_text.replace("manifest.build,'1200'", "manifest.build,'1201'")
+          test_text = test_text.replace("sw.includes('hopperlink-one-v1200')", "sw.includes('hopperlink-one-v1201')")
           anchor = "console.log('HopperLink ONE Color Modes 2/3/4-bit: PASS');"
           portrait_checks = """const fullscreenCss=fs.readFileSync(path.join(root,'premium-one-fullscreen.css'),'utf8');
           assert(fullscreenCss.includes('grid-template-columns:1fr!important'));
