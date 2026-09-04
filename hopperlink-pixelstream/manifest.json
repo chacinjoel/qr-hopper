@@ -1,9 +1,11 @@
 {
-  "name":"HopperLink PixelStream",
-  "short_name":"HopperLink",
-  "start_url":"./index.html",
-  "display":"standalone",
-  "background_color":"#080b12",
-  "theme_color":"#080b12",
-  "description":"Transferencia óptica offline entre dispositivos mediante pantalla y cámara."
+  "name": "HopperLink ONE",
+  "short_name": "HopperLink",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060912",
+  "theme_color": "#060912",
+  "description": "Transferencia offline premium con pantalla completa, tres lanes ópticos, AutoDock 3, Fountain Recovery y Flight Recorder."
 }

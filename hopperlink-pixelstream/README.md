@@ -1,27 +1,33 @@
-# HopperLink + PixelStream MVP v0.1
+# HopperLink ONE · HopperCore 1.1
 
-Prototipo offline-first para transferir archivos de una pantalla a otra cámara sin Internet.
+HopperLink ONE reemplaza la selección HPS7/HPS8 por un solo motor óptico adaptativo. La aplicación activa ya no carga módulos HPS7 ni HPS8.
 
-## Qué hace
-- Selecciona un archivo en el dispositivo emisor.
-- Empaqueta metadata + contenido.
-- Fragmenta el paquete en frames.
-- Cada frame usa un identificador de transferencia, índice, total, longitud y CRC32.
-- Convierte bytes en 4 niveles ópticos (2 bits por celda).
-- Emite los frames en bucle.
-- El receptor usa la cámara, captura la cuadrícula, valida CRC y guarda frames únicos.
-- Cuando tiene todos los frames reconstruye y permite guardar el archivo original.
+## Arquitectura activa
 
-## Importante
-- MVP experimental: requiere alinear manualmente el patrón con la guía de la cámara.
-- No hay cifrado todavía.
-- En iOS/Safari `getUserMedia` requiere HTTPS (o una PWA instalada servida previamente por HTTPS).
-- Para archivos grandes, PixelStream no compite con Wi‑Fi; su objetivo es ser un fallback óptico universal.
+- **TriFrame 3-Lane:** tres paquetes físicos independientes por frame de pantalla, con matriz 36×60 por lane en horizontal y 60×36 en vertical.
+- **Fullscreen real:** usa Fullscreen API, Wake Lock y bloqueo de orientación cuando el navegador lo permite.
+- **Geometría constante:** HELLO y DATA utilizan desde el comienzo los mismos tres cuadrantes. No existe una transición cuadrado → 1:2 que obligue al receptor a perder y recuperar la homografía.
+- **AutoDock 3:** detecta los tres marcos cian, mide el grosor de sus rieles, calcula la homografía de cada cuadrilátero, los ordena y recorta automáticamente. Cada lane se decodifica por separado.
+- **HopperCore packet layer:** sesión, tipo, lane, secuencia, símbolo/seed y CRC32 por paquete.
+- **Fountain Recovery:** dos lanes priorizan bloques systematic y el tercero emite ecuaciones XOR; después de la primera cobertura los tres se convierten en Fountain/repair continuo.
+- **Sonic Assist:** ACK y COMPLETE auxiliares por audio. El enlace óptico no depende del audio.
+- **Integridad final:** CRC32 y SHA-256 antes de habilitar la descarga.
+- **Flight Recorder:** línea de tiempo local y exportable en JSON/CSV con estados, métricas, confianza, fallos CRC, locks, cambios de velocidad y señales sónicas.
 
-## Próximas fases sugeridas
-1. Marcadores ópticos + homografía para corrección automática de perspectiva.
-2. Fountain/Raptor-style erasure coding para no depender de recibir todos los índices exactos.
-3. Cifrado X25519 + HKDF + ChaCha20-Poly1305.
-4. Handshake QR/NFC y selección automática de transporte HopperLink.
-5. Wi‑Fi LAN/P2P para archivos grandes; PixelStream como bootstrap/fallback.
-6. AudioBurst como tercer transporte offline.
+## Uso
+
+### Emisor
+1. Selecciona el archivo y pulsa **Preparar archivo**.
+2. Pulsa **Abrir fullscreen TriFrame**.
+3. Muestra la pantalla completa al receptor.
+4. DATA comienza con el botón visible o automáticamente al detectar el ACK sónico.
+
+### Receptor
+1. Pulsa **Iniciar cámara**.
+2. Incluye la pantalla emisora completa; no es necesario encuadrar cada cuadrante.
+3. AutoDock 3 dibuja A/B/C y procesa todos los paquetes válidos.
+4. Cuando Fountain Recovery resuelve los bloques y CRC32/SHA-256 coinciden, aparece **Guardar archivo**.
+
+## Compatibilidad
+
+La aplicación necesita HTTPS para cámara/micrófono. Fullscreen, orientación y Wake Lock dependen de las capacidades del navegador; sus fallos no detienen la transferencia. Todos los datos se procesan localmente.

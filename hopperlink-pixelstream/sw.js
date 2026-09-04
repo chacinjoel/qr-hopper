@@ -1,5 +1,60 @@
-const CACHE='hopperlink-pixelstream-v1016';
-const ASSETS=['./','./index.html','./styles.css?v=1015','./photometric-lock.css?v=1015','./binary-stage.css?v=1015','./hps7-fullscreen.css?v=1015','./hps7-scan-guide.css?v=1015','./runtime-syntax-guard.js?v=1015','./binary-tag-bridge-fast.js?v=1015','./optical-dock-v3.js?v=1015','./binary-tag-status.js?v=1015','./safe-color-constellation.js?v=1015','./premium-flow-ui.js?v=1015','./hps7-projection.js?v=1015','./repair-reacquisition.js?v=1015','./hps7-duallane-v2.js?v=1015','./runtime-stability.js?v=1015','./protocol-selector-ui.js?v=1015','./hps7-scan-guide.js?v=1015','./hps7-fullscreen.js?v=1015','./hps8-fountain.js?v=1015','./hps8-sonic-adaptive.js?v=1015','./hps8-sonic-slot-decoder.js?v=1015','./hps8-data-geometry.js?v=1015','./hps8-strict-ack.js?v=1015','./hps8-diagnostics.js?v=1015','./hps8.js?v=1015','./hps7-manual-max.js?v=098','./hps7.js?v=090core','./color-warmup.js?v=099','./transfer-telemetry.js?v=099','./manifest.json'];
-self.addEventListener('install',e=>e.waitUntil((async()=>{const c=await caches.open(CACHE);for(const rel of ASSETS){const url=new URL(rel,self.location).href;const r=await fetch(new Request(url,{cache:'reload'}));if(!r.ok)throw new Error(`cache ${rel} ${r.status}`);await c.put(url,r.clone());}await self.skipWaiting();})()));
-self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))])));
-self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request,{ignoreSearch:false}).then(r=>r||fetch(e.request))));
+const CACHE='hopperlink-one-v1101';
+const ASSETS=[
+  './',
+  './index.html',
+  './premium-one.css?v=1101',
+  './premium-one-receiver.css?v=1101',
+  './premium-one-fullscreen.css?v=1101',
+  './hopper-one.js?v=1101',
+  './hopper-one.runtime.json?v=1101',
+  './runtime/hopper-one.bundle-01.txt?v=1101',
+  './runtime/hopper-one.bundle-02.txt?v=1101',
+  './manifest.json'
+];
+
+self.addEventListener('install',event=>{
+  event.waitUntil((async()=>{
+    const cache=await caches.open(CACHE);
+    await Promise.all(ASSETS.map(async rel=>{
+      const url=new URL(rel,self.location).href;
+      const response=await fetch(new Request(url,{cache:'reload'}));
+      if(!response.ok)throw new Error(`HopperLink ONE cache failed: ${rel} ${response.status}`);
+      await cache.put(url,response.clone());
+    }));
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate',event=>{
+  event.waitUntil((async()=>{
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch',event=>{
+  const request=event.request;
+  if(request.method!=='GET')return;
+  if(request.mode==='navigate'){
+    event.respondWith((async()=>{
+      try{
+        const fresh=await fetch(request);
+        const cache=await caches.open(CACHE);
+        cache.put(request,fresh.clone());
+        return fresh;
+      }catch{
+        return (await caches.match(request))||(await caches.match('./index.html'));
+      }
+    })());
+    return;
+  }
+  event.respondWith((async()=>{
+    const cached=await caches.match(request,{ignoreSearch:false});
+    if(cached)return cached;
+    const fresh=await fetch(request);
+    const cache=await caches.open(CACHE);
+    cache.put(request,fresh.clone());
+    return fresh;
+  })());
+});

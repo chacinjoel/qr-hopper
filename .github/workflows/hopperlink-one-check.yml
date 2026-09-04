@@ -1,0 +1,39 @@
+name: HopperLink ONE Runtime Check
+
+on:
+  push:
+    paths:
+      - 'hopperlink-pixelstream/**'
+      - '.github/workflows/hopperlink-one-check.yml'
+  pull_request:
+    paths:
+      - 'hopperlink-pixelstream/**'
+      - '.github/workflows/hopperlink-one-check.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate active ONE runtime
+        shell: bash
+        run: |
+          node --check hopperlink-pixelstream/hopper-one.js
+          node --check hopperlink-pixelstream/sw.js
+          node <<'NODE'
+          const fs=require('fs'),p=require('path'),z=require('zlib'),c=require('crypto');
+          const r='hopperlink-pixelstream',m=JSON.parse(fs.readFileSync(p.join(r,'hopper-one.runtime.json'),'utf8'));
+          const b=m.parts.map(x=>fs.readFileSync(p.join(r,x),'utf8').replace(/\s+/g,'')).join('');
+          const raw=z.gunzipSync(Buffer.from(b,'base64'));
+          if(raw.length!==m.bytes)throw Error(`runtime bytes ${raw.length} != ${m.bytes}`);
+          if(c.createHash('sha256').update(raw).digest('hex')!==m.sha256)throw Error('runtime SHA-256 mismatch');
+          new Function(raw.toString('utf8'));
+          const h=fs.readFileSync(p.join(r,'index.html'),'utf8');
+          if((h.match(/id="laneCanvas[A-C]"/g)||[]).length!==3)throw Error('TriFrame must expose exactly three lanes');
+          if(/hps[78]|protocol-selector/i.test(h))throw Error('legacy selector or runtime referenced by active product');
+          console.log('HopperLink ONE runtime and active contract: PASS');
+          NODE
