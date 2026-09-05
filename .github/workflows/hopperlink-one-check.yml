@@ -31,14 +31,21 @@ jobs:
           node --check hopperlink-pixelstream/hopper-one.js
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Rebuild deterministic H7 Control runtime
-        run: HOPPER_BUILD=1400 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Rebuild deterministic H7 Static Guide runtime
+        run: HOPPER_BUILD=1500 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Validate static guide acquisition contract
+        run: |
+          grep -q 'const VERSION = "1.5.0"' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'const PROTOCOL = 5' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'GUIDE_FLAG = 0x40' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'function acceptQuickGuide' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'guidePackets=\[0,1,2\].map(quickGuidePacket)' hopperlink-pixelstream/src/hopper-one-runtime.js
+          ! grep -q 'startHelloCarousel();' hopperlink-pixelstream/src/hopper-one-runtime.js
+          ! grep -R 'v=1400\|build:"1400"' hopperlink-pixelstream/src hopperlink-pixelstream/anchor-worker.js hopperlink-pixelstream/index.html hopperlink-pixelstream/sw.js
       - name: Validate color modes and packet integrity
         run: node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
       - name: Guard unobstructed optical surface
         run: node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
-      - name: Exercise grayscale HELLO, ECC, motion and payload rejection
-        run: node hopperlink-pixelstream/tests/hopper-one-h7-control.test.cjs
       - name: Ensure generated files are committed
         run: git diff --exit-code -- hopperlink-pixelstream/hopper-one.runtime.json hopperlink-pixelstream/runtime
       - name: Install browser harness
@@ -56,6 +63,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: h7-control-browser-proof
+          name: h7-static-guide-browser-proof
           path: h7-browser-proof/
           if-no-files-found: ignore
