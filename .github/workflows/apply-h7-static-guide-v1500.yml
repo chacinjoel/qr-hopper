@@ -23,7 +23,7 @@ jobs:
       - name: Align tests to build 1500
         run: |
           node hopperlink-pixelstream/tools/update-tests-v1500.mjs
-          sed -i "s/I.VERSION,'1.4.0'/I.VERSION,'1.5.0'/g; s/I.PROTOCOL,4/I.PROTOCOL,5/g; s/'1400'/'1500'/g; s/\"1400\"/\"1500\"/g" hopperlink-pixelstream/tests/*.cjs
+          sed -i "s/I.VERSION,'1.4.0'/I.VERSION,'1.5.0'/g; s/I.PROTOCOL,4/I.PROTOCOL,5/g; s/1400/1500/g; s/1\.4\.0/1.5.0/g" hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py
       - name: Rebuild deterministic runtime
         run: HOPPER_BUILD=1500 node hopperlink-pixelstream/tools/build-runtime.mjs
       - name: Syntax and source contracts
