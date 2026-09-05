@@ -2339,7 +2339,7 @@
     app.anchorScanner = new globalThis.HopperAnchorScan.Scanner();
     if (typeof Worker !== "function") return;
     try {
-      const worker = new Worker("./anchor-worker.js?v=1500");
+      const worker = new Worker("./anchor-worker.js?v=1510");
       app.scanWorker=worker;
       worker.onmessage=({data}) => {
         if (app.scanWorker !== worker || data.epoch !== app.scanEpoch) return;
@@ -2350,7 +2350,7 @@
       worker.onerror=event => {
         if(app.scanWorker === worker) stopFailedWorker(event.message || "worker failed");
       };
-      flight.record("scan","worker-started",{build:"1500",singleFlight:true},100);
+      flight.record("scan","worker-started",{build:"1510",singleFlight:true},100);
     } catch(error) {stopFailedWorker(error.message);}
   }
   function stopFailedWorker(message) {
@@ -2425,10 +2425,10 @@
     canvas.toBlob(blob=>{
       if(!blob)return;
       const url=URL.createObjectURL(blob),a=document.createElement("a");
-      a.href=url;a.download=`hopper-h7-scan-1500-${Date.now()}.png`;a.click();
+      a.href=url;a.download=`hopper-h7-scan-1510-${Date.now()}.png`;a.click();
       setTimeout(()=>URL.revokeObjectURL(url),5000);
     },"image/png");
-    flight.record("scan","raw-capture-exported",{width:canvas.width,height:canvas.height,build:1500,metrics:app.lastAnchorMetrics},null);
+    flight.record("scan","raw-capture-exported",{width:canvas.width,height:canvas.height,build:1510,metrics:app.lastAnchorMetrics},null);
   }
   function switchRole(role) {
     app.role = role;
@@ -2595,7 +2595,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1500",
+        "./sw.js?v=1510",
         { scope: "./" },
       );
       flight.record(

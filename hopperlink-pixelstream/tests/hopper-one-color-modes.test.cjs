@@ -65,7 +65,7 @@ for(const [modeId,want] of Object.entries(expected)){
 }
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'hopper-one.runtime.json'),'utf8'));
-assert.strictEqual(manifest.build,'1500');
+assert.strictEqual(manifest.build,'1510');
 const encoded=manifest.parts.map(part=>fs.readFileSync(path.join(root,part),'utf8').replace(/\s+/g,'')).join('');
 const runtime=zlib.gunzipSync(Buffer.from(encoded,'base64'));
 assert.strictEqual(runtime.length,manifest.bytes);
@@ -77,7 +77,7 @@ assert(html.includes('id="stageMode"'));
 assert(html.includes('id="rxMode"'));
 assert(!/protocol-selector/i.test(html));
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert(sw.includes('hopperlink-one-v1500'));
+assert(sw.includes('hopperlink-one-v1510'));
 const fullscreenCss=fs.readFileSync(path.join(root,'premium-one-fullscreen.css'),'utf8');
 assert(fullscreenCss.includes('grid-template-columns:1fr!important'));
 assert(fullscreenCss.includes('grid-template-rows:repeat(3,minmax(0,1fr))!important'));

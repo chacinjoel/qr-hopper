@@ -1,4 +1,4 @@
-/* H7 Static Guide 1.5.0. Four shared HPS7 binary-tag-bridge corner codes.
+/* H7 Static Guide 1.5.1. Four shared HPS7 binary-tag-bridge corner codes.
  * Derived from qr-hopper HPS7's TAGS at c63815037ccf4d3aaa08bc03b964012b6cc44bcf.
  * Enlarged 2x tags, exact single-raster three-lane geometry, same-frame projective fitting.
  * This is not wire-compatible with the old HPS7 application. No image mutation in RX.
@@ -85,7 +85,7 @@
       q.splice(index,1);
     }
     const lengths=q.map((p,i)=>Math.hypot(p.x-q[(i+1)%4].x,p.y-q[(i+1)%4].y));
-    if(Math.min(...lengths)<9||Math.max(...lengths)/Math.min(...lengths)>3)return null;
+    if(Math.min(...lengths)<6||Math.max(...lengths)/Math.min(...lengths)>3.4)return null;
     // Canonical array is clockwise in image coordinates; rotation is decoded from the tag.
     const area=q.reduce((s,p,i)=>s+p.x*q[(i+1)%4].y-p.y*q[(i+1)%4].x,0);
     if(area<0)q.reverse();
@@ -106,9 +106,9 @@
           const gradient=grayAt(g,w,h,x+nx*(d+.6),y+ny*(d+.6))-grayAt(g,w,h,x+nx*(d-.6),y+ny*(d-.6));
           if(gradient>best){best=gradient;at=d;}
         }
-        if(best>12)points.push({x:x+nx*at,y:y+ny*at});
+        if(best>8)points.push({x:x+nx*at,y:y+ny*at});
       }
-      if(points.length<8)return q;
+      if(points.length<6)return q;
       const mx=points.reduce((s,p)=>s+p.x,0)/points.length,my=points.reduce((s,p)=>s+p.y,0)/points.length;
       let xx=0,xy=0,yy=0;for(const p of points){xx+=(p.x-mx)**2;xy+=(p.x-mx)*(p.y-my);yy+=(p.y-my)**2;}
       const angle=.5*Math.atan2(2*xy,xx-yy),aa=-Math.sin(angle),bb=Math.cos(angle);
@@ -129,7 +129,7 @@
       const p=project(hq,(x+.5)/7,(y+.5)/7);vals.push(grayAt(g,w,h,p.x,p.y));
     }
     const sorted=vals.slice().sort((a,b)=>a-b),lo=sorted[8],hi=sorted[42],contrast=hi-lo;
-    if(contrast<38)return null;
+    if(contrast<24)return null;
     const threshold=(lo+hi)*.5;
     let borderErrors=0,code=0;
     for(let y=0;y<7;y++)for(let x=0;x<7;x++){
@@ -137,16 +137,16 @@
       if(x===0||x===6||y===0||y===6)borderErrors+=bit;
       else code=(code<<1)|bit;
     }
-    if(borderErrors>4)return null;
+    if(borderErrors>7)return null;
     let best=null,second=99;
     for(const v of VARIANTS){const e=popcount(code^v.code);if(!best||e<best.errors){second=best?best.errors:99;best={...v,errors:e};}else second=Math.min(second,e);}
-    if(best.errors>3||second-best.errors<3)return null;
+    if(best.errors>5||second-best.errors<1)return null;
     // White quiet zone is not data; reject accidental squares inside the payload.
     let quiet=0;
     for(const t of [.2,.5,.8])for(const [u,v] of [[t,-.09],[t,1.09],[-.09,t],[1.09,t]]){
       const p=project(hq,u,v);if(grayAt(g,w,h,p.x,p.y)>threshold)quiet++;
     }
-    if(quiet<9)return null;
+    if(quiet<5)return null;
     const corners=q.map((_,k)=>q[(k+best.r)%4]);
     return {id:best.id,rotation:best.r,errors:best.errors,borderErrors,contrast,corners,score:contrast-25*best.errors};
   }
@@ -154,7 +154,7 @@
     constructor(){this.reset();}
     reset(){this.last=[];this.lastAt=0;this.frame=0;this.lastSize='';this.lastQuads=new Map();}
     prepare(image) {
-      const sw=image.width,sh=image.height,scale=Math.min(1,960/Math.max(sw,sh)),w=Math.round(sw*scale),h=Math.round(sh*scale);
+      const sw=image.width,sh=image.height,scale=Math.min(1,1280/Math.max(sw,sh)),w=Math.round(sw*scale),h=Math.round(sh*scale);
       if(!this.buffers||this.buffers.w!==w||this.buffers.h!==h) this.buffers={w,h,g:new Uint8Array(w*h),sum:new Uint32Array((w+1)*(h+1)),mask:new Uint8Array(w*h),seen:new Uint8Array(w*h),queue:new Int32Array(w*h)};
       const {g,sum,mask}=this.buffers,rgba=image.data;
       for(let y=0;y<h;y++)for(let x=0;x<w;x++){
@@ -169,7 +169,7 @@
         for(let x=0;x<w;x++){
           const xa=Math.max(0,x-radius),xb=Math.min(w,x+radius+1);
           const mean=(sum[yb*pitch+xb]-sum[yb*pitch+xa]-sum[ya*pitch+xb]+sum[ya*pitch+xa])/((xb-xa)*(yb-ya));
-          mask[y*w+x]=g[y*w+x]<mean-9?1:0;
+          mask[y*w+x]=g[y*w+x]<mean-5?1:0;
         }
       }
       return {g,mask,w,h,sw,sh,scaleX:sw/w,scaleY:sh/h};
@@ -196,9 +196,9 @@
             if(edge)boundary.push({x,y});
           }
           const bw=maxX-minX+1,bh=maxY-minY+1,fill=tail/(bw*bh);
-          if(bw<11||bh<11||bw>Math.min(w,h)*.24||bh>Math.min(w,h)*.24||bw/bh<.4||bw/bh>2.5||fill<.15||fill>.94)continue;
+          if(bw<7||bh<7||bw>Math.min(w,h)*.28||bh>Math.min(w,h)*.28||bw/bh<.30||bw/bh>3.2||fill<.08||fill>.98)continue;
           if(minX<=x0||minY<=y0||maxX>=x1||maxY>=y1)continue;
-          if(++tested>300)return out;
+          if(++tested>900)return out;
           let q=reduceHull(boundary);if(!q)continue;
           // Coarse corners are only proposals; real gradient refinement precedes sampling.
           q=refineQuad(q,g,w,h);
@@ -212,14 +212,19 @@
     lanes(markers,f) {
       // HPS7's four corner identities describe ONE dock, not twelve tiny per-lane tags.
       // Previous coordinates only narrow search windows; geometry below is from this frame.
-      if(markers.length<3)return [];
+      if(markers.length<2)return [];
+      if(markers.length===2){
+        const a=ORIGINS[markers[0].id],b=ORIGINS[markers[1].id];
+        const canonicalDistance=Math.hypot(a[0]-b[0],a[1]-b[1]);
+        if(canonicalDistance<70)return [];
+      }
       const points=[];
       for(const m of markers){const [ox,oy]=ORIGINS[m.id];m.corners.forEach((p,i)=>points.push({
         u:(ox+[0,TAG,TAG,0][i])/W,v:(oy+[0,0,TAG,TAG][i])/H,x:p.x/f.w,y:p.y/f.h}));}
       const hh=homography(points);if(!hh)return [];
       const errors=points.map(p=>{const v=project(hh,p.u,p.v);return Math.hypot((v.x-p.x)*f.w,(v.y-p.y)*f.h);});
       const rms=Math.sqrt(errors.reduce((s,e)=>s+e*e,0)/errors.length);
-      if(rms>2.2)return [];
+      if(rms>(markers.length>=3?4.5:6.5))return [];
       const map=(u,v)=>{const p=project(hh,u,v);return{x:p.x*f.sw,y:p.y*f.sh};};
       const items=[];
       for(let lane=0;lane<3;lane++){
@@ -227,7 +232,7 @@
         const quad={tl:map(DX/W,y/H),tr:map((DX+COLS)/W,y/H),br:map((DX+COLS)/W,(y+ROWS)/H),bl:map(DX/W,(y+ROWS)/H)};
         if(Object.values(quad).some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<0||p.y<0||p.x>=f.sw||p.y>=f.sh))continue;
         const cellPx=Math.min(Math.hypot(quad.tr.x-quad.tl.x,quad.tr.y-quad.tl.y)/COLS,Math.hypot(quad.bl.x-quad.tl.x,quad.bl.y-quad.tl.y)/ROWS);
-        if(cellPx<0.95)continue; // Enlarged control cells are twice this pitch.
+        if(cellPx<0.60)continue; // Real-camera guide acquisition tolerates blur/downsampling.
         const old=this.lastQuads.get(lane),motionCells=old?Math.hypot(quad.tl.x-old.tl.x,quad.tl.y-old.tl.y)/cellPx:0;
         this.lastQuads.set(lane,quad);
         items.push({quad,lane,modeId:null,bits:null,exact:true,source:'hps7-shared-dock',anchorCount:markers.length,reprojection:rms,cellPx,motionCells,score:100-rms*15});
@@ -267,5 +272,5 @@
       return {items,markers:markers.length,strategy,scanMs:performance.now()-started};
     }
   }
-  root.HopperAnchorScan={VERSION:'1.5.0',W,H,DX,DY,LANE_Y,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
+  root.HopperAnchorScan={VERSION:'1.5.1',W,H,DX,DY,LANE_Y,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
 })(typeof globalThis!=='undefined'?globalThis:this);

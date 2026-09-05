@@ -44,7 +44,7 @@ with sync_playwright() as p:
   found=rx.locator('#rxFileName').inner_text();detected=rx.evaluate('window.__hopperLinkOne.diagnostics().rx.mode')
   print(mode,'filename',found,'mode',detected,'workers',workers,flush=True)
   assert found==name and detected==mode
-  assert any('anchor-worker.js?v=1500' in w for w in workers),'Real same-origin worker not started'
+  assert any('anchor-worker.js?v=1510' in w for w in workers),'Real same-origin worker not started'
   tx.locator('#stageStartBtn').click()
   frames=0
   while frames<70:
