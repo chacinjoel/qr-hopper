@@ -11,9 +11,13 @@ on:
       - '.github/workflows/hopperlink-one-check.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,13 +31,31 @@ jobs:
           node --check hopperlink-pixelstream/hopper-one.js
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Rebuild deterministic AnchorScan runtime
-        run: HOPPER_BUILD=1300 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Rebuild deterministic H7 Control runtime
+        run: HOPPER_BUILD=1400 node hopperlink-pixelstream/tools/build-runtime.mjs
       - name: Validate color modes and packet integrity
         run: node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
       - name: Guard unobstructed optical surface
         run: node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
-      - name: Exercise actual scanner under simulated motion and noise
-        run: node hopperlink-pixelstream/tests/hopper-one-anchor-scan.test.cjs
+      - name: Exercise grayscale HELLO, ECC, motion and payload rejection
+        run: node hopperlink-pixelstream/tests/hopper-one-h7-control.test.cjs
       - name: Ensure generated files are committed
         run: git diff --exit-code -- hopperlink-pixelstream/hopper-one.runtime.json hopperlink-pixelstream/runtime
+      - name: Install browser harness
+        shell: bash
+        run: |
+          python -m pip install playwright==1.55.0
+          if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null; then
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Recover filenames and full files through production worker
+        env:
+          H7_PROOF_DIR: h7-browser-proof
+        run: python hopperlink-pixelstream/tests/hopper-one-browser.py
+      - name: Preserve rendered UI and receiver evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h7-control-browser-proof
+          path: h7-browser-proof/
+          if-no-files-found: ignore
