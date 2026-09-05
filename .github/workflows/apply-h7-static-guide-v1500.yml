@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
       - name: Apply static HPS7-style guide migration
         run: node hopperlink-pixelstream/tools/migrate-h7-static-guide-v1500.mjs
+      - name: Align tests to build 1500
+        run: node hopperlink-pixelstream/tools/update-tests-v1500.mjs
       - name: Rebuild deterministic runtime
         run: HOPPER_BUILD=1500 node hopperlink-pixelstream/tools/build-runtime.mjs
       - name: Syntax and source contracts
