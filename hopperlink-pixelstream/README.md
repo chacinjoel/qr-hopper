@@ -1,49 +1,49 @@
-# HopperLink ONE · HopperCore 1.3.0 · AnchorScan
+# HopperLink ONE · HopperCore 1.4.0 · H7 Control+
 
-A single screen-to-camera file transfer app. Three vertically stacked lanes, with selectable 2/3/4-bit optical modes. Both endpoints **must load build 1300**: the optical frame is new and packets use protocol 3.
+Build **1400**, protocol **4**. Update both endpoints; build 1300 optical frames are incompatible.
 
-## Acquisition is now based on coded anchors, not colored rings
+## What was actually recovered from HPS7
 
-Each lane renders four exterior black/white 7×7 fiducials on a white quiet zone. The payload, pilots and fiducials are rendered in **one canonical 84×40 raster**. The 60×36 data grid is at a known offset (12,2), so the receiver no longer guesses CSS border insets.
+Audited HPS7 at commit `c63815037ccf4d3aaa08bc03b964012b6cc44bcf`, specifically `hps7.js` and `binary-tag-bridge-fast.js`. HPS7 used a separate fixed-gray HELLO/control channel, a 13-byte initial HELLO payload, and four global corner references. It did not require reading the selected color DATA modulation to acquire the session.
 
-36 marker codes encode optical mode, lane and corner. Including rotations, all 144 variants have minimum Hamming distance 8. Identification accepts at most 2 bit errors and requires a separated runner-up. At least three independently identified markers in a lane must agree on a projective transform. One hidden marker per lane can therefore be tolerated when the remaining markers and data are readable. Markers identify the candidate mode; only a valid packet CRC and HELLO metadata establish a session.
+The four original 5×5 HPS7 binary patterns are reused exactly (converted from black=1 to white=1). Their 16 rotated variants have minimum pairwise Hamming distance 9. The new renderer makes each marker twice as wide/high in raster units as build 1300 and shares four markers across the whole optical dock, rather than requiring three small identified markers for each of three lanes. At least three of the four current references are required. No synthetic markers are painted over camera pixels.
 
-## Motion and performance
+## Control and file identification
 
-- Adaptive local grayscale threshold; no requirement for a particular cyan hue.
-- Convex-hull proposals followed by subpixel black/white edge fitting.
-- Least-squares homography from the current frame's marker corners, with reprojection rejection.
-- Fast region-of-interest re-detection after acquisition; periodic full scans and same-frame full reacquisition on failed tracking.
-- **No stale-coordinate decoding, artificial marker painting, or 1.8-second geometry hold.** Tracking windows may use the previous position; accepted payload coordinates must come from current markers.
-- Real video-frame callbacks where available, one worker job in flight, transferable pixel buffer, bounded main-thread fallback. No growing processing queue.
-- The worker isolates detection and decoding from the UI. Capture preserves sensor aspect ratio and is capped at 1080 on the short side / 1920 on the long side. Marker acquisition uses a reduced grayscale pyramid level capped at 960 on the long side; payload colors are sampled from the higher-resolution image.
-- Existing received blocks remain intact through lost or blurry frames. Frames without enough valid references or with a failed CRC do not advance file reception.
+- HELLO uses **30×18 cells in fixed 2-bit grayscale**, independent of the selected 2/3/4-bit DATA mode. Control cells are twice as wide and twice as high as DATA cells.
+- Metadata includes full UTF-8 filename, size, actual DATA mode, CRC32, SHA-256 when available, MIME and modification time. Compact metadata is split into at most 20-byte fragments with bounded, session-bound reassembly.
+- The complete packet, including its header, is protected by Hamming(8,4) SECDED and interleaved codewords. Single-bit errors per codeword are correctable; detected double-bit damage is rejected. Per-packet CRC32 and whole-metadata CRC32 must pass. This does not imply arbitrary burst-error immunity.
+- Three consecutive metadata fragments are shown at once and the control carousel advances every 400 ms. Missing fragments repeat. No filename/session success is declared from geometry alone or from partial metadata.
+- The receiver displays partial metadata progress, then the validated filename and actual DATA mode. Existing Sonic Assist ACK follows complete validated metadata; a lost ACK can be retried on subsequent HELLOs while awaiting DATA. Audio remains a basic, unaddressed tone backchannel, not authenticated telemetry.
 
-Motion blur, severe glare, tiny projected cells and rolling shutter can still prevent decoding. This is not unlimited noise immunity. Recovery means accepting the next usable frame without discarding the partial file, not manufacturing pixels obscured by motion.
+## Geometry and DATA
 
-## Modes and integrity
+One canonical **92×166 raster** contains four exterior markers and the three vertically stacked **60×36** DATA regions. The same transform and outer geometry are retained through HELLO and DATA. No CSS-inset guessing, independently stretched marker rectangles, or labels over payload. Modulation capacities remain 480 / 736 / 1000 bytes per DATA lane.
 
-| Mode | Symbols | Bits/cell | Payload bytes/lane |
-|---|---:|---:|---:|
-| Robusto | 4 gray levels | 2 | 480 |
-| Color Adaptativo | 8 colors | 3 | 736 |
-| Color Turbo | 16 colors | 4 | 1,000 |
-
-The data-cell count and per-packet capacities are unchanged. Exterior markers reserve screen area and do not increase theoretical bitrate. Real throughput depends on frame reception and redundancy. The existing systematic/Fountain stream, CRC32 and final SHA-256 verification (when Web Crypto is available), and basic Sonic Assist ACK/COMPLETE remain in the runtime. This change does **not** add an acoustic telemetry protocol.
+The current image supplies all accepted coordinates. Previous positions narrow the next search windows; stale coordinates never count as a newly decoded packet. Workers process one frame at a time with bounded fallback. Missing/blurred frames do not discard received blocks. Systematic/Fountain reconstruction and final integrity checks are retained. The maximum accepted file size is 128 MiB in this browser implementation.
 
 ## Use
 
-Open the app on both endpoints and confirm **HopperCore 1.3.0 · AnchorScan**. On TX select a mode and file, prepare, and open fullscreen. On RX start the camera and include the white panels and black markers. Do not aim only at the colored interiors. The UI distinguishes markers, candidate mode, CRC-validated packets and verified file completion. Receiver overlays are drawn separately from the image sent to the decoder. No labels or controls are drawn over TX data.
+1. Confirm **HopperCore 1.4.0 · H7 Control+** on both devices.
+2. Choose the DATA mode, prepare a file and open the sender vertically.
+3. The sender initially shows grayscale in every DATA mode. That is the robust control channel, not a failure to select color.
+4. Include the entire white dock and its four large black/white corner patterns in the receiver camera. Wait for the filename and mode.
+5. Sonic ACK can begin DATA automatically; the manual start button is a fallback after the receiver shows the filename. DATA then uses the selected color/grayscale mode.
+6. The download is enabled only after file integrity verification.
 
-## Reproducible checks
+`Captura para diagnóstico` saves a raw PNG of the current camera frame, without UI overlays, only on explicit user action. Pair it with the existing Flight Recorder JSON when investigating a physical-device failure. The app does not upload camera images.
+
+## Reproducible validation
 
 ```sh
-HOPPER_BUILD=1300 node hopperlink-pixelstream/tools/build-runtime.mjs
+HOPPER_BUILD=1400 node hopperlink-pixelstream/tools/build-runtime.mjs
 node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
 node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
-node hopperlink-pixelstream/tests/hopper-one-anchor-scan.test.cjs
+node hopperlink-pixelstream/tests/hopper-one-h7-control.test.cjs
+# Requires Python Playwright and Chrome or Chromium:
+python hopperlink-pixelstream/tests/hopper-one-browser.py
 ```
 
-The new regression suite tests 36 synthetic screen-to-camera scenarios: all three modes, perspective, noise/exposure variation, moderate blur, 90-degree rotation, one hidden marker, insufficient-marker rejection, HELLO metadata, corrupted payload rejection, moving-hand sequences, no stale lock on a blank frame, next-frame reacquisition, noise-only rejection and exact block reconstruction. Timings printed by tests describe the test machine, not measured phone performance.
+The pixel suite covers 35 synthetic frames/scenarios: every DATA mode, coarse gray HELLO, small projection, exposure/noise/moderate blur, a hidden global corner, exact metadata, Unicode fragmentation, SECDED correction/rejection, current-frame motion, blank-frame rejection and DATA reconstruction. The browser test serves the real files over localhost, loads the same-origin worker/imports, feeds actual sender screenshots through a simulated Canvas camera, receives 2048 bytes in each mode, checks filename/mode, native SHA-256, unobstructed layout and exact downloaded bytes. Audio and physical lenses are not simulated by that test.
 
-All assets, including worker dependencies, are local and versioned in the offline cache. HTTPS is required for production camera/microphone permissions. An initial online load is needed to cache the app.
+Neither these checks nor the HPS7 comparison establish physical-phone reliability, universal motion tolerance, or a particular throughput. The new raw capture export makes the next physical failure directly inspectable rather than inferred from UI overlays.

@@ -25,8 +25,8 @@ vm.createContext(context);
 vm.runInContext(source,context,{timeout:3000});
 const I=context.__hopperLinkOneInternals;
 assert(I,'test internals were not exported');
-assert.strictEqual(I.VERSION,'1.3.0');
-assert.strictEqual(I.PROTOCOL,3);
+assert.strictEqual(I.VERSION,'1.4.0');
+assert.strictEqual(I.PROTOCOL,4);
 assert.deepStrictEqual(Array.from(I.MODE_ORDER),['robust2','adaptive3','turbo4']);
 assert.strictEqual(I.PILOT_CELL_COUNT,64);
 
@@ -65,7 +65,7 @@ for(const [modeId,want] of Object.entries(expected)){
 }
 
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'hopper-one.runtime.json'),'utf8'));
-assert.strictEqual(manifest.build,'1300');
+assert.strictEqual(manifest.build,'1400');
 const encoded=manifest.parts.map(part=>fs.readFileSync(path.join(root,part),'utf8').replace(/\s+/g,'')).join('');
 const runtime=zlib.gunzipSync(Buffer.from(encoded,'base64'));
 assert.strictEqual(runtime.length,manifest.bytes);
@@ -75,9 +75,9 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 assert.strictEqual((html.match(/data-optical-mode=/g)||[]).length,3);
 assert(html.includes('id="stageMode"'));
 assert(html.includes('id="rxMode"'));
-assert(!/hps[78]|protocol-selector/i.test(html));
+assert(!/protocol-selector/i.test(html));
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-assert(sw.includes('hopperlink-one-v1300'));
+assert(sw.includes('hopperlink-one-v1400'));
 const fullscreenCss=fs.readFileSync(path.join(root,'premium-one-fullscreen.css'),'utf8');
 assert(fullscreenCss.includes('grid-template-columns:1fr!important'));
 assert(fullscreenCss.includes('grid-template-rows:repeat(3,minmax(0,1fr))!important'));
@@ -100,4 +100,4 @@ assert.strictEqual(portraitScan.height,1920);
 assert.strictEqual(portraitScan.portrait,true);
 assert(html.includes('Vista fullscreen 2:3'));
 
-console.log('HopperLink ONE 1.3.0: color codecs, framing and build integrity PASS');
+console.log('HopperLink ONE 1.4.0: color codecs, framing and build integrity PASS');

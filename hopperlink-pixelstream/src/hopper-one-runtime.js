@@ -1,11 +1,14 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.3.0";
-  const PROTOCOL = 3;
+  const VERSION = "1.4.0";
+  const PROTOCOL = 4;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
   const HEADER_BYTES = 36;
+  const CONTROL_FLAG = 0x80, CONTROL_CHUNK = 20, MAX_META_BYTES = 4096;
+  const CONTROL_MODE = "robust2", CONTROL_COLS = 30, CONTROL_ROWS = 18;
+  const helloAssemblies = new Map();
   const SHORT_SIDE = 36;
   const LONG_SIDE = 60;
   const PILOT_SIDE = 4;
@@ -324,7 +327,9 @@
     const selectedMode = resolveMode(mode);
     const effectiveChunkSize = chunkSize ?? selectedMode.chunkBytes;
     payload = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
-    const max = packetPayloadCapacity(selectedMode);
+    const control = type === TYPE.HELLO && (flags & CONTROL_FLAG);
+    if(control && selectedMode.bits !== 2)throw new Error("HELLO requires grayscale control");
+    const max = control ? CONTROL_CHUNK : packetPayloadCapacity(selectedMode);
     if (payload.length > max)
       throw new Error(
         `Payload ${payload.length} excede ${max} en ${selectedMode.label}`,
@@ -370,7 +375,7 @@
       !session ||
       !sourceCount ||
       !chunkSize ||
-      chunkSize > mode.chunkBytes ||
+      chunkSize > ((type === TYPE.HELLO && (flags & CONTROL_FLAG)) ? 1000 : mode.chunkBytes) ||
       payloadLength > packetPayloadCapacity(mode) ||
       HEADER_BYTES + payloadLength > bytes.length
     )
@@ -452,26 +457,102 @@
     }
     return bytes;
   }
-  function renderPacketToCanvas(canvas, raw) {
-    if (!canvas || !raw) return;
-    const { cols, rows } = activeGrid();
-    const mode = modeByBits(raw[7] & 0x0f) || activeMode();
-    const symbols = rawToSymbols(raw, cols, rows, mode);
-    const frame = globalThis.HopperAnchorScan.framePixels(symbols, mode.id, raw[6], mode.palette);
-    if (canvas.width !== frame.width || canvas.height !== frame.height) {
-      canvas.width = frame.width;
-      canvas.height = frame.height;
+  // HPS7 separated robust control from high-density DATA. This port adds SECDED,
+  // interleaving, compact metadata and bounded reassembly. Channel is always gray2.
+  function hammingEncode(n) {
+    let w=((n>>3)&1)<<2|((n>>2)&1)<<4|((n>>1)&1)<<5|(n&1)<<6;
+    const b=i=>(w>>i)&1;
+    w|=(b(2)^b(4)^b(6))|(b(2)^b(5)^b(6))<<1|(b(4)^b(5)^b(6))<<3;
+    let parity=0;for(let i=0;i<7;i++)parity^=(w>>i)&1;
+    return w|(parity<<7);
+  }
+  function hammingDecode(w) {
+    const b=i=>(w>>i)&1;
+    const syndrome=(b(0)^b(2)^b(4)^b(6))|((b(1)^b(2)^b(5)^b(6))<<1)|((b(3)^b(4)^b(5)^b(6))<<2);
+    let parity=0;for(let i=0;i<8;i++)parity^=b(i);
+    if(syndrome&&!parity)return {n:0,bad:true,corrected:0};
+    if(parity)w^=1<<(syndrome?syndrome-1:7);
+    return {n:((w>>2)&1)<<3|((w>>4)&1)<<2|((w>>5)&1)<<1|((w>>6)&1),bad:false,corrected:parity};
+  }
+  function controlEncode(raw) {
+    const capacity=opticalRawCapacity(CONTROL_COLS,CONTROL_ROWS,CONTROL_MODE); // 119 B; 118 used by SECDED
+    if(raw.length*2>capacity)throw new Error('HELLO control fragment too large');
+    const out=new Uint8Array(capacity),coded=capacity-(capacity%2);
+    for(let i=0;i<coded;i++){
+      const byte=raw[i>>1]||0,n=(i&1)?byte&15:byte>>>4;
+      out[(i*157)%coded]=hammingEncode(n);
     }
-    const ctx = canvas.getContext("2d", { alpha: false });
-    const image = ctx.createImageData(frame.width, frame.height);
-    image.data.set(frame.data);
-    ctx.putImageData(image, 0, 0);
+    return out;
+  }
+  function controlDecode(channel) {
+    const capacity=opticalRawCapacity(CONTROL_COLS,CONTROL_ROWS,CONTROL_MODE);
+    if(channel.length!==capacity)return null;
+    const coded=capacity-(capacity%2);
+    const raw=new Uint8Array(coded/2),bad=new Uint8Array(coded/2),fixes=new Uint8Array(coded/2);
+    for(let i=0;i<coded;i++){
+      const value=hammingDecode(channel[(i*157)%coded]),j=i>>1;
+      raw[j]|=value.n<<((i&1)?0:4);bad[j]|=value.bad?1:0;fixes[j]+=value.corrected;
+    }
+    const packet=parsePacket(raw,CONTROL_MODE);
+    if(!packet||packet.bad||packet.type!==TYPE.HELLO||!(packet.flags&CONTROL_FLAG))return null;
+    const used=HEADER_BYTES+packet.payload.length;
+    if(bad.subarray(0,used).some(v=>v))return null;
+    return {packet,corrected:fixes.subarray(0,used).reduce((a,b)=>a+b,0)};
+  }
+  function compactHello(meta) {
+    const bytes=encoder.encode(JSON.stringify(['H7C1',meta.bits,meta.size,meta.fileCrc,
+      meta.sha256,meta.name,meta.type,meta.lastModified||0]));
+    if(bytes.length>MAX_META_BYTES)throw new Error('Nombre/tipo de archivo demasiado extenso');
+    return bytes;
+  }
+  function acceptControlHello(packet) {
+    if(packet.bad||packet.type!==TYPE.HELLO||packet.bits!==2||!(packet.flags&CONTROL_FLAG))return null;
+    const total=packet.symbol>>>16,index=packet.symbol&65535;
+    if(total<1||total>Math.ceil(MAX_META_BYTES/CONTROL_CHUNK)||index>=total||
+      packet.payload.length<1||packet.payload.length>CONTROL_CHUNK||
+      (index<total-1&&packet.payload.length!==CONTROL_CHUNK))return null;
+    const now=performance.now();
+    for(const [key,entry]of helloAssemblies)if(now-entry.at>10000)helloAssemblies.delete(key);
+    const key=[packet.session,packet.aux,total,packet.sourceCount,packet.chunkSize].join(':');
+    let entry=helloAssemblies.get(key);
+    if(!entry){
+      if(helloAssemblies.size>=4)helloAssemblies.delete(helloAssemblies.keys().next().value);
+      entry={parts:new Map(),at:now};helloAssemblies.set(key,entry);
+    }
+    entry.at=now;entry.parts.set(index,packet.payload);
+    app.helloProgress={parts:entry.parts.size,total,bits:((packet.flags>>4)&3)+2};
+    if(entry.parts.size!==total)return null;
+    const full=concatBytes(...Array.from({length:total},(_,i)=>entry.parts.get(i)));
+    if(full.length>MAX_META_BYTES||crc32(full)!==packet.aux){helloAssemblies.delete(key);return null;}
+    let a;try{a=JSON.parse(decoderText.decode(full));}catch{return null;}
+    if(!Array.isArray(a)||a.length!==8||a[0]!=='H7C1')return null;
+    const [_,bits,size,fileCrc,sha256,name,type,lastModified]=a,mode=modeByBits(bits);
+    if(!mode||bits!==(((packet.flags>>4)&3)+2)||!Number.isSafeInteger(size)||size<0||size>128*1024*1024||
+      !Number.isInteger(fileCrc)||fileCrc<0||fileCrc>0xffffffff||
+      (sha256!==null&&!(typeof sha256==='string'&&/^[a-f0-9]{64}$/.test(sha256)))||
+      typeof name!=='string'||!name||typeof type!=='string'||type.length>256||
+      !Number.isSafeInteger(lastModified)||lastModified<0||
+      packet.chunkSize!==mode.chunkBytes||packet.sourceCount!==Math.max(1,Math.ceil(size/mode.chunkBytes)))return null;
+    return {engine:ENGINE_NAME,version:VERSION,protocol:PROTOCOL,transport:'TriFrame-3',
+      mode:mode.id,modeLabel:mode.label,bits:mode.bits,symbols:mode.symbols,name,type,size,
+      fileCrc,sha256,lastModified,sourceCount:packet.sourceCount,chunkSize:packet.chunkSize};
+  }
+
+  function opticalSymbols(raw) {
+    const mode=modeByBits(raw[7]&15)||activeMode();
+    if(!(raw[7]&CONTROL_FLAG))return rawToSymbols(raw,LONG_SIDE,SHORT_SIDE,mode);
+    const small=rawToSymbols(controlEncode(raw),CONTROL_COLS,CONTROL_ROWS,CONTROL_MODE);
+    const symbols=new Uint8Array(LONG_SIDE*SHORT_SIDE);
+    for(let y=0;y<SHORT_SIDE;y++)for(let x=0;x<LONG_SIDE;x++)symbols[y*LONG_SIDE+x]=small[(y>>1)*CONTROL_COLS+(x>>1)];
+    return symbols;
   }
   function renderCurrentTriFrame() {
-    const canvases = [$("laneCanvasA"), $("laneCanvasB"), $("laneCanvasC")];
-    for (let lane = 0; lane < 3; lane++)
-      if (app.currentLanePackets[lane])
-        renderPacketToCanvas(canvases[lane], app.currentLanePackets[lane]);
+    if(app.currentLanePackets.some(p=>!p))return;
+    const lanes=app.currentLanePackets.map(raw=>({symbols:opticalSymbols(raw),palette:modeByBits(raw[7]&15).palette}));
+    const raster=globalThis.HopperAnchorScan.framePixels(lanes);
+    const canvas=$("stageDockCanvas"),ctx=canvas.getContext("2d",{alpha:false});
+    if(canvas.width!==raster.width||canvas.height!==raster.height){canvas.width=raster.width;canvas.height=raster.height;}
+    const image=ctx.createImageData(raster.width,raster.height);image.data.set(raster.data);ctx.putImageData(image,0,0);
   }
   function xorInto(target, source) {
     const length = Math.min(target.length, source.length);
@@ -972,7 +1053,7 @@
   function updateModeUI() {
     const { mode, rangeText, capacityText } = modeMetrics();
     document.documentElement.dataset.opticalMode = mode.id;
-    document.querySelectorAll("[data-optical-mode]").forEach((button) => {
+    document.querySelectorAll("button[data-optical-mode]").forEach((button) => {
       const active = button.dataset.opticalMode === mode.id;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", active ? "true" : "false");
@@ -1084,6 +1165,7 @@
     setEngineStatus("PREPARANDO MOTOR", "mid");
     setTxProgress(8, `Leyendo archivo·${mode.label}…`);
     try {
+      if(file.size>128*1024*1024)throw new Error("Límite de esta versión: 128 MiB por archivo");
       const bytes = new Uint8Array(await file.arrayBuffer());
       setTxProgress(34, "Calculando CRC32…");
       const fileCrc = crc32(bytes);
@@ -1092,44 +1174,20 @@
       setTxProgress(72, `Construyendo bloques de ${mode.chunkBytes} B…`);
       const blocks = splitBlocks(bytes, mode.chunkBytes),
         session = randomSession();
-      let safeName = file.name.slice(0, 120);
-      let meta, payload;
-      do {
-        meta = {
-          engine: ENGINE_NAME,
-          version: VERSION,
-          protocol: PROTOCOL,
-          transport: "TriFrame-3",
-          mode: mode.id,
-          modeLabel: mode.label,
-          name: safeName,
-          type: (file.type || "application/octet-stream").slice(0, 80),
-          size: file.size,
-          lastModified: file.lastModified || 0,
-          fileCrc,
-          sha256,
-          sourceCount: blocks.length,
-          chunkSize: mode.chunkBytes,
-          bits: mode.bits,
-          symbols: mode.symbols,
-          gridCells: SHORT_SIDE * LONG_SIDE,
-          pilotCells: PILOT_CELL_COUNT,
-        };
-        payload = encoder.encode(JSON.stringify(meta));
-        if (payload.length > packetPayloadCapacity(mode))
-          safeName = safeName.slice(0, Math.max(16, safeName.length - 16));
-      } while (
-        payload.length > packetPayloadCapacity(mode) &&
-        safeName.length > 16
-      );
-      if (payload.length > packetPayloadCapacity(mode))
-        throw new Error(`La metadata no cabe en HELLO ${mode.label}`);
+      const meta={engine:ENGINE_NAME,version:VERSION,protocol:PROTOCOL,transport:"TriFrame-3",
+        mode:mode.id,modeLabel:mode.label,name:file.name,type:file.type||"application/octet-stream",
+        size:file.size,lastModified:file.lastModified||0,fileCrc,sha256,sourceCount:blocks.length,
+        chunkSize:mode.chunkBytes,bits:mode.bits,symbols:mode.symbols};
+      const payload=compactHello(meta);
+      const helloParts=[];
+      for(let offset=0;offset<payload.length;offset+=CONTROL_CHUNK)helloParts.push(payload.slice(offset,offset+CONTROL_CHUNK));
       app.tx = {
         file,
         bytes,
         blocks,
         meta,
         helloPayload: payload,
+        helloParts,helloCursor:0,helloChecksum:crc32(payload),
         session,
         modeId: mode.id,
         sequence: 1,
@@ -1274,20 +1332,21 @@
     $("transmissionStage").classList.remove("data-live");
     $("stageFileName").textContent =
       `${app.tx.file.name}·${formatBytes(app.tx.file.size)}`;
-    $("stagePhase").textContent = "HELLO·3/3";
-    $("stageRate").textContent = "ESTÁTICO";
+    $("stagePhase").textContent = "HELLO GRIS + FEC";
+    $("stageRate").textContent = "CONTROL · 2.5 fps";
     $("stageMode").textContent =
       `${resolveMode(app.tx.modeId).shortLabel}·${resolveMode(app.tx.modeId).bits}b`;
     $("stageCoverage").textContent = "0%";
     $("stageStartBtn").hidden = false;
     $("stageStartBtn").disabled = false;
-    $("stageStartBtn").textContent = "Iniciar DATA";
+    $("stageStartBtn").textContent = "Receptor listo · Iniciar DATA";
     $("stagePauseBtn").hidden = true;
     $("stageMessageTitle").textContent =
       "Muestra esta pantalla completa al receptor";
     $("stageMessageDetail").textContent =
-      `AnchorScan identifica los marcadores y lee ${resolveMode(app.tx.modeId).bits} bits por celda.`;
+      "Cuatro referencias HPS7 grandes; HELLO gris protegido, independiente del modo DATA.";
     renderHelloTriFrame();
+    startHelloCarousel();
     flight.record(
       "tx",
       "triframe-opened",
@@ -1332,26 +1391,26 @@
   function nextSequence() {
     return app.tx.sequence++ >>> 0 || 1;
   }
+  function helloPacket(lane, index = 0) {
+    const tx=app.tx,parts=tx.helloParts;
+    return makePacket({type:TYPE.HELLO,lane,session:tx.session,sequence:nextSequence(),
+      sourceCount:tx.blocks.length,chunkSize:tx.meta.chunkSize,
+      symbol:(parts.length<<16)|(index%parts.length),aux:tx.helloChecksum,
+      payload:parts[index%parts.length],flags:CONTROL_FLAG|((resolveMode(tx.modeId).bits-2)<<4),mode:CONTROL_MODE});
+  }
   function renderHelloTriFrame() {
     if (!app.tx) return;
-    const mode = resolveMode(app.tx.modeId);
-    for (let lane = 0; lane < 3; lane++) {
-      const packet = makePacket({
-        type: TYPE.HELLO,
-        lane,
-        session: app.tx.session,
-        sequence: nextSequence(),
-        sourceCount: app.tx.blocks.length,
-        chunkSize: mode.chunkBytes,
-        symbol: 0,
-        aux: app.tx.meta.fileCrc,
-        payload: app.tx.helloPayload,
-        mode,
-      });
-      app.currentLanePackets[lane] = packet;
-      app.currentLaneModes[lane] = mode.id;
-    }
+    const tx=app.tx;
+    for(let lane=0;lane<3;lane++)app.currentLanePackets[lane]=helloPacket(lane,tx.helloCursor+lane);
+    tx.helloCursor=(tx.helloCursor+3)%tx.helloParts.length;
     renderCurrentTriFrame();
+  }
+  function startHelloCarousel() {
+    clearInterval(app.helloTimer);
+    if(app.tx?.helloParts.length>1)app.helloTimer=setInterval(()=>{
+      if(app.stageOpen && app.tx?.phase==="HELLO")renderHelloTriFrame();
+      else clearInterval(app.helloTimer);
+    },400);
   }
   function nextParityPacket(lane) {
     const mode = resolveMode(app.tx.modeId);
@@ -1394,19 +1453,8 @@
       else packets[lane] = nextParityPacket(lane);
     }
     packets[2] = nextParityPacket(2);
-    if (tx.frames > 0 && tx.frames % 42 === 0) {
-      packets[2] = makePacket({
-        type: TYPE.HELLO,
-        lane: 2,
-        session: tx.session,
-        sequence: nextSequence(),
-        sourceCount: tx.blocks.length,
-        chunkSize: tx.meta.chunkSize,
-        symbol: 0,
-        aux: tx.meta.fileCrc,
-        payload: tx.helloPayload,
-        mode: tx.modeId,
-      });
+    if (tx.frames > 0 && tx.frames % 18 === 0) {
+      packets[2]=helloPacket(2,Math.floor(tx.frames/18)-1);
     }
     if (tx.systematicIndex >= tx.blocks.length && tx.frames % 11 === 0) {
       packets[0] = systematicPacket(0, tx.repeatIndex % tx.blocks.length);
@@ -1454,6 +1502,7 @@
       tx.completed
     )
       return;
+    clearInterval(app.helloTimer);
     tx.running = true;
     tx.paused = false;
     tx.phase = "DATA";
@@ -1592,6 +1641,7 @@
     );
   }
   async function closeStage() {
+    clearInterval(app.helloTimer);
     if (app.tx) {
       app.tx.running = false;
       app.tx.paused = false;
@@ -1720,37 +1770,39 @@
     };
   }
   function decodeOpticalQuad(image, width, height, quad, geometry = null) {
-    // AnchorScan yields the exact payload rectangle, not a frame with guessed margins.
-    // Its coded corner IDs resolve orientation, lane AND modulation before payload decode.
-    if (!geometry?.exact || !MODE_DEFINITIONS[geometry.modeId]) return null;
-    const cols = LONG_SIDE, rows = SHORT_SIDE, mode = resolveMode(geometry.modeId);
-    const ordered = [quad.tl, quad.tr, quad.br, quad.bl];
-    const h = globalThis.HopperAnchorScan.homography(ordered.map((p,i) => ({
-      u:[0,1,1,0][i],v:[0,0,1,1][i],x:p.x,y:p.y
-    })));
-    if (!h) return null;
-    const rgba = image.data;
-    let bestBad = null;
-    // Small sampling-phase recovery; every attempt still requires a valid full CRC.
-    for (const [shiftX,shiftY] of [[0,0],[-0.14,0],[0.14,0],[0,-0.14],[0,0.14]]) {
-      const samples = new Float32Array(cols * rows * 3);
-      for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
-        const p = globalThis.HopperAnchorScan.project(h,(x+0.5+shiftX)/cols,(y+0.5+shiftY)/rows);
-        const xx = clamp(Math.floor(p.x),0,width-2), yy=clamp(Math.floor(p.y),0,height-2);
-        const fx=clamp(p.x-xx,0,1), fy=clamp(p.y-yy,0,1), a=(yy*width+xx)*4, out=(y*cols+x)*3;
-        for (let c=0;c<3;c++) samples[out+c] =
-          (rgba[a+c]*(1-fx)+rgba[a+4+c]*fx)*(1-fy)+
+    if(!geometry?.exact)return null;
+    const A=globalThis.HopperAnchorScan;
+    const ordered=[quad.tl,quad.tr,quad.br,quad.bl];
+    const h=A.homography(ordered.map((p,i)=>({u:[0,1,1,0][i],v:[0,0,1,1][i],x:p.x,y:p.y})));
+    if(!h)return null;
+    const ids=[CONTROL_MODE,app.rx?.modeId,...MODE_ORDER].filter((id,i,all)=>id&&all.indexOf(id)===i);
+    const rgba=image.data;let bestBad=null;
+    for(const isControl of [true,false]){
+    if(!isControl && geometry.cellPx<1.8)continue;
+    const cols=isControl?CONTROL_COLS:LONG_SIDE,rows=isControl?CONTROL_ROWS:SHORT_SIDE;
+    for(const [sx,sy]of [[0,0],[-.16,0],[.16,0],[0,-.16],[0,.16]]){
+      const samples=new Float32Array(cols*rows*3);
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+        const p=A.project(h,(x+.5+sx)/cols,(y+.5+sy)/rows);
+        const xx=clamp(Math.floor(p.x),0,width-2),yy=clamp(Math.floor(p.y),0,height-2);
+        const fx=clamp(p.x-xx,0,1),fy=clamp(p.y-yy,0,1),a=(yy*width+xx)*4,out=(y*cols+x)*3;
+        for(let c=0;c<3;c++)samples[out+c]=(rgba[a+c]*(1-fx)+rgba[a+4+c]*fx)*(1-fy)+
           (rgba[a+width*4+c]*(1-fx)+rgba[a+width*4+4+c]*fx)*fy;
       }
-      const classified=classifyColorSamples(samples,cols,rows,mode,0);
-      if (!classified) continue;
-      const packet=parsePacket(symbolsToBytes(classified.symbols,cols,rows,mode),mode);
-      if (!packet || packet.lane !== geometry.lane) continue;
-      const result={packet,quality:classified.quality,quad,cols,rows,mode,
-        pilotError:classified.pilotError,minSeparation:classified.minSeparation,
-        samplingPhase:[shiftX,shiftY]};
-      if (packet.bad) { bestBad={...result,bad:true}; continue; }
-      return result;
+      for(const id of isControl?[CONTROL_MODE]:ids){
+        const classified=classifyColorSamples(samples,cols,rows,id,0);if(!classified)continue;
+        const raw=symbolsToBytes(classified.symbols,cols,rows,id);
+        const candidates=isControl?[controlDecode(raw)].filter(Boolean):[{packet:parsePacket(raw,id),corrected:0}];
+        for(const {packet,corrected}of candidates){
+          if(!packet||packet.lane!==geometry.lane)continue;
+          const result={packet,quality:classified.quality,quad,cols,rows,mode:classified.mode,
+            pilotError:classified.pilotError,minSeparation:classified.minSeparation,
+            control:!!(packet.flags&CONTROL_FLAG),corrected,samplingPhase:[sx,sy]};
+          if(packet.bad){bestBad={...result,bad:true};continue;}
+          return result;
+        }
+      }
+    }
     }
     return bestBad;
   }
@@ -1833,6 +1885,7 @@
       valid: 0,
       rejected: 0,
       acked: false,
+      lastAckAt:performance.now(),dataStarted:false,
       completing: false,
       complete: false,
       startedAt: performance.now(),
@@ -1870,7 +1923,7 @@
       },
       100,
     );
-    setPhase("RX_DATA");
+    setPhase("RX_READY");
     if (!app.rx.acked) {
       app.rx.acked = true;
       setTimeout(
@@ -1897,31 +1950,12 @@
     app.detection.locks[packet.lane] = performance.now() + 800;
     updateLaneLocks();
     if (packet.type === TYPE.HELLO) {
-      let meta;
-      try {
-        meta = JSON.parse(decoderText.decode(packet.payload));
-      } catch {
-        return;
-      }
-      const mode = modeByBits(packet.bits);
-      if (
-        !mode ||
-        meta.engine !== ENGINE_NAME ||
-        meta.protocol !== PROTOCOL ||
-        meta.transport !== "TriFrame-3" ||
-        meta.mode !== mode.id ||
-        meta.bits !== mode.bits ||
-        meta.symbols !== mode.symbols ||
-        meta.sourceCount !== packet.sourceCount ||
-        meta.chunkSize !== packet.chunkSize ||
-        packet.chunkSize !== mode.chunkBytes
-      )
-        return;
+      const meta=acceptControlHello(packet);
+      if(!meta)return;
       if (!app.rx || app.rx.session !== packet.session)
         newReceiverSession(packet, meta);
-      else if (!app.rx.acked) {
-        app.rx.acked = true;
-        sonic.emit("ACK").catch(() => {});
+      else if(!app.rx.dataStarted && performance.now()-(app.rx.lastAckAt||0)>1800){
+        app.rx.lastAckAt=performance.now();sonic.emit("ACK").catch(()=>{});
       }
       updateReceiverUI();
       return;
@@ -1934,6 +1968,7 @@
       packet.modeId !== rx.modeId
     )
       return;
+    rx.dataStarted=true;setPhase("RX_DATA");
     const key = `${packet.type}:${packet.sequence}:${packet.symbol}:${packet.lane}`;
     if (rx.seen.has(key)) return;
     rx.seen.add(key);
@@ -1984,7 +2019,7 @@
     $("rxQuality").textContent = average ? `${Math.round(average)}%` : "—";
     $("rxMode").textContent = rx
       ? `${resolveMode(rx.modeId).shortLabel}·${resolveMode(rx.modeId).bits}b`
-      : app.candidateBits ? `${app.candidateBits}-bit · cabecera pendiente` : "AUTO 2/3/4-bit";
+      : app.helloProgress ? `${app.helloProgress.bits}-bit · metadata ${app.helloProgress.parts}/${app.helloProgress.total}` : "HELLO GRIS · AUTO";
     if (!rx) {
       $("rxKnown").textContent = "0/—";
       $("rxPercent").textContent = "0%";
@@ -2190,12 +2225,12 @@
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "ANCHORSCAN · BUSCANDO MARCADORES";
+      $("cameraState").textContent = "H7 CONTROL+ · BUSCANDO MARCADORES";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
       app.scanLastAt = 0;
-      app.candidateBits = null;
+      app.candidateBits = null;app.helloProgress=null;helloAssemblies.clear();
       app.scanEpoch = (app.scanEpoch || 0) + 1;
       app.scanBusy = false;
       app.scanLastMediaTime = -1;
@@ -2252,7 +2287,7 @@
     app.anchorScanner = new globalThis.HopperAnchorScan.Scanner();
     if (typeof Worker !== "function") return;
     try {
-      const worker = new Worker("./anchor-worker.js?v=1300");
+      const worker = new Worker("./anchor-worker.js?v=1400");
       app.scanWorker=worker;
       worker.onmessage=({data}) => {
         if (app.scanWorker !== worker || data.epoch !== app.scanEpoch) return;
@@ -2263,7 +2298,7 @@
       worker.onerror=event => {
         if(app.scanWorker === worker) stopFailedWorker(event.message || "worker failed");
       };
-      flight.record("scan","worker-started",{build:"1300",singleFlight:true},100);
+      flight.record("scan","worker-started",{build:"1400",singleFlight:true},100);
     } catch(error) {stopFailedWorker(error.message);}
   }
   function stopFailedWorker(message) {
@@ -2305,7 +2340,7 @@
     if(!app.cameraStream)return;
     const {items,width,height}=result,now=performance.now();
     app.lastAnchorMetrics={markers:result.markers,strategy:result.strategy,scanMs:result.scanMs,processingMs:result.processingMs,
-      lanes:items.map(i=>({lane:i.lane,anchors:i.anchorCount,cellPx:i.cellPx,motionCells:i.motionCells,reprojection:i.reprojection,valid:!!i.decoded}))};
+      lanes:items.map(i=>({lane:i.lane,anchors:i.anchorCount,cellPx:i.cellPx,motionCells:i.motionCells,reprojection:i.reprojection,valid:!!i.decoded,control:!!i.decoded?.control,corrected:i.decoded?.corrected||0}))};
     for(const item of items){
       if(item.rejected){app.detection.rejected++;if(app.rx)app.rx.rejected++;}
       else if(item.decoded?.packet)processDecodedPacket(item.decoded.packet,item.decoded.quality);
@@ -2314,12 +2349,12 @@
     const valid=items.filter(i=>i.decoded?.packet).length;
     if(app.rx?.complete)$("cameraState").textContent="ARCHIVO COMPLETO ✓";
     else $("cameraState").textContent=valid
-      ? `ANCHORSCAN · LEYENDO ${valid}/3`
-      : items.length ? `ANCHORSCAN · ${items.length}/3 ZONAS · VALIDANDO DATOS`
-      : `ANCHORSCAN · ${result.markers}/12 MARCADORES`;
+      ? (app.rx && !app.rx.dataStarted ? "ARCHIVO IDENTIFICADO · ESPERANDO DATA" : `H7 CONTROL+ · LEYENDO ${valid}/3`)
+      : items.length ? `H7 CONTROL+ · ${items.length}/3 ZONAS · VALIDANDO DATOS`
+      : `H7 CONTROL+ · ${result.markers}/4 REFERENCIAS`;
     app.candidateBits = null;
     if(!app.rx&&items.length){
-      const bits=[...new Set(items.map(i=>i.bits))];
+      const bits=[...new Set(items.map(i=>i.decoded?.packet?.bits).filter(Boolean))];
       app.candidateBits=bits.length===1?bits[0]:null;
     }
     app.scanFrames++;
@@ -2329,6 +2364,19 @@
       flight.record("metric","anchor-scan",{...app.lastAnchorMetrics,worker:!!app.scanWorker,
         validPackets:app.detection.valid,rejectedCrc:app.detection.rejected,known:app.rx?.known||0},valid?100:null);}
     updateReceiverUI();
+  }
+  function saveScanCapture() {
+    if(!app.cameraStream){alertError("Inicia la cámara antes de capturar el diagnóstico.");return;}
+    const video=$("cameraVideo"),canvas=document.createElement("canvas");
+    canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+    canvas.getContext("2d").drawImage(video,0,0);
+    canvas.toBlob(blob=>{
+      if(!blob)return;
+      const url=URL.createObjectURL(blob),a=document.createElement("a");
+      a.href=url;a.download=`hopper-h7-scan-1400-${Date.now()}.png`;a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+    },"image/png");
+    flight.record("scan","raw-capture-exported",{width:canvas.width,height:canvas.height,build:1400,metrics:app.lastAnchorMetrics},null);
   }
   function switchRole(role) {
     app.role = role;
@@ -2366,7 +2414,7 @@
     $("sendTab").addEventListener("click", () => switchRole("send"));
     $("receiveTab").addEventListener("click", () => switchRole("receive"));
     document
-      .querySelectorAll("[data-optical-mode]")
+      .querySelectorAll("button[data-optical-mode]")
       .forEach((button) =>
         button.addEventListener("click", () =>
           selectOpticalMode(button.dataset.opticalMode),
@@ -2396,6 +2444,7 @@
     $("stageCloseBtn").addEventListener("click", closeStage);
     $("cameraBtn").addEventListener("click", startCamera);
     $("stopCameraBtn").addEventListener("click", stopCamera);
+    $("captureScanBtn").addEventListener("click",saveScanCapture);
     $("receiverFullscreenBtn").addEventListener(
       "click",
       toggleReceiverFullscreen,
@@ -2457,6 +2506,7 @@
         acquireWakeLock();
     });
     window.addEventListener("pagehide", () => {
+      clearInterval(app.helloTimer);
       if (app.tx) {
         app.tx.running = false;
         app.tx.loopToken++;
@@ -2493,7 +2543,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1300",
+        "./sw.js?v=1400",
         { scope: "./" },
       );
       flight.record(
@@ -2629,6 +2679,8 @@
     };
   }
   globalThis.__hopperLinkOneInternals = {
+    CONTROL_MODE,CONTROL_FLAG,CONTROL_CHUNK,CONTROL_COLS,CONTROL_ROWS,opticalSymbols,controlEncode,controlDecode,compactHello,acceptControlHello,
+    processDecodedPacket, getApp:()=>app,
     ENGINE_NAME,
     VERSION,
     PROTOCOL,

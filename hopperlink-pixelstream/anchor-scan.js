@@ -1,15 +1,15 @@
-/* HopperLink ONE AnchorScan 1.3.0
- * Self-contained monochrome coded fiducials; no DOM, network or shared frame mutation.
- * Each lane has 4 exterior 7x7 tags, a white quiet zone and an exact 60x36 payload.
- * IDs encode lane, corner and optical mode. Dictionary d_min=8 across all rotations.
- * Correct <=2 bit errors, require independent markers and geometric consensus + payload CRC.
+/* H7 Control+ 1.4.0. Four shared HPS7 binary-tag-bridge corner codes.
+ * Derived from qr-hopper HPS7's TAGS at c63815037ccf4d3aaa08bc03b964012b6cc44bcf.
+ * Enlarged 2x tags, exact single-raster three-lane geometry, same-frame projective fitting.
+ * This is not wire-compatible with the old HPS7 application. No image mutation in RX.
  */
 (function(root) {
   'use strict';
-  const CODES = [9499758, 438954, 22423887, 19021620, 25302303, 12348187, 13544664, 3315501, 17552938, 12271817, 21980230, 10368846, 6054488, 29811222, 6955820, 26812404, 10455541, 29998148, 2153659, 7502957, 28947612, 16057725, 8467191, 27443444, 26916132, 2067758, 22878320, 11748922, 7529298, 21394667, 17854674, 18985542, 6789408, 19413343, 14668874, 4289919];
+  const CODES = [26840820,32606280,20785154,17257878];
   const MODES = ['robust2','adaptive3','turbo4'];
-  const W=84,H=40,DX=12,DY=2,COLS=60,ROWS=36,TAG=7;
-  const ORIGINS=[[2,2],[75,2],[75,31],[2,31]]; // canonical TL,TR,BR,BL
+  const W=92,H=166,DX=16,DY=22,COLS=60,ROWS=36,TAG=14;
+  const LANE_Y=[22,65,108];
+  const ORIGINS=[[2,2],[76,2],[76,150],[2,150]]; // canonical TL,TR,BR,BL
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function rotate(code) {
     let out=0;
@@ -20,17 +20,20 @@
   function popcount(v) {v-=v>>>1&0x55555555;v=(v&0x33333333)+(v>>>2&0x33333333);return ((v+(v>>>4)&0x0f0f0f0f)*0x01010101)>>>24;}
   const VARIANTS=[];
   CODES.forEach((code,id)=>{for(let r=0;r<4;r++){VARIANTS.push({id,r,code});code=rotate(code);}});
-  function framePixels(symbols, mode, lane, palette) {
-    const mi=MODES.indexOf(mode);
-    if(mi<0||lane<0||lane>2||symbols.length!==COLS*ROWS) throw new Error('Invalid AnchorScan frame');
-    const data=new Uint8ClampedArray(W*H*4);data.fill(255);
-    function pixel(x,y,rgb){const p=(y*W+x)*4;data[p]=rgb[0];data[p+1]=rgb[1];data[p+2]=rgb[2];}
-    for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++) pixel(DX+x,DY+y,palette[symbols[y*COLS+x]]);
+  function framePixels(lanes) {
+    if(!Array.isArray(lanes)||lanes.length!==3)throw new Error('H7 dock needs three payload lanes');
+    const data=new Uint8ClampedArray(W*H*4);data.fill(250);
+    for(let p=3;p<data.length;p+=4)data[p]=255;
+    const pixel=(x,y,rgb)=>{const p=(y*W+x)*4;data[p]=rgb[0];data[p+1]=rgb[1];data[p+2]=rgb[2];};
+    lanes.forEach(({symbols,palette},lane)=>{
+      if(symbols.length!==COLS*ROWS)throw new Error('Invalid payload grid');
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)pixel(DX+x,LANE_Y[lane]+y,palette[symbols[y*COLS+x]]);
+    });
     ORIGINS.forEach(([ox,oy],corner)=>{
-      const code=CODES[mi*12+lane*4+corner];
-      for(let y=0;y<TAG;y++)for(let x=0;x<TAG;x++){
+      const code=CODES[corner];
+      for(let y=0;y<7;y++)for(let x=0;x<7;x++){
         const white=x>0&&x<6&&y>0&&y<6&&((code>>>(24-((y-1)*5+x-1)))&1);
-        pixel(ox+x,oy+y,white?[250,250,250]:[5,5,5]);
+        for(let yy=0;yy<2;yy++)for(let xx=0;xx<2;xx++)pixel(ox+x*2+xx,oy+y*2+yy,white?[250,250,250]:[5,5,5]);
       }
     });
     return {width:W,height:H,data};
@@ -134,10 +137,10 @@
       if(x===0||x===6||y===0||y===6)borderErrors+=bit;
       else code=(code<<1)|bit;
     }
-    if(borderErrors>2)return null;
+    if(borderErrors>4)return null;
     let best=null,second=99;
     for(const v of VARIANTS){const e=popcount(code^v.code);if(!best||e<best.errors){second=best?best.errors:99;best={...v,errors:e};}else second=Math.min(second,e);}
-    if(best.errors>2||second-best.errors<3)return null;
+    if(best.errors>3||second-best.errors<3)return null;
     // White quiet zone is not data; reject accidental squares inside the payload.
     let quiet=0;
     for(const t of [.2,.5,.8])for(const [u,v] of [[t,-.09],[t,1.09],[-.09,t],[1.09,t]]){
@@ -207,36 +210,36 @@
       return out;
     }
     lanes(markers,f) {
-      const groups=new Map(),items=[];
-      for(const m of markers){const key=(m.id/4)|0;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(m);}
-      for(const [key,group]of groups){
-        if(group.length<3)continue;
-        // Three independently identified corners avoid long-baseline extrapolation
-        // from only two small tags. One occluded tag is tolerated per lane.
-        let points=[];
-        for(const m of group){const [ox,oy]=ORIGINS[m.id%4];m.corners.forEach((p,i)=>points.push({u:(ox+[0,TAG,TAG,0][i])/W,v:(oy+[0,0,TAG,TAG][i])/H,x:p.x/f.w,y:p.y/f.h}));}
-        let hh=homography(points);if(!hh)continue;
-        const errors=points.map(p=>{const v=project(hh,p.u,p.v);return Math.hypot((v.x-p.x)*f.w,(v.y-p.y)*f.h);});
-        const rms=Math.sqrt(errors.reduce((s,e)=>s+e*e,0)/errors.length);
-        if(rms>2.2)continue;
-        const map=(u,v)=>{const p=project(hh,u,v);return{x:p.x*f.sw,y:p.y*f.sh};};
-        const quad={tl:map(DX/W,DY/H),tr:map((DX+COLS)/W,DY/H),br:map((DX+COLS)/W,(DY+ROWS)/H),bl:map(DX/W,(DY+ROWS)/H)};
+      // HPS7's four corner identities describe ONE dock, not twelve tiny per-lane tags.
+      // Previous coordinates only narrow search windows; geometry below is from this frame.
+      if(markers.length<3)return [];
+      const points=[];
+      for(const m of markers){const [ox,oy]=ORIGINS[m.id];m.corners.forEach((p,i)=>points.push({
+        u:(ox+[0,TAG,TAG,0][i])/W,v:(oy+[0,0,TAG,TAG][i])/H,x:p.x/f.w,y:p.y/f.h}));}
+      const hh=homography(points);if(!hh)return [];
+      const errors=points.map(p=>{const v=project(hh,p.u,p.v);return Math.hypot((v.x-p.x)*f.w,(v.y-p.y)*f.h);});
+      const rms=Math.sqrt(errors.reduce((s,e)=>s+e*e,0)/errors.length);
+      if(rms>2.2)return [];
+      const map=(u,v)=>{const p=project(hh,u,v);return{x:p.x*f.sw,y:p.y*f.sh};};
+      const items=[];
+      for(let lane=0;lane<3;lane++){
+        const y=LANE_Y[lane];
+        const quad={tl:map(DX/W,y/H),tr:map((DX+COLS)/W,y/H),br:map((DX+COLS)/W,(y+ROWS)/H),bl:map(DX/W,(y+ROWS)/H)};
         if(Object.values(quad).some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<0||p.y<0||p.x>=f.sw||p.y>=f.sh))continue;
         const cellPx=Math.min(Math.hypot(quad.tr.x-quad.tl.x,quad.tr.y-quad.tl.y)/COLS,Math.hypot(quad.bl.x-quad.tl.x,quad.bl.y-quad.tl.y)/ROWS);
-        if(cellPx<1.8)continue;
-        const lane=key%3,modeId=MODES[(key/3)|0],old=this.lastQuads.get(lane);
-        const motionCells=old?Math.hypot(quad.tl.x-old.tl.x,quad.tl.y-old.tl.y)/cellPx:0;
+        if(cellPx<0.95)continue; // Enlarged control cells are twice this pitch.
+        const old=this.lastQuads.get(lane),motionCells=old?Math.hypot(quad.tl.x-old.tl.x,quad.tl.y-old.tl.y)/cellPx:0;
         this.lastQuads.set(lane,quad);
-        items.push({quad,lane,modeId,bits:MODES.indexOf(modeId)+2,exact:true,source:'coded-anchors',anchorCount:group.length,reprojection:rms,cellPx,motionCells,score:100-rms*15});
+        items.push({quad,lane,modeId:null,bits:null,exact:true,source:'hps7-shared-dock',anchorCount:markers.length,reprojection:rms,cellPx,motionCells,score:100-rms*15});
       }
-      return items.sort((a,b)=>a.lane-b.lane);
+      return items;
     }
     detect(image,now=performance.now()) {
       const started=performance.now();this.frame++;
       const f=this.prepare(image),size=f.w+'x'+f.h;
       if(size!==this.lastSize){this.last=[];this.lastSize=size;}
       let markers=[],strategy='full';
-      if(this.last.length>=4&&now-this.lastAt<280&&this.frame%8!==0){
+      if(this.last.length>=3&&now-this.lastAt<280&&this.frame%8!==0){
         const regions=this.last.map(m=>{
           const xs=m.corners.map(p=>p.x),ys=m.corners.map(p=>p.y),pad=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys))*1.1;
           return{x0:Math.min(...xs)-pad,x1:Math.max(...xs)+pad,y0:Math.min(...ys)-pad,y1:Math.max(...ys)+pad};
@@ -256,7 +259,7 @@
         markers=this.components(f,regions);strategy='roi';
       }
       // Same-frame full reacquisition, never stale coordinates painted as a fresh lock.
-      if(strategy==='full'||markers.length<Math.max(6,this.last.length-2)){
+      if(strategy==='full'||markers.length<3){
         markers=this.components(f,[{x0:1,y0:1,x1:f.w-2,y1:f.h-2}]);strategy='full';
       }
       this.last=markers;this.lastAt=now;
@@ -264,5 +267,5 @@
       return {items,markers:markers.length,strategy,scanMs:performance.now()-started};
     }
   }
-  root.HopperAnchorScan={VERSION:'1.3.0',W,H,DX,DY,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
+  root.HopperAnchorScan={VERSION:'1.4.0',W,H,DX,DY,LANE_Y,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
 })(typeof globalThis!=='undefined'?globalThis:this);

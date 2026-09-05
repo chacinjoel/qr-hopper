@@ -1,0 +1,59 @@
+[
+  {
+    "mode": "robust2",
+    "filename": "prueba_h7_ñ_robust2.bin",
+    "framesFed": 3,
+    "bytesVerified": 2048,
+    "worker": [
+      "http://127.0.0.1:8765/hopperlink-pixelstream/anchor-worker.js?v=1400"
+    ],
+    "layout": {
+      "canvas": [
+        8,
+        72,
+        414,
+        788
+      ],
+      "noOverlap": true
+    },
+    "errors": []
+  },
+  {
+    "mode": "adaptive3",
+    "filename": "prueba_h7_ñ_adaptive3.bin",
+    "framesFed": 1,
+    "bytesVerified": 2048,
+    "worker": [
+      "http://127.0.0.1:8765/hopperlink-pixelstream/anchor-worker.js?v=1400"
+    ],
+    "layout": {
+      "canvas": [
+        8,
+        72,
+        414,
+        788
+      ],
+      "noOverlap": true
+    },
+    "errors": []
+  },
+  {
+    "mode": "turbo4",
+    "filename": "prueba_h7_ñ_turbo4.bin",
+    "framesFed": 1,
+    "bytesVerified": 2048,
+    "worker": [
+      "http://127.0.0.1:8765/hopperlink-pixelstream/anchor-worker.js?v=1400"
+    ],
+    "layout": {
+      "canvas": [
+        8,
+        72,
+        414,
+        788
+      ],
+      "noOverlap": true
+    },
+    "errors": []
+  }
+]

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es" data-ui-build="1300">
+<html lang="es" data-ui-build="1400">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="Transferencia premium de archivos sin internet mediante tres canales ópticos sincronizados y asistencia sónica.">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="premium-one.css?v=1300">
-  <link rel="stylesheet" href="premium-one-receiver.css?v=1300">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1300">
-  <title>HopperLink ONE · AnchorScan</title>
+  <link rel="stylesheet" href="premium-one.css?v=1400">
+  <link rel="stylesheet" href="premium-one-receiver.css?v=1400">
+  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1400">
+  <title>HopperLink ONE · H7 Control+</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -25,7 +25,7 @@
         <div>
           <div class="eyebrow">TRANSFERENCIA OFFLINE PREMIUM</div>
           <h1>HopperLink <span>ONE</span></h1>
-          <p>HopperCore · Color TriFrame · AnchorScan · Sonic Assist</p>
+          <p>HopperCore · Color TriFrame · H7 Control+ · Sonic Assist</p>
         </div>
       </div>
       <div class="header-actions">
@@ -39,8 +39,8 @@
       <section class="hero-panel">
         <div>
           <div class="eyebrow">UN SOLO MOTOR. TRES CUADRANTES. CERO INTERNET.</div>
-          <h2>La pantalla completa se convierte en un enlace óptico de tres carriles.</h2>
-          <p>Los tres cuadrantes transmiten paquetes independientes al mismo tiempo. El receptor los detecta, recorta y corrige automáticamente; si un carril se pierde, Fountain Recovery reconstruye el archivo con los otros.</p>
+          <h2>Cuatro referencias grandes. Tres cuadrantes. Inicio en grises.</h2>
+          <p>El receptor identifica primero el archivo mediante control gris protegido. Después recibe los tres cuadrantes en el modo seleccionado y conserva los bloques válidos si se pierde un cuadro.</p>
         </div>
         <div class="hero-metrics">
           <div><strong>3</strong><span>cuadrantes independientes</span></div>
@@ -56,7 +56,7 @@
         </button>
         <button class="role-button" id="receiveTab" data-role="receive">
           <span class="role-icon">⌁</span>
-          <span><b>Recibir</b><small>Cámara + AnchorScan</small></span>
+          <span><b>Recibir</b><small>Cámara + H7 Control+</small></span>
         </button>
       </nav>
 
@@ -155,7 +155,7 @@
           <div class="card-heading">
             <div>
               <div class="eyebrow">RECEPTOR</div>
-              <h3>AnchorScan reconoce cada cuadrante con marcadores codificados</h3>
+              <h3>H7 Control+ reconoce cada cuadrante con marcadores codificados</h3>
             </div>
             <span class="engine-badge">SIN ENCUADRE MANUAL</span>
           </div>
@@ -193,7 +193,7 @@
             <div><span>Bloques resueltos</span><b id="rxKnown">0 / —</b></div>
             <div><span>Paquetes válidos</span><b id="rxValid">0</b></div>
             <div><span>CRC rechazados</span><b id="rxRejected">0</b></div>
-            <div><span>Modo detectado</span><b id="rxMode">AUTO 2/3/4-bit</b></div>
+            <div><span>Modo detectado</span><b id="rxMode">ESPERANDO HELLO GRIS</b></div>
             <div><span>Calidad de lectura</span><b id="rxQuality">—</b></div>
           </div>
 
@@ -201,6 +201,7 @@
             <button class="primary-button" id="cameraBtn">Iniciar cámara</button>
             <button class="secondary-button" id="receiverFullscreenBtn" disabled>Vista fullscreen 2:3</button>
             <button class="danger-button" id="stopCameraBtn" disabled>Detener</button>
+            <button class="ghost-button" id="captureScanBtn">Captura para diagnóstico</button>
           </div>
 
           <div class="received-file" id="receivedFile" hidden>
@@ -232,7 +233,7 @@
     </main>
 
     <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.3.0 · AnchorScan · Pantalla limpia</span>
+      <span>HopperLink ONE · HopperCore 1.4.0 · H7 Control+ · Pantalla limpia</span>
       <span>Offline · sin servidor · sin nube · procesamiento local</span>
     </footer>
   </div>
@@ -256,31 +257,23 @@
     <div class="orientation-note" id="orientationNote">Modo vertical: los cuadrantes A, B y C permanecen apilados en una columna.</div>
 
     <div class="triframe-grid" id="triframeGrid">
-      <article class="optical-lane lane-a" aria-label="Cuadrante A">
-        <div class="optical-frame"><canvas id="laneCanvasA"></canvas></div>
-      </article>
-      <article class="optical-lane lane-b" aria-label="Cuadrante B">
-        <div class="optical-frame"><canvas id="laneCanvasB"></canvas></div>
-      </article>
-      <article class="optical-lane lane-c" aria-label="Cuadrante C">
-        <div class="optical-frame"><canvas id="laneCanvasC"></canvas></div>
-      </article>
+      <canvas id="stageDockCanvas" class="h7-dock-canvas" width="92" height="166" aria-label="Emisor: cuadrantes A, B y C apilados; cuatro referencias HPS7 exteriores"></canvas>
     </div>
 
     <footer class="stage-controls">
       <div class="stage-message">
         <b id="stageMessageTitle">Muestra esta pantalla al receptor</b>
-        <span id="stageMessageDetail">Los tres HELLO apilados contienen la misma sesión para adquisición inmediata.</span>
+        <span id="stageMessageDetail">Espera a que el receptor muestre el nombre del archivo. El inicio siempre se transmite en grises protegidos.</span>
       </div>
       <div class="stage-buttons">
-        <button class="stage-button start" id="stageStartBtn">Iniciar DATA</button>
+        <button class="stage-button start" id="stageStartBtn">Receptor listo · Iniciar DATA</button>
         <button class="stage-button" id="stagePauseBtn" hidden>Pausar</button>
       </div>
     </footer>
   </section>
 
   <canvas id="captureCanvas" hidden></canvas>
-  <script src="anchor-scan.js?v=1300" defer></script>
-  <script src="hopper-one.js?v=1300" defer></script>
+  <script src="anchor-scan.js?v=1400" defer></script>
+  <script src="hopper-one.js?v=1400" defer></script>
 </body>
 </html>

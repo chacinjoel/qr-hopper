@@ -12,15 +12,15 @@ assert(!/\.data-live\s+\.(stage-hud|stage-controls|triframe-grid|optical-frame)\
 assert(css.includes('height:calc(52px + var(--safe-top))'));
 assert(css.includes('height:calc(52px + var(--safe-bottom))'));
 assert(css.includes('.stage-controls [hidden]{display:none!important}'));
-for(const lane of ['A','B','C']){
-  assert(html.includes(`id="laneCanvas${lane}"`));
-  assert(html.includes(`aria-label="Cuadrante ${lane}"`));
-}
-assert.equal((html.match(/id="laneCanvas[A-C]"/g)||[]).length,3);
-const cssPath='premium-one-fullscreen.css?v=1300';
+assert.equal((html.match(/id="stageDockCanvas"/g)||[]).length,1,'Atomic canonical dock canvas');
+require('../anchor-scan.js');
+assert.deepEqual(global.HopperAnchorScan.LANE_Y,[22,65,108],'Three actual vertically stacked payload regions');
+assert.equal(global.HopperAnchorScan.COLS,60);assert.equal(global.HopperAnchorScan.ROWS,36);
+assert(css.includes('object-fit:contain'),'Do not stretch corner tags');
+const cssPath='premium-one-fullscreen.css?v=1400';
 assert(html.includes(cssPath)&&sw.includes(cssPath),'HTML and offline cache must load the fixed CSS');
 assert(html.includes('Pantalla limpia'));
-assert(sw.includes('hopperlink-one-v1300'));
-assert(sw.includes('./hopper-one.js?v=1300'));
-assert(sw.includes('./runtime/hopper-one.bundle-01.txt?v=1300'));
+assert(sw.includes('hopperlink-one-v1400'));
+assert(sw.includes('./hopper-one.js?v=1400'));
+assert(sw.includes('./runtime/hopper-one.bundle-01.txt?v=1400'));
 console.log('Unobstructed optical surface / stable HELLO-DATA geometry contract: PASS');

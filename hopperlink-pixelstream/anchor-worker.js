@@ -1,6 +1,6 @@
 /* Local, single-flight optical decoder. No microphone/camera permissions or network uploads. */
 'use strict';
-importScripts('./anchor-scan.js?v=1300','./src/hopper-one-runtime.js?v=1300');
+importScripts('./anchor-scan.js?v=1400','./src/hopper-one-runtime.js?v=1400');
 const scanner=new self.HopperAnchorScan.Scanner();
 self.onmessage=({data})=>{
   try {
