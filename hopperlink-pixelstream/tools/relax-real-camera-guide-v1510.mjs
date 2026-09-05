@@ -21,14 +21,11 @@ rep('if(markers.length<3)return [];','if(markers.length<2)return [];\n      if(m
 rep('if(rms>2.2)return [];','if(rms>(markers.length>=3?4.5:6.5))return [];','reprojection tolerance');
 rep('if(cellPx<0.95)continue; // Enlarged control cells are twice this pitch.','if(cellPx<0.60)continue; // Real-camera guide acquisition tolerates blur/downsampling.','cell pitch tolerance');
 rep("root.HopperAnchorScan={VERSION:'1.5.0'","root.HopperAnchorScan={VERSION:'1.5.1'",'scanner version');
-
 fs.writeFileSync(file,s);
 
-for(const path of [`${root}/index.html`,`${root}/sw.js`,`${root}/hopper-one.js`,`${root}/src/hopper-one-runtime.js`]){
+for(const path of [`${root}/index.html`,`${root}/sw.js`,`${root}/hopper-one.js`,`${root}/src/hopper-one-runtime.js`,`${root}/anchor-worker.js`]){
   let x=fs.readFileSync(path,'utf8');
-  x=x.replaceAll('anchor-scan.js?v=1500','anchor-scan.js?v=1510').replaceAll('anchor-worker.js?v=1500','anchor-worker.js?v=1510');
+  x=x.replaceAll('1500','1510');
   fs.writeFileSync(path,x);
 }
-let worker=fs.readFileSync(`${root}/anchor-worker.js`,'utf8').replaceAll('anchor-scan.js?v=1500','anchor-scan.js?v=1510');
-fs.writeFileSync(`${root}/anchor-worker.js`,worker);
-console.log('H7 real-camera receiver tolerance v1510 applied');
+console.log('H7 real-camera receiver tolerance build 1510 applied');
