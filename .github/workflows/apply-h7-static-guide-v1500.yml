@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
       - name: Apply static HPS7-style guide migration atomically
         run: node hopperlink-pixelstream/tools/migrate-h7-static-guide-v1500.mjs
+      - name: Normalize production build references
+        run: node hopperlink-pixelstream/tools/fix-v1500-runtime-refs.mjs
       - name: Align tests to build 1500
         run: |
           node hopperlink-pixelstream/tools/update-tests-v1500.mjs
@@ -37,6 +39,7 @@ jobs:
           grep -q 'function acceptQuickGuide' hopperlink-pixelstream/src/hopper-one-runtime.js
           grep -q 'guidePackets=\[0,1,2\].map(quickGuidePacket)' hopperlink-pixelstream/src/hopper-one-runtime.js
           ! grep -q 'startHelloCarousel();' hopperlink-pixelstream/src/hopper-one-runtime.js
+          ! grep -R 'v=1400\|build:"1400"' hopperlink-pixelstream/src hopperlink-pixelstream/anchor-worker.js hopperlink-pixelstream/index.html hopperlink-pixelstream/sw.js
       - name: Existing optical and data integrity regressions
         run: |
           node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
