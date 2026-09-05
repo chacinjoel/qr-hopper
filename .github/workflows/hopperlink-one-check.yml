@@ -22,14 +22,18 @@ jobs:
       - name: Check active JavaScript syntax
         run: |
           node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node --check hopperlink-pixelstream/anchor-scan.js
+          node --check hopperlink-pixelstream/anchor-worker.js
           node --check hopperlink-pixelstream/hopper-one.js
           node --check hopperlink-pixelstream/sw.js
           node --check hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Rebuild deterministic Precision Dock runtime
-        run: HOPPER_BUILD=1204 node hopperlink-pixelstream/tools/build-runtime.mjs
-      - name: Validate color modes and adaptive vertical scanner
+      - name: Rebuild deterministic AnchorScan runtime
+        run: HOPPER_BUILD=1300 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Validate color modes and packet integrity
         run: node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
       - name: Guard unobstructed optical surface
         run: node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+      - name: Exercise actual scanner under simulated motion and noise
+        run: node hopperlink-pixelstream/tests/hopper-one-anchor-scan.test.cjs
       - name: Ensure generated files are committed
         run: git diff --exit-code -- hopperlink-pixelstream/hopper-one.runtime.json hopperlink-pixelstream/runtime
