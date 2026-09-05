@@ -1,0 +1,37 @@
+name: Publish H7 Receiver 1510
+
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-h7-receiver-v1510.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node hopperlink-pixelstream/tools/relax-real-camera-guide-v1510.mjs
+      - run: |
+          sed -i 's/1500/1510/g' hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py || true
+          sed -i 's/HOPPER_BUILD=1500/HOPPER_BUILD=1510/g' .github/workflows/hopperlink-one-check.yml
+          HOPPER_BUILD=1510 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - run: |
+          node --check hopperlink-pixelstream/anchor-scan.js
+          node --check hopperlink-pixelstream/anchor-worker.js
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+          node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream .github/workflows/hopperlink-one-check.yml
+          git commit -m 'fix: publish real-camera tolerant H7 receiver build 1510'
+          git push
