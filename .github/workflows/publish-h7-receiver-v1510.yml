@@ -21,7 +21,6 @@ jobs:
       - run: node hopperlink-pixelstream/tools/relax-real-camera-guide-v1510.mjs
       - run: |
           sed -i 's/1500/1510/g' hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py || true
-          sed -i 's/HOPPER_BUILD=1500/HOPPER_BUILD=1510/g' .github/workflows/hopperlink-one-check.yml
           HOPPER_BUILD=1510 node hopperlink-pixelstream/tools/build-runtime.mjs
       - run: |
           node --check hopperlink-pixelstream/anchor-scan.js
@@ -32,6 +31,6 @@ jobs:
       - run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add hopperlink-pixelstream .github/workflows/hopperlink-one-check.yml
+          git add hopperlink-pixelstream
           git commit -m 'fix: publish real-camera tolerant H7 receiver build 1510'
           git push
