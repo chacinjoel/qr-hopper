@@ -1,14 +1,15 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.4.0";
-  const PROTOCOL = 4;
+  const VERSION = "1.5.0";
+  const PROTOCOL = 5;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
   const HEADER_BYTES = 36;
-  const CONTROL_FLAG = 0x80, CONTROL_CHUNK = 20, MAX_META_BYTES = 4096;
+  const CONTROL_FLAG = 0x80, GUIDE_FLAG = 0x40, CONTROL_CHUNK = 20, MAX_META_BYTES = 4096, QUICK_GUIDE_NAME_BYTES = 36;
   const CONTROL_MODE = "robust2", CONTROL_COLS = 30, CONTROL_ROWS = 18;
   const helloAssemblies = new Map();
+  const quickGuideAssemblies = new Map();
   const SHORT_SIDE = 36;
   const LONG_SIDE = 60;
   const PILOT_SIDE = 4;
@@ -505,6 +506,46 @@
     if(bytes.length>MAX_META_BYTES)throw new Error('Nombre/tipo de archivo demasiado extenso');
     return bytes;
   }
+  function utf8Prefix(text,maxBytes) {
+    let out='';
+    for(const ch of String(text||'')){const next=out+ch;if(encoder.encode(next).length>maxBytes)break;out=next;}
+    return encoder.encode(out);
+  }
+  function compactQuickGuide(meta) {
+    const name=utf8Prefix(meta.name,QUICK_GUIDE_NAME_BYTES);
+    const out=new Uint8Array(20+name.length);
+    out.set([0x48,0x37,0x47,0x31],0);
+    out[4]=meta.bits;
+    writeU32(out,5,meta.size>>>0);
+    writeU32(out,9,meta.fileCrc>>>0);
+    writeU32(out,13,meta.sourceCount>>>0);
+    writeU16(out,17,meta.chunkSize>>>0);
+    out[19]=name.length;out.set(name,20);
+    if(out.length>CONTROL_CHUNK*3)throw new Error('Nombre de archivo demasiado largo para la guía H7 estática');
+    return out;
+  }
+  function acceptQuickGuide(packet) {
+    if(packet.bad||packet.type!==TYPE.HELLO||packet.bits!==2||!(packet.flags&CONTROL_FLAG)||!(packet.flags&GUIDE_FLAG))return null;
+    const total=packet.symbol>>>16,index=packet.symbol&65535;
+    if(total!==3||index>=3||packet.payload.length>CONTROL_CHUNK)return null;
+    const now=performance.now();
+    for(const [key,entry]of quickGuideAssemblies)if(now-entry.at>10000)quickGuideAssemblies.delete(key);
+    const key=[packet.session,packet.aux,packet.sourceCount,packet.chunkSize].join(':');
+    let entry=quickGuideAssemblies.get(key);
+    if(!entry){if(quickGuideAssemblies.size>=4)quickGuideAssemblies.delete(quickGuideAssemblies.keys().next().value);entry={parts:new Map(),at:now};quickGuideAssemblies.set(key,entry);}
+    entry.at=now;entry.parts.set(index,packet.payload);
+    app.helloProgress={parts:entry.parts.size,total:3,bits:((packet.flags>>4)&3)+2,guide:true};
+    if(entry.parts.size!==3)return null;
+    const full=concatBytes(entry.parts.get(0),entry.parts.get(1),entry.parts.get(2));
+    if(crc32(full)!==packet.aux||full.length<20||full[0]!==0x48||full[1]!==0x37||full[2]!==0x47||full[3]!==0x31)return null;
+    const bits=full[4],size=readU32(full,5),fileCrc=readU32(full,9),sourceCount=readU32(full,13),chunkSize=readU16(full,17),nameLen=full[19],mode=modeByBits(bits);
+    if(!mode||nameLen>QUICK_GUIDE_NAME_BYTES||20+nameLen!==full.length||sourceCount!==packet.sourceCount||chunkSize!==packet.chunkSize||chunkSize!==mode.chunkBytes||sourceCount!==Math.max(1,Math.ceil(size/chunkSize)))return null;
+    const name=decoderText.decode(full.slice(20));
+    if(!name)return null;
+    quickGuideAssemblies.delete(key);
+    return {engine:ENGINE_NAME,version:VERSION,protocol:PROTOCOL,transport:'TriFrame-3',mode:mode.id,modeLabel:mode.label,bits:mode.bits,symbols:mode.symbols,name,type:'application/octet-stream',size,fileCrc,sha256:null,lastModified:0,sourceCount,chunkSize,quickGuide:true};
+  }
+
   function acceptControlHello(packet) {
     if(packet.bad||packet.type!==TYPE.HELLO||packet.bits!==2||!(packet.flags&CONTROL_FLAG))return null;
     const total=packet.symbol>>>16,index=packet.symbol&65535;
@@ -1181,6 +1222,8 @@
       const payload=compactHello(meta);
       const helloParts=[];
       for(let offset=0;offset<payload.length;offset+=CONTROL_CHUNK)helloParts.push(payload.slice(offset,offset+CONTROL_CHUNK));
+      const guidePayload=compactQuickGuide(meta),guideParts=[];
+      for(let i=0;i<3;i++)guideParts.push(guidePayload.slice(i*CONTROL_CHUNK,Math.min(guidePayload.length,(i+1)*CONTROL_CHUNK)));
       app.tx = {
         file,
         bytes,
@@ -1188,6 +1231,7 @@
         meta,
         helloPayload: payload,
         helloParts,helloCursor:0,helloChecksum:crc32(payload),
+        guidePayload,guideParts,guideChecksum:crc32(guidePayload),guidePackets:null,
         session,
         modeId: mode.id,
         sequence: 1,
@@ -1332,8 +1376,8 @@
     $("transmissionStage").classList.remove("data-live");
     $("stageFileName").textContent =
       `${app.tx.file.name}·${formatBytes(app.tx.file.size)}`;
-    $("stagePhase").textContent = "HELLO GRIS + FEC";
-    $("stageRate").textContent = "CONTROL · 2.5 fps";
+    $("stagePhase").textContent = "GUÍA H7 ESTÁTICA";
+    $("stageRate").textContent = "CONTROL · FIJO";
     $("stageMode").textContent =
       `${resolveMode(app.tx.modeId).shortLabel}·${resolveMode(app.tx.modeId).bits}b`;
     $("stageCoverage").textContent = "0%";
@@ -1344,9 +1388,8 @@
     $("stageMessageTitle").textContent =
       "Muestra esta pantalla completa al receptor";
     $("stageMessageDetail").textContent =
-      "Cuatro referencias HPS7 grandes; HELLO gris protegido, independiente del modo DATA.";
+      "Guía gris fija: nombre, tamaño, modo y CRC. No cambia hasta recibir ACK del receptor.";
     renderHelloTriFrame();
-    startHelloCarousel();
     flight.record(
       "tx",
       "triframe-opened",
@@ -1398,20 +1441,20 @@
       symbol:(parts.length<<16)|(index%parts.length),aux:tx.helloChecksum,
       payload:parts[index%parts.length],flags:CONTROL_FLAG|((resolveMode(tx.modeId).bits-2)<<4),mode:CONTROL_MODE});
   }
+  function quickGuidePacket(lane) {
+    const tx=app.tx,part=tx.guideParts[lane]||new Uint8Array(0);
+    return makePacket({type:TYPE.HELLO,lane,session:tx.session,sequence:lane+1,
+      sourceCount:tx.blocks.length,chunkSize:tx.meta.chunkSize,symbol:(3<<16)|lane,aux:tx.guideChecksum,
+      payload:part,flags:CONTROL_FLAG|GUIDE_FLAG|((resolveMode(tx.modeId).bits-2)<<4),mode:CONTROL_MODE});
+  }
   function renderHelloTriFrame() {
     if (!app.tx) return;
     const tx=app.tx;
-    for(let lane=0;lane<3;lane++)app.currentLanePackets[lane]=helloPacket(lane,tx.helloCursor+lane);
-    tx.helloCursor=(tx.helloCursor+3)%tx.helloParts.length;
+    if(!tx.guidePackets)tx.guidePackets=[0,1,2].map(quickGuidePacket);
+    app.currentLanePackets=tx.guidePackets;
     renderCurrentTriFrame();
   }
-  function startHelloCarousel() {
-    clearInterval(app.helloTimer);
-    if(app.tx?.helloParts.length>1)app.helloTimer=setInterval(()=>{
-      if(app.stageOpen && app.tx?.phase==="HELLO")renderHelloTriFrame();
-      else clearInterval(app.helloTimer);
-    },400);
-  }
+  function startHelloCarousel() { clearInterval(app.helloTimer); }
   function nextParityPacket(lane) {
     const mode = resolveMode(app.tx.modeId);
     app.tx.paritySeed = (app.tx.paritySeed + 0x9e3779b9) >>> 0 || 1;
@@ -1950,12 +1993,21 @@
     app.detection.locks[packet.lane] = performance.now() + 800;
     updateLaneLocks();
     if (packet.type === TYPE.HELLO) {
-      const meta=acceptControlHello(packet);
-      if(!meta)return;
-      if (!app.rx || app.rx.session !== packet.session)
-        newReceiverSession(packet, meta);
-      else if(!app.rx.dataStarted && performance.now()-(app.rx.lastAckAt||0)>1800){
-        app.rx.lastAckAt=performance.now();sonic.emit("ACK").catch(()=>{});
+      if(packet.flags&GUIDE_FLAG){
+        const meta=acceptQuickGuide(packet);
+        if(!meta)return;
+        if (!app.rx || app.rx.session !== packet.session)newReceiverSession(packet, meta);
+        else if(!app.rx.dataStarted && performance.now()-(app.rx.lastAckAt||0)>1800){app.rx.lastAckAt=performance.now();sonic.emit("ACK").catch(()=>{});}
+      } else {
+        const meta=acceptControlHello(packet);
+        if(!meta)return;
+        if (!app.rx || app.rx.session !== packet.session)newReceiverSession(packet, meta);
+        else {
+          app.rx.meta={...app.rx.meta,...meta};
+          $("rxFileName").textContent=meta.name||app.rx.meta.name;
+          $("rxSession").textContent=`Sesión ${packet.session.toString(16).toUpperCase().padStart(8,"0")}·${formatBytes(meta.size)}`;
+          flight.record("rx","full-metadata-upgraded",{session:packet.session,name:meta.name,sha256:meta.sha256},100);
+        }
       }
       updateReceiverUI();
       return;
@@ -2019,7 +2071,7 @@
     $("rxQuality").textContent = average ? `${Math.round(average)}%` : "—";
     $("rxMode").textContent = rx
       ? `${resolveMode(rx.modeId).shortLabel}·${resolveMode(rx.modeId).bits}b`
-      : app.helloProgress ? `${app.helloProgress.bits}-bit · metadata ${app.helloProgress.parts}/${app.helloProgress.total}` : "HELLO GRIS · AUTO";
+      : app.helloProgress ? `${app.helloProgress.guide?"GUÍA H7":"META"} · ${app.helloProgress.parts}/${app.helloProgress.total}` : "GUÍA H7 GRIS · ESPERANDO";
     if (!rx) {
       $("rxKnown").textContent = "0/—";
       $("rxPercent").textContent = "0%";
@@ -2225,12 +2277,12 @@
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "H7 CONTROL+ · BUSCANDO MARCADORES";
+      $("cameraState").textContent = "H7 GUIDE · BUSCANDO GUÍA ESTÁTICA";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
       app.scanLastAt = 0;
-      app.candidateBits = null;app.helloProgress=null;helloAssemblies.clear();
+      app.candidateBits = null;app.helloProgress=null;helloAssemblies.clear();quickGuideAssemblies.clear();
       app.scanEpoch = (app.scanEpoch || 0) + 1;
       app.scanBusy = false;
       app.scanLastMediaTime = -1;
@@ -2287,7 +2339,7 @@
     app.anchorScanner = new globalThis.HopperAnchorScan.Scanner();
     if (typeof Worker !== "function") return;
     try {
-      const worker = new Worker("./anchor-worker.js?v=1400");
+      const worker = new Worker("./anchor-worker.js?v=1500");
       app.scanWorker=worker;
       worker.onmessage=({data}) => {
         if (app.scanWorker !== worker || data.epoch !== app.scanEpoch) return;
@@ -2298,7 +2350,7 @@
       worker.onerror=event => {
         if(app.scanWorker === worker) stopFailedWorker(event.message || "worker failed");
       };
-      flight.record("scan","worker-started",{build:"1400",singleFlight:true},100);
+      flight.record("scan","worker-started",{build:"1500",singleFlight:true},100);
     } catch(error) {stopFailedWorker(error.message);}
   }
   function stopFailedWorker(message) {
@@ -2373,10 +2425,10 @@
     canvas.toBlob(blob=>{
       if(!blob)return;
       const url=URL.createObjectURL(blob),a=document.createElement("a");
-      a.href=url;a.download=`hopper-h7-scan-1400-${Date.now()}.png`;a.click();
+      a.href=url;a.download=`hopper-h7-scan-1500-${Date.now()}.png`;a.click();
       setTimeout(()=>URL.revokeObjectURL(url),5000);
     },"image/png");
-    flight.record("scan","raw-capture-exported",{width:canvas.width,height:canvas.height,build:1400,metrics:app.lastAnchorMetrics},null);
+    flight.record("scan","raw-capture-exported",{width:canvas.width,height:canvas.height,build:1500,metrics:app.lastAnchorMetrics},null);
   }
   function switchRole(role) {
     app.role = role;
@@ -2543,7 +2595,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1400",
+        "./sw.js?v=1500",
         { scope: "./" },
       );
       flight.record(
@@ -2679,7 +2731,7 @@
     };
   }
   globalThis.__hopperLinkOneInternals = {
-    CONTROL_MODE,CONTROL_FLAG,CONTROL_CHUNK,CONTROL_COLS,CONTROL_ROWS,opticalSymbols,controlEncode,controlDecode,compactHello,acceptControlHello,
+    CONTROL_MODE,CONTROL_FLAG,GUIDE_FLAG,CONTROL_CHUNK,CONTROL_COLS,CONTROL_ROWS,opticalSymbols,controlEncode,controlDecode,compactHello,compactQuickGuide,acceptQuickGuide,acceptControlHello,
     processDecodedPacket, getApp:()=>app,
     ENGINE_NAME,
     VERSION,

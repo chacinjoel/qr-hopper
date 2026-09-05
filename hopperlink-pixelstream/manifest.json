@@ -7,5 +7,5 @@
   "orientation": "portrait",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline con marcadores monocromos codificados, seguimiento por cuadro y tres cuadrantes verticales."
+  "description": "Transferencia offline con guía H7 estática, ACK sónico y tres lanes ópticos."
 }

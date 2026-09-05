@@ -1,4 +1,4 @@
-/* H7 Control+ 1.4.0. Four shared HPS7 binary-tag-bridge corner codes.
+/* H7 Static Guide 1.5.0. Four shared HPS7 binary-tag-bridge corner codes.
  * Derived from qr-hopper HPS7's TAGS at c63815037ccf4d3aaa08bc03b964012b6cc44bcf.
  * Enlarged 2x tags, exact single-raster three-lane geometry, same-frame projective fitting.
  * This is not wire-compatible with the old HPS7 application. No image mutation in RX.
@@ -267,5 +267,5 @@
       return {items,markers:markers.length,strategy,scanMs:performance.now()-started};
     }
   }
-  root.HopperAnchorScan={VERSION:'1.4.0',W,H,DX,DY,LANE_Y,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
+  root.HopperAnchorScan={VERSION:'1.5.0',W,H,DX,DY,LANE_Y,COLS,ROWS,TAG,ORIGINS,MODES,CODES,VARIANTS,rotate,popcount,framePixels,Scanner,homography,project,decodeTag,refineQuad};
 })(typeof globalThis!=='undefined'?globalThis:this);

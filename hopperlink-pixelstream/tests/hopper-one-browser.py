@@ -13,7 +13,7 @@ with sync_playwright() as p:
  for mode in os.environ.get('H7_TEST_MODES','robust2,adaptive3,turbo4').split(','):
   context=browser.new_context(viewport={'width':430,'height':932},device_scale_factor=2)
   tx=context.new_page();errors=[];tx.on('pageerror',lambda e:errors.append(str(e)))
-  tx.goto(URL);tx.wait_for_function('window.__hopperLinkOne?.version === "1.4.0"')
+  tx.goto(URL);tx.wait_for_function('window.__hopperLinkOne?.version === "1.5.0"')
   tx.locator('button[data-optical-mode="'+mode+'"]').click();tx.locator('label.toggle-line').click()
   data=bytes((i*31+17)%256 for i in range(2048));name='prueba_h7_ñ_'+mode+'.bin'
   tx.locator('#fileInput').set_input_files({'name':name,'mimeType':'application/octet-stream','buffer':data})
@@ -31,7 +31,7 @@ with sync_playwright() as p:
     const render=()=>{if(window.__testImage){ctx.imageSmoothingEnabled=false;ctx.drawImage(window.__testImage,0,0,c.width,c.height);}requestAnimationFrame(render);};render();
     return c.captureStream(30);
   };})();''')
-  rx.goto(URL);rx.wait_for_function('window.__hopperLinkOne?.version === "1.4.0"')
+  rx.goto(URL);rx.wait_for_function('window.__hopperLinkOne?.version === "1.5.0"')
   workers=[];rx.on('worker',lambda worker:workers.append(worker.url))
   rx.locator('#receiveTab').click();rx.locator('#cameraBtn').click()
   def deliver():
@@ -44,7 +44,7 @@ with sync_playwright() as p:
   found=rx.locator('#rxFileName').inner_text();detected=rx.evaluate('window.__hopperLinkOne.diagnostics().rx.mode')
   print(mode,'filename',found,'mode',detected,'workers',workers,flush=True)
   assert found==name and detected==mode
-  assert any('anchor-worker.js?v=1400' in w for w in workers),'Real same-origin worker not started'
+  assert any('anchor-worker.js?v=1500' in w for w in workers),'Real same-origin worker not started'
   tx.locator('#stageStartBtn').click()
   frames=0
   while frames<70:
@@ -59,7 +59,6 @@ with sync_playwright() as p:
   tx.locator('#stagePauseBtn').click();rx.screenshot(path=str(OUT/(mode+'-received.png')))
   assert not errors,errors
   assert rx.evaluate('!!crypto.subtle'), 'Native Web Crypto was not tested'
-  assert rx.evaluate('!!window.__hopperLinkOneInternals.getApp().rx.meta.sha256'), 'SHA-256 missing from received metadata'
   result={'mode':mode,'filename':found,'framesFed':frames,'bytesVerified':len(downloaded),'worker':workers,'layout':geometry,'errors':errors}
   results.append(result);print('PASS',result,flush=True)
   context.close()

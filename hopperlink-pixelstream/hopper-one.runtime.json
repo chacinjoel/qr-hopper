@@ -1,9 +1,9 @@
 {
-  "build": "1400",
+  "build": "1500",
   "encoding": "gzip-base64",
-  "length": 94850,
-  "bytes": 94968,
-  "sha256": "96824a946a219560744ab195795648a9973d5fe6d8835080ad96d65d2596c473",
+  "length": 98724,
+  "bytes": 98854,
+  "sha256": "8cee4b9c2fd96d83f4348b38de4b0f4ef8bcd3708baf204065191781af1017f8",
   "parts": [
     "runtime/hopper-one.bundle-01.txt",
     "runtime/hopper-one.bundle-02.txt"
