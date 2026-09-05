@@ -1,46 +1,49 @@
-# HopperLink ONE · HopperCore 1.2.4
+# HopperLink ONE · HopperCore 1.3.0 · AnchorScan
 
-HopperLink ONE utiliza un único motor óptico adaptativo con tres cuadrantes apilados en fullscreen vertical. La modulación es seleccionable antes de preparar el archivo y el receptor la detecta automáticamente.
+A single screen-to-camera file transfer app. Three vertically stacked lanes, with selectable 2/3/4-bit optical modes. Both endpoints **must load build 1300**: the optical frame is new and packets use protocol 3.
 
-## Modos ópticos
+## Acquisition is now based on coded anchors, not colored rings
 
-| Modo | Símbolos | Bits/celda | Carga útil por lane | Teórico a 8–12 fps |
-|---|---:|---:|---:|---:|
-| Robusto | 4 niveles | 2 | 480 B | 11.3–16.9 KiB/s |
-| Color Adaptativo | 8 colores | 3 | 736 B | 17.3–25.9 KiB/s |
-| Color Turbo | 16 colores | 4 | 1,000 B | 23.4–35.2 KiB/s |
+Each lane renders four exterior black/white 7×7 fiducials on a white quiet zone. The payload, pilots and fiducials are rendered in **one canonical 84×40 raster**. The 60×36 data grid is at a known offset (12,2), so the receiver no longer guesses CSS border insets.
 
-Cada modo conserva los tres lanes físicos. Los 64 pilotos RGB de cada cuadrante calibran la cámara en el mismo frame, y CRC32 confirma que la clasificación de color y el modo son correctos antes de aceptar un paquete.
+36 marker codes encode optical mode, lane and corner. Including rotations, all 144 variants have minimum Hamming distance 8. Identification accepts at most 2 bit errors and requires a separated runner-up. At least three independently identified markers in a lane must agree on a projective transform. One hidden marker per lane can therefore be tolerated when the remaining markers and data are readable. Markers identify the candidate mode; only a valid packet CRC and HELLO metadata establish a session.
 
-## Arquitectura activa
+## Motion and performance
 
-- **TriFrame 3-Lane:** tres paquetes físicos independientes por actualización de pantalla.
-- **Portrait Stack:** A, B y C permanecen en una sola columna; la app solicita orientación retrato y nunca reorganiza el emisor en tres columnas.
-- **Fullscreen real:** Fullscreen API, Wake Lock y orientación cuando el navegador lo permite.
-- **Geometría constante:** HELLO y DATA mantienen los mismos tres cuadrantes.
-- **AutoDock 3:** detecta, ordena y corrige la perspectiva de los tres marcos cian.
-- **Receiver Portrait 2:3:** amplía la torre vertical con `object-fit: cover`, conserva la imagen sin deformarla y alinea el canvas con el recorte visible.
-- **Precision Dock:** recupera la arquitectura robusta de HPS7/HPS8: primero adquiere A/B/C mediante geometría monocroma de alto contraste, independiente de la modulación y del balance de blancos; después decodifica color. StackScan y AutoDock quedan como fallback.
-- **Wide-FOV capture:** solicita sensor 4:3 sin `crop-and-scale` y fuerza el zoom mínimo disponible para incluir la torre completa.
-- **Color calibration:** genera centroides RGB por lane a partir de cuatro bloques piloto 4×4.
-- **Auto-detección:** antes del lock prueba 2, 3 y 4 bits; después del HELLO mantiene el modo de la sesión.
-- **Fountain Recovery:** systematic + ecuaciones XOR para recuperar bloques perdidos.
-- **Sonic Assist:** ACK y COMPLETE auxiliares; el canal óptico funciona sin audio.
-- **Integridad final:** CRC32 por paquete y CRC32 + SHA-256 para el archivo.
-- **Flight Recorder:** registra modo, bits, confianza, CRC, locks y cambios de velocidad.
+- Adaptive local grayscale threshold; no requirement for a particular cyan hue.
+- Convex-hull proposals followed by subpixel black/white edge fitting.
+- Least-squares homography from the current frame's marker corners, with reprojection rejection.
+- Fast region-of-interest re-detection after acquisition; periodic full scans and same-frame full reacquisition on failed tracking.
+- **No stale-coordinate decoding, artificial marker painting, or 1.8-second geometry hold.** Tracking windows may use the previous position; accepted payload coordinates must come from current markers.
+- Real video-frame callbacks where available, one worker job in flight, transferable pixel buffer, bounded main-thread fallback. No growing processing queue.
+- The worker isolates detection and decoding from the UI. Capture preserves sensor aspect ratio and is capped at 1080 on the short side / 1920 on the long side. Marker acquisition uses a reduced grayscale pyramid level capped at 960 on the long side; payload colors are sampled from the higher-resolution image.
+- Existing received blocks remain intact through lost or blurry frames. Frames without enough valid references or with a failed CRC do not advance file reception.
 
-## Uso
+Motion blur, severe glare, tiny projected cells and rolling shutter can still prevent decoding. This is not unlimited noise immunity. Recovery means accepting the next usable frame without discarding the partial file, not manufacturing pixels obscured by motion.
 
-### Emisor
-1. Selecciona Robusto, Color Adaptativo o Color Turbo.
-2. Selecciona el archivo y pulsa **Preparar archivo**.
-3. Abre **fullscreen TriFrame** y muestra toda la pantalla al receptor.
-4. Inicia DATA manualmente o mediante ACK sónico.
+## Modes and integrity
 
-### Receptor
-1. Pulsa **Iniciar cámara**.
-2. Incluye la pantalla emisora completa.
-3. AutoDock 3 encuentra A/B/C y el motor identifica la modulación por pilotos RGB + CRC32.
-4. Cuando Fountain Recovery resuelve todos los bloques y la integridad coincide, se habilita **Guardar archivo**.
+| Mode | Symbols | Bits/cell | Payload bytes/lane |
+|---|---:|---:|---:|
+| Robusto | 4 gray levels | 2 | 480 |
+| Color Adaptativo | 8 colors | 3 | 736 |
+| Color Turbo | 16 colors | 4 | 1,000 |
 
-La cámara y el micrófono requieren HTTPS. Todo el procesamiento se realiza localmente.
+The data-cell count and per-packet capacities are unchanged. Exterior markers reserve screen area and do not increase theoretical bitrate. Real throughput depends on frame reception and redundancy. The existing systematic/Fountain stream, CRC32 and final SHA-256 verification (when Web Crypto is available), and basic Sonic Assist ACK/COMPLETE remain in the runtime. This change does **not** add an acoustic telemetry protocol.
+
+## Use
+
+Open the app on both endpoints and confirm **HopperCore 1.3.0 · AnchorScan**. On TX select a mode and file, prepare, and open fullscreen. On RX start the camera and include the white panels and black markers. Do not aim only at the colored interiors. The UI distinguishes markers, candidate mode, CRC-validated packets and verified file completion. Receiver overlays are drawn separately from the image sent to the decoder. No labels or controls are drawn over TX data.
+
+## Reproducible checks
+
+```sh
+HOPPER_BUILD=1300 node hopperlink-pixelstream/tools/build-runtime.mjs
+node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+node hopperlink-pixelstream/tests/hopper-one-anchor-scan.test.cjs
+```
+
+The new regression suite tests 36 synthetic screen-to-camera scenarios: all three modes, perspective, noise/exposure variation, moderate blur, 90-degree rotation, one hidden marker, insufficient-marker rejection, HELLO metadata, corrupted payload rejection, moving-hand sequences, no stale lock on a blank frame, next-frame reacquisition, noise-only rejection and exact block reconstruction. Timings printed by tests describe the test machine, not measured phone performance.
+
+All assets, including worker dependencies, are local and versioned in the offline cache. HTTPS is required for production camera/microphone permissions. An initial online load is needed to cache the app.

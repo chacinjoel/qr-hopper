@@ -37,12 +37,10 @@
 .optical-lane{position:relative;min-width:0;min-height:0;display:flex;align-items:stretch;justify-content:stretch}
 /* Never paint text over optical data, including cached older HTML. */
 .lane-label{display:none!important}
+/* Marks, quiet zones and payload share one raster: no CSS border guesses. */
 .optical-frame{
   width:100%;height:100%;min-height:0;overflow:hidden;
-  border:clamp(6px,.78vmin,10px) solid #050505;
-  outline:none;
-  background:#0a0a0a;
-  box-shadow:inset 0 0 0 clamp(3px,.42vmin,6px) #00eaff,0 0 0 3px #fff,0 0 0 5px #050505,0 0 28px rgba(0,234,255,.22);
+  border:0;outline:none;background:#fff;box-shadow:none;
 }
 .optical-frame canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;background:#111}
 .stage-controls{
@@ -123,7 +121,7 @@ html.triframe-open .app-shell{visibility:hidden;pointer-events:none}
 
 /* Color Modes v1.2 */
 .stage-status{flex-wrap:wrap}
-.transmission-stage[data-optical-mode="turbo4"] .optical-frame{box-shadow:0 0 0 2px #050505,0 0 30px rgba(167,139,250,.28),inset 0 0 0 2px #050505}
+
 @media(orientation:landscape) and (max-height:520px){.stage-status span{padding:4px 6px;font-size:7px}}
 
 /* Portrait-only TriFrame stack v1.2.1 */

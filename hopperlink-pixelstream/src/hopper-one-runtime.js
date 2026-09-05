@@ -1,8 +1,8 @@
 (() => {
   "use strict";
   const ENGINE_NAME = "HopperCore ONE";
-  const VERSION = "1.2.4";
-  const PROTOCOL = 2;
+  const VERSION = "1.3.0";
+  const PROTOCOL = 3;
   const MAGIC = Uint8Array.from([0x48, 0x4f, 0x50, 0x31]);
   const TYPE = Object.freeze({ HELLO: 1, SYSTEMATIC: 2, FOUNTAIN: 3 });
   const HEADER_BYTES = 36;
@@ -127,7 +127,7 @@
   const MAX_FLIGHT_EVENTS = 5000;
   const encoder = new TextEncoder();
   const decoderText = new TextDecoder();
-  const $ = (id) => document.getElementById(id);
+  const $ = (id) => globalThis.document?.getElementById(id);
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const nowIso = () => new Date().toISOString();
@@ -145,8 +145,10 @@
     scanFrames: 0,
     scanFpsAt: 0,
     scanFps: 0,
-    lastTrackedQuads: [],
-    trackedAt: 0,
+    scanEpoch: 0,
+    scanBusy: false,
+    scanWorker: null,
+    candidateBits: null,
     receiverObjectUrl: null,
     wakeLock: null,
     deferredInstall: null,
@@ -455,18 +457,14 @@
     const { cols, rows } = activeGrid();
     const mode = modeByBits(raw[7] & 0x0f) || activeMode();
     const symbols = rawToSymbols(raw, cols, rows, mode);
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext("2d", { alpha: false });
-    const image = ctx.createImageData(cols, rows);
-    for (let i = 0; i < symbols.length; i++) {
-      const rgb = mode.palette[symbols[i]] || mode.palette[0],
-        offset = i * 4;
-      image.data[offset] = rgb[0];
-      image.data[offset + 1] = rgb[1];
-      image.data[offset + 2] = rgb[2];
-      image.data[offset + 3] = 255;
+    const frame = globalThis.HopperAnchorScan.framePixels(symbols, mode.id, raw[6], mode.palette);
+    if (canvas.width !== frame.width || canvas.height !== frame.height) {
+      canvas.width = frame.width;
+      canvas.height = frame.height;
     }
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const image = ctx.createImageData(frame.width, frame.height);
+    image.data.set(frame.data);
     ctx.putImageData(image, 0, 0);
   }
   function renderCurrentTriFrame() {
@@ -703,7 +701,7 @@
         rejected = app.detection.rejected;
       const health =
         valid + rejected ? Math.round((valid / (valid + rejected)) * 100) : 100;
-      $("blackboxHealth").textContent = `Salud:${health}%`;
+      $("blackboxHealth").textContent = valid + rejected ? `Paquetes válidos:${health}%` : "Sin paquetes validados";
       const recent = this.events.slice(-100).reverse();
       if (!recent.length) {
         host.innerHTML =
@@ -1288,7 +1286,7 @@
     $("stageMessageTitle").textContent =
       "Muestra esta pantalla completa al receptor";
     $("stageMessageDetail").textContent =
-      `Precision Dock adquiere primero la geometría y después detecta automáticamente ${resolveMode(app.tx.modeId).bits} bits por celda.`;
+      `AnchorScan identifica los marcadores y lee ${resolveMode(app.tx.modeId).bits} bits por celda.`;
     renderHelloTriFrame();
     flight.record(
       "tx",
@@ -1613,933 +1611,6 @@
     await exitFullscreen();
     flight.record("fullscreen", "triframe-closed", {}, 100);
   }
-  function lumaAt(data, width, height, x, y, radius = 0) {
-    x = Math.round(x);
-    y = Math.round(y);
-    let total = 0,
-      count = 0;
-    for (
-      let yy = Math.max(0, y - radius);
-      yy <= Math.min(height - 1, y + radius);
-      yy++
-    ) {
-      for (
-        let xx = Math.max(0, x - radius);
-        xx <= Math.min(width - 1, x + radius);
-        xx++
-      ) {
-        const offset = (yy * width + xx) * 4;
-        total +=
-          data[offset] * 0.2126 +
-          data[offset + 1] * 0.7152 +
-          data[offset + 2] * 0.0722;
-        count++;
-      }
-    }
-    return count ? total / count : 0;
-  }
-  function isCyanPixel(data, offset) {
-    const r = data[offset],
-      g = data[offset + 1],
-      b = data[offset + 2],
-      minGb = Math.min(g, b),
-      maxValue = Math.max(r, g, b),
-      minValue = Math.min(r, g, b),
-      brightness = (r + g + b) / 3,
-      chroma = maxValue - minValue,
-      cyanBias = minGb - r,
-      greenBias = g - r,
-      blueBias = b - r;
-    return (
-      brightness > 34 &&
-      ((minGb > 58 && cyanBias > 16 && Math.abs(g - b) < 140) ||
-        (g > 70 && greenBias > 6 && g - b > -8 && chroma > 11) ||
-        (brightness > 150 &&
-          greenBias > 5 &&
-          blueBias > -4 &&
-          Math.abs(g - b) < 55))
-    );
-  }
-
-  function quadCenter(quad) {
-    return {
-      x: (quad.tl.x + quad.tr.x + quad.bl.x + quad.br.x) / 4,
-      y: (quad.tl.y + quad.tr.y + quad.bl.y + quad.br.y) / 4,
-    };
-  }
-  function quadDimensions(quad) {
-    const top = Math.hypot(quad.tr.x - quad.tl.x, quad.tr.y - quad.tl.y);
-    const bottom = Math.hypot(quad.br.x - quad.bl.x, quad.br.y - quad.bl.y);
-    const left = Math.hypot(quad.bl.x - quad.tl.x, quad.bl.y - quad.tl.y);
-    const right = Math.hypot(quad.br.x - quad.tr.x, quad.br.y - quad.tr.y);
-    return { width: (top + bottom) / 2, height: (left + right) / 2 };
-  }
-  function bilerp(quad, u, v) {
-    const top = {
-      x: quad.tl.x * (1 - u) + quad.tr.x * u,
-      y: quad.tl.y * (1 - u) + quad.tr.y * u,
-    };
-    const bottom = {
-      x: quad.bl.x * (1 - u) + quad.br.x * u,
-      y: quad.bl.y * (1 - u) + quad.br.y * u,
-    };
-    return {
-      x: top.x * (1 - v) + bottom.x * v,
-      y: top.y * (1 - v) + bottom.y * v,
-    };
-  }
-  function projectQuadPoint(quad, u, v) {
-    const p0 = quad.tl,
-      p1 = quad.tr,
-      p2 = quad.br,
-      p3 = quad.bl;
-    const dx1 = p1.x - p2.x,
-      dx2 = p3.x - p2.x,
-      sx = p0.x - p1.x + p2.x - p3.x;
-    const dy1 = p1.y - p2.y,
-      dy2 = p3.y - p2.y,
-      sy = p0.y - p1.y + p2.y - p3.y;
-    if (Math.abs(sx) < 1e-7 && Math.abs(sy) < 1e-7)
-      return {
-        x: p0.x + (p1.x - p0.x) * u + (p3.x - p0.x) * v,
-        y: p0.y + (p1.y - p0.y) * u + (p3.y - p0.y) * v,
-      };
-    const determinant = dx1 * dy2 - dx2 * dy1;
-    if (Math.abs(determinant) < 1e-7) return bilerp(quad, u, v);
-    const g = (sx * dy2 - dx2 * sy) / determinant;
-    const h = (dx1 * sy - sx * dy1) / determinant;
-    const a = p1.x - p0.x + g * p1.x,
-      b = p3.x - p0.x + h * p3.x,
-      c = p0.x;
-    const d = p1.y - p0.y + g * p1.y,
-      e = p3.y - p0.y + h * p3.y,
-      f = p0.y;
-    const z = g * u + h * v + 1;
-    if (Math.abs(z) < 1e-7) return bilerp(quad, u, v);
-    return { x: (a * u + b * v + c) / z, y: (d * u + e * v + f) / z };
-  }
-  function insetQuad(quad, amount = 0.032) {
-    const center = quadCenter(quad),
-      out = {};
-    for (const key of ["tl", "tr", "bl", "br"])
-      out[key] = {
-        x: quad[key].x + (center.x - quad[key].x) * amount,
-        y: quad[key].y + (center.y - quad[key].y) * amount,
-      };
-    return out;
-  }
-  function overlapRatio(a, b) {
-    const box = (q) => {
-      const xs = [q.tl.x, q.tr.x, q.bl.x, q.br.x],
-        ys = [q.tl.y, q.tr.y, q.bl.y, q.br.y];
-      return {
-        x1: Math.min(...xs),
-        y1: Math.min(...ys),
-        x2: Math.max(...xs),
-        y2: Math.max(...ys),
-      };
-    };
-    const A = box(a),
-      B = box(b),
-      x1 = Math.max(A.x1, B.x1),
-      y1 = Math.max(A.y1, B.y1),
-      x2 = Math.min(A.x2, B.x2),
-      y2 = Math.min(A.y2, B.y2);
-    const intersection = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-    const areaA = (A.x2 - A.x1) * (A.y2 - A.y1),
-      areaB = (B.x2 - B.x1) * (B.y2 - B.y1);
-    return intersection / Math.max(1, Math.min(areaA, areaB));
-  }
-  function componentToQuad(component, stride, width, height) {
-    const convert = (point) => ({
-      x: clamp((point.x + 0.5) * stride, 0, width - 1),
-      y: clamp((point.y + 0.5) * stride, 0, height - 1),
-    });
-    return {
-      tl: convert(component.tl),
-      tr: convert(component.tr),
-      bl: convert(component.bl),
-      br: convert(component.br),
-    };
-  }
-  function longestMarkerRun(mask, rowOffset, width, maxGap = 3) {
-    let best = null,
-      start = -1,
-      last = -1,
-      gap = 0;
-    const closeRun = () => {
-      if (start < 0 || last < start) return;
-      const length = last - start + 1;
-      if (!best || length > best.length)
-        best = { left: start, right: last, length };
-    };
-    for (let x = 0; x < width; x++) {
-      if (mask[rowOffset + x]) {
-        if (start < 0) start = x;
-        last = x;
-        gap = 0;
-      } else if (start >= 0 && ++gap > maxGap) {
-        closeRun();
-        start = -1;
-        last = -1;
-        gap = 0;
-      }
-    }
-    closeRun();
-    return best;
-  }
-  function findPortraitRailBands(mask, gridWidth, gridHeight) {
-    const runs = new Array(gridHeight),
-      scores = new Float32Array(gridHeight);
-    let peak = 0;
-    for (let y = 0; y < gridHeight; y++) {
-      const run = longestMarkerRun(mask, y * gridWidth, gridWidth, 3),
-        score = run?.length || 0;
-      runs[y] = run;
-      scores[y] = score;
-      peak = Math.max(peak, score);
-    }
-    if (peak < Math.max(10, gridWidth * 0.07)) return [];
-    const threshold = Math.max(8, gridWidth * 0.045, peak * 0.44),
-      groups = [];
-    let current = [];
-    for (let y = 0; y < gridHeight; y++) {
-      if (scores[y] < threshold) continue;
-      if (current.length && y - current[current.length - 1] > 3) {
-        groups.push(current);
-        current = [];
-      }
-      current.push(y);
-    }
-    if (current.length) groups.push(current);
-    const bands = [];
-    for (const rows of groups) {
-      const rowRuns = rows.map((y) => runs[y]).filter(Boolean);
-      if (!rowRuns.length) continue;
-      const bestLength = Math.max(...rowRuns.map((run) => run.length)),
-        reliable = rowRuns.filter((run) => run.length >= bestLength * 0.72),
-        strength = rows.reduce((sum, y) => sum + scores[y], 0);
-      if (!strength || !reliable.length) continue;
-      bands.push({
-        start: rows[0],
-        end: rows[rows.length - 1],
-        y: rows.reduce((sum, y) => sum + y * scores[y], 0) / strength,
-        left: median(reliable.map((run) => run.left)),
-        right: median(reliable.map((run) => run.right)),
-        width: bestLength,
-        strength,
-      });
-    }
-    return bands;
-  }
-  function choosePortraitRailSequence(inputBands, gridWidth, gridHeight) {
-    if (inputBands.length < 4) return null;
-    const bands = (
-      inputBands.length > 14
-        ? inputBands
-            .slice()
-            .sort((a, b) => b.strength - a.strength)
-            .slice(0, 14)
-        : inputBands.slice()
-    ).sort((a, b) => a.y - b.y);
-    let best = null;
-    for (let a = 0; a < bands.length - 3; a++)
-      for (let b = a + 1; b < bands.length - 2; b++)
-        for (let c = b + 1; c < bands.length - 1; c++)
-          for (let d = c + 1; d < bands.length; d++) {
-            const rails = [bands[a], bands[b], bands[c], bands[d]],
-              gaps = [
-                rails[1].y - rails[0].y,
-                rails[2].y - rails[1].y,
-                rails[3].y - rails[2].y,
-              ],
-              minGap = Math.min(...gaps),
-              maxGap = Math.max(...gaps),
-              meanGap = gaps.reduce((sum, value) => sum + value, 0) / 3;
-            if (
-              minGap < Math.max(8, gridHeight * 0.045) ||
-              maxGap / Math.max(1, minGap) > 1.55
-            )
-              continue;
-            const maxWidth = Math.max(...rails.map((rail) => rail.width)),
-              reliable = rails.filter((rail) => rail.width >= maxWidth * 0.62),
-              laneAspect = maxWidth / Math.max(1, meanGap);
-            if (
-              maxWidth < gridWidth * 0.075 ||
-              reliable.length < 2 ||
-              laneAspect < 0.72 ||
-              laneAspect > 5.4
-            )
-              continue;
-            const centers = reliable.map(
-                (rail) => (rail.left + rail.right) / 2,
-              ),
-              centerSpread = Math.max(...centers) - Math.min(...centers);
-            if (centerSpread > maxWidth * 0.42) continue;
-            const gapError =
-                gaps.reduce(
-                  (sum, value) => sum + Math.abs(value - meanGap),
-                  0,
-                ) / Math.max(1, meanGap),
-              strength = rails.reduce((sum, rail) => sum + rail.strength, 0),
-              score =
-                maxWidth * 5 +
-                meanGap * 2 +
-                strength * 0.08 +
-                100 / (1 + gapError * 8) -
-                centerSpread;
-            if (!best || score > best.score)
-              best = { rails, gaps, meanGap, maxWidth, score };
-          }
-    return best;
-  }
-  function fitRailEndpoint(samples, key) {
-    if (!samples.length) return () => 0;
-    if (samples.length === 1) {
-      const value = samples[0][key];
-      return () => value;
-    }
-    const meanY =
-        samples.reduce((sum, sample) => sum + sample.y, 0) / samples.length,
-      meanX =
-        samples.reduce((sum, sample) => sum + sample[key], 0) / samples.length;
-    let numerator = 0,
-      denominator = 0;
-    for (const sample of samples) {
-      numerator += (sample.y - meanY) * (sample[key] - meanX);
-      denominator += (sample.y - meanY) ** 2;
-    }
-    const slope = denominator > 1e-6 ? numerator / denominator : 0,
-      intercept = meanX - slope * meanY;
-    return (y) => intercept + slope * y;
-  }
-  function refinePortraitRails(sequence) {
-    const rails = sequence.rails.map((rail) => ({ ...rail })),
-      maxWidth = sequence.maxWidth;
-    let reliable = rails.filter((rail) => rail.width >= maxWidth * 0.88);
-    if (reliable.length < 2)
-      reliable = rails
-        .slice()
-        .sort((a, b) => b.width - a.width)
-        .slice(0, 2);
-    const leftAt = fitRailEndpoint(reliable, "left"),
-      rightAt = fitRailEndpoint(reliable, "right");
-    return rails.map((rail) => {
-      const predictedLeft = leftAt(rail.y),
-        predictedRight = rightAt(rail.y),
-        observedReliable =
-          rail.width >= maxWidth * 0.92 &&
-          Math.abs(
-            (rail.left + rail.right - predictedLeft - predictedRight) / 2,
-          ) <
-            maxWidth * 0.2;
-      let left = observedReliable
-          ? rail.left * 0.62 + predictedLeft * 0.38
-          : predictedLeft,
-        right = observedReliable
-          ? rail.right * 0.62 + predictedRight * 0.38
-          : predictedRight;
-      if (right - left < maxWidth * 0.72) {
-        left = predictedLeft;
-        right = predictedRight;
-      }
-      return { ...rail, left, right };
-    });
-  }
-  function validatePortraitStack(items, width, height) {
-    if (items.length !== 3) return false;
-    const dimensions = items.map((item) => quadDimensions(item.quad));
-    if (
-      dimensions.some(
-        (item) =>
-          item.width < width * 0.07 ||
-          item.height < height * 0.055 ||
-          item.width / Math.max(1, item.height) < 0.65 ||
-          item.width / Math.max(1, item.height) > 5.8,
-      )
-    )
-      return false;
-    const widths = dimensions.map((item) => item.width),
-      heights = dimensions.map((item) => item.height),
-      averageWidth = widths.reduce((sum, value) => sum + value, 0) / 3,
-      averageHeight = heights.reduce((sum, value) => sum + value, 0) / 3;
-    if (
-      Math.max(...widths) / Math.max(1, Math.min(...widths)) > 1.65 ||
-      Math.max(...heights) / Math.max(1, Math.min(...heights)) > 1.65
-    )
-      return false;
-    const centers = items.map((item) => quadCenter(item.quad)),
-      centerSpread =
-        Math.max(...centers.map((center) => center.x)) -
-        Math.min(...centers.map((center) => center.x)),
-      gaps = [centers[1].y - centers[0].y, centers[2].y - centers[1].y];
-    return (
-      centerSpread <= averageWidth * 0.35 &&
-      Math.min(...gaps) > averageHeight * 0.55 &&
-      Math.max(...gaps) / Math.max(1, Math.min(...gaps)) < 1.55
-    );
-  }
-  function detectPortraitRailStack(
-    mask,
-    gridWidth,
-    gridHeight,
-    stride,
-    width,
-    height,
-  ) {
-    const sequence = choosePortraitRailSequence(
-      findPortraitRailBands(mask, gridWidth, gridHeight),
-      gridWidth,
-      gridHeight,
-    );
-    if (!sequence) return [];
-    const rails = refinePortraitRails(sequence),
-      toPixel = (x, y) => ({
-        x: clamp((x + 0.5) * stride, 0, width - 1),
-        y: clamp((y + 0.5) * stride, 0, height - 1),
-      }),
-      items = [];
-    for (let lane = 0; lane < 3; lane++)
-      items.push({
-        quad: {
-          tl: toPixel(rails[lane].left, rails[lane].y),
-          tr: toPixel(rails[lane].right, rails[lane].y),
-          bl: toPixel(rails[lane + 1].left, rails[lane + 1].y),
-          br: toPixel(rails[lane + 1].right, rails[lane + 1].y),
-        },
-        score: sequence.score,
-        source: "portrait-rails",
-      });
-    return validatePortraitStack(items, width, height) ? items : [];
-  }
-  function splitPortraitTower(candidate, width, height) {
-    const dimensions = quadDimensions(candidate.quad);
-    if (
-      dimensions.height < dimensions.width * 1.22 ||
-      dimensions.height < height * 0.2
-    )
-      return [];
-    const items = [];
-    for (let lane = 0; lane < 3; lane++) {
-      const top = lane / 3,
-        bottom = (lane + 1) / 3;
-      items.push({
-        quad: {
-          tl: projectQuadPoint(candidate.quad, 0, top),
-          tr: projectQuadPoint(candidate.quad, 1, top),
-          bl: projectQuadPoint(candidate.quad, 0, bottom),
-          br: projectQuadPoint(candidate.quad, 1, bottom),
-        },
-        score: candidate.score * 0.8,
-        source: "portrait-split",
-      });
-    }
-    return validatePortraitStack(items, width, height) ? items : [];
-  }
-  function isPrecisionWhitePixel(data, offset) {
-    const r = data[offset],
-      g = data[offset + 1],
-      b = data[offset + 2],
-      hi = Math.max(r, g, b),
-      lo = Math.min(r, g, b),
-      luma = r * 0.2126 + g * 0.7152 + b * 0.0722;
-    return luma >= 198 && hi - lo <= 48;
-  }
-  function detectPrecisionFrameRings(image, width, height) {
-    const data = image.data,
-      stride = Math.max(2, Math.floor(Math.min(width, height) / 340)),
-      gridWidth = Math.ceil(width / stride),
-      gridHeight = Math.ceil(height / stride),
-      mask = new Uint8Array(gridWidth * gridHeight);
-    for (let gy = 0; gy < gridHeight; gy++) {
-      const y = Math.min(height - 1, gy * stride + (stride >> 1));
-      for (let gx = 0; gx < gridWidth; gx++) {
-        const x = Math.min(width - 1, gx * stride + (stride >> 1));
-        if (isPrecisionWhitePixel(data, (y * width + x) * 4))
-          mask[gy * gridWidth + gx] = 1;
-      }
-    }
-    const seen = new Uint8Array(mask.length),
-      candidates = [];
-    for (let start = 0; start < mask.length; start++) {
-      if (!mask[start] || seen[start]) continue;
-      const stack = [start];
-      seen[start] = 1;
-      let count = 0,
-        minX = Infinity,
-        minY = Infinity,
-        maxX = -1,
-        maxY = -1,
-        minSum = Infinity,
-        maxSum = -Infinity,
-        minDiff = Infinity,
-        maxDiff = -Infinity,
-        tl = null,
-        tr = null,
-        bl = null,
-        br = null;
-      while (stack.length) {
-        const cur = stack.pop(),
-          cy = Math.floor(cur / gridWidth),
-          cx = cur - cy * gridWidth;
-        count++;
-        minX = Math.min(minX, cx);
-        maxX = Math.max(maxX, cx);
-        minY = Math.min(minY, cy);
-        maxY = Math.max(maxY, cy);
-        const sum = cx + cy,
-          diff = cx - cy;
-        if (sum < minSum) {
-          minSum = sum;
-          tl = { x: cx, y: cy };
-        }
-        if (sum > maxSum) {
-          maxSum = sum;
-          br = { x: cx, y: cy };
-        }
-        if (diff > maxDiff) {
-          maxDiff = diff;
-          tr = { x: cx, y: cy };
-        }
-        if (diff < minDiff) {
-          minDiff = diff;
-          bl = { x: cx, y: cy };
-        }
-        for (let dy = -1; dy <= 1; dy++)
-          for (let dx = -1; dx <= 1; dx++) {
-            if (!dx && !dy) continue;
-            const nx = cx + dx,
-              ny = cy + dy;
-            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight)
-              continue;
-            const ni = ny * gridWidth + nx;
-            if (mask[ni] && !seen[ni]) {
-              seen[ni] = 1;
-              stack.push(ni);
-            }
-          }
-      }
-      if (!tl || !tr || !bl || !br || count < 20) continue;
-      const cellW = maxX - minX + 1,
-        cellH = maxY - minY + 1,
-        bw = cellW * stride,
-        bh = cellH * stride,
-        ratio = bw / Math.max(1, bh),
-        fill = count / Math.max(1, cellW * cellH);
-      if (
-        bw < width * 0.14 ||
-        bh < height * 0.06 ||
-        ratio < 1.05 ||
-        ratio > 4.6 ||
-        fill < 0.01 ||
-        fill > 0.38
-      )
-        continue;
-      const perimeterCells = Math.max(1, 2 * (cellW + cellH));
-      if (count < perimeterCells * 0.16) continue;
-      let quad = componentToQuad({ tl, tr, bl, br }, stride, width, height);
-      quad = insetQuad(quad, 0.035);
-      candidates.push({
-        quad,
-        score: bw * bh * (0.4 + Math.min(0.6, count / perimeterCells)),
-        source: "precision-ring",
-      });
-    }
-    candidates.sort((a, b) => b.score - a.score);
-    const selected = [];
-    for (const candidate of candidates) {
-      if (
-        selected.every((item) => overlapRatio(item.quad, candidate.quad) < 0.34)
-      )
-        selected.push(candidate);
-      if (selected.length === 3) break;
-    }
-    const ordered = orderQuads(selected);
-    return validatePortraitStack(ordered, width, height) ? ordered : [];
-  }
-  function detectCyanComponents(image, width, height) {
-    const precisionFrames = detectPrecisionFrameRings(image, width, height);
-    if (precisionFrames.length === 3) return precisionFrames;
-    const data = image.data,
-      stride = Math.max(2, Math.floor(Math.min(width, height) / 300));
-    const gridWidth = Math.ceil(width / stride),
-      gridHeight = Math.ceil(height / stride);
-    const mask = new Uint8Array(gridWidth * gridHeight),
-      points = [];
-    for (let gy = 0; gy < gridHeight; gy++) {
-      const y = Math.min(height - 1, gy * stride + (stride >> 1));
-      for (let gx = 0; gx < gridWidth; gx++) {
-        const x = Math.min(width - 1, gx * stride + (stride >> 1)),
-          offset = (y * width + x) * 4,
-          index = gy * gridWidth + gx;
-        if (isCyanPixel(data, offset)) {
-          mask[index] = 1;
-          points.push({ x: gx, y: gy });
-        }
-      }
-    }
-    const portraitRails = detectPortraitRailStack(
-      mask,
-      gridWidth,
-      gridHeight,
-      stride,
-      width,
-      height,
-    );
-    if (portraitRails.length === 3) return portraitRails;
-    const seen = new Uint8Array(mask.length),
-      candidates = [];
-    const minCount = Math.max(
-      24,
-      Math.floor(Math.min(gridWidth, gridHeight) * 0.12),
-    );
-    for (let start = 0; start < mask.length; start++) {
-      if (!mask[start] || seen[start]) continue;
-      const stack = [start];
-      seen[start] = 1;
-      let count = 0,
-        minX = Infinity,
-        minY = Infinity,
-        maxX = -1,
-        maxY = -1,
-        minSum = Infinity,
-        maxSum = -Infinity,
-        minDiff = Infinity,
-        maxDiff = -Infinity;
-      let tl = null,
-        tr = null,
-        bl = null,
-        br = null;
-      while (stack.length) {
-        const current = stack.pop(),
-          cy = Math.floor(current / gridWidth),
-          cx = current - cy * gridWidth;
-        count++;
-        minX = Math.min(minX, cx);
-        maxX = Math.max(maxX, cx);
-        minY = Math.min(minY, cy);
-        maxY = Math.max(maxY, cy);
-        const sum = cx + cy,
-          diff = cx - cy;
-        if (sum < minSum) {
-          minSum = sum;
-          tl = { x: cx, y: cy };
-        }
-        if (sum > maxSum) {
-          maxSum = sum;
-          br = { x: cx, y: cy };
-        }
-        if (diff > maxDiff) {
-          maxDiff = diff;
-          tr = { x: cx, y: cy };
-        }
-        if (diff < minDiff) {
-          minDiff = diff;
-          bl = { x: cx, y: cy };
-        }
-        for (let dy = -1; dy <= 1; dy++)
-          for (let dx = -1; dx <= 1; dx++) {
-            if (!dx && !dy) continue;
-            const nx = cx + dx,
-              ny = cy + dy;
-            if (nx < 0 || ny < 0 || nx >= gridWidth || ny >= gridHeight)
-              continue;
-            const next = ny * gridWidth + nx;
-            if (mask[next] && !seen[next]) {
-              seen[next] = 1;
-              stack.push(next);
-            }
-          }
-      }
-      if (count < minCount || !tl || !tr || !bl || !br) continue;
-      const bw = (maxX - minX + 1) * stride,
-        bh = (maxY - minY + 1) * stride,
-        area = bw * bh;
-      if (
-        bw < width * 0.1 ||
-        bh < height * 0.1 ||
-        area < width * height * 0.035
-      )
-        continue;
-      const ratio = bw / Math.max(1, bh);
-      if (ratio < 0.38 || ratio > 2.65) continue;
-      const quad = componentToQuad({ tl, tr, bl, br }, stride, width, height);
-      const dimensions = quadDimensions(quad);
-      if (dimensions.width < width * 0.09 || dimensions.height < height * 0.09)
-        continue;
-      const score =
-        area * (1 + Math.min(1, count / Math.max(1, (2 * (bw + bh)) / stride)));
-      candidates.push({ quad, score, count });
-    }
-    candidates.sort((a, b) => b.score - a.score);
-    const selected = [];
-    for (const candidate of candidates) {
-      if (
-        selected.every((item) => overlapRatio(item.quad, candidate.quad) < 0.38)
-      )
-        selected.push(candidate);
-      if (selected.length === 3) break;
-    }
-    if (selected.length === 1) {
-      const split = splitPortraitTower(selected[0], width, height);
-      if (split.length === 3) return split;
-    }
-    if (selected.length < 3 && points.length > minCount * 3) {
-      const clustered = clusterCyanPoints(points, stride, width, height);
-      for (const item of clustered) {
-        if (
-          selected.every(
-            (existing) => overlapRatio(existing.quad, item.quad) < 0.38,
-          )
-        )
-          selected.push(item);
-        if (selected.length === 3) break;
-      }
-    }
-    return selected.slice(0, 3);
-  }
-  function clusterCyanPoints(points, stride, width, height) {
-    const axis = (point) => point.y;
-    const values = points.map(axis).sort((a, b) => a - b);
-    if (values.length < 60) return [];
-    let centers = [
-      values[Math.floor(values.length * 0.16)],
-      values[Math.floor(values.length * 0.5)],
-      values[Math.floor(values.length * 0.84)],
-    ];
-    for (let iteration = 0; iteration < 8; iteration++) {
-      const groups = [[], [], []];
-      for (const point of points) {
-        let best = 0,
-          distance = Math.abs(axis(point) - centers[0]);
-        for (let i = 1; i < 3; i++) {
-          const d = Math.abs(axis(point) - centers[i]);
-          if (d < distance) {
-            distance = d;
-            best = i;
-          }
-        }
-        groups[best].push(point);
-      }
-      centers = groups.map((group, index) =>
-        group.length
-          ? group.reduce((sum, point) => sum + axis(point), 0) / group.length
-          : centers[index],
-      );
-    }
-    const groups = [[], [], []];
-    for (const point of points) {
-      let best = 0,
-        distance = Math.abs(axis(point) - centers[0]);
-      for (let i = 1; i < 3; i++) {
-        const d = Math.abs(axis(point) - centers[i]);
-        if (d < distance) {
-          distance = d;
-          best = i;
-        }
-      }
-      groups[best].push(point);
-    }
-    const out = [];
-    for (const group of groups) {
-      if (group.length < 30) continue;
-      let minSum = Infinity,
-        maxSum = -Infinity,
-        minDiff = Infinity,
-        maxDiff = -Infinity,
-        tl,
-        tr,
-        bl,
-        br;
-      let minX = Infinity,
-        maxX = -Infinity,
-        minY = Infinity,
-        maxY = -Infinity;
-      for (const point of group) {
-        minX = Math.min(minX, point.x);
-        maxX = Math.max(maxX, point.x);
-        minY = Math.min(minY, point.y);
-        maxY = Math.max(maxY, point.y);
-        const sum = point.x + point.y,
-          diff = point.x - point.y;
-        if (sum < minSum) {
-          minSum = sum;
-          tl = point;
-        }
-        if (sum > maxSum) {
-          maxSum = sum;
-          br = point;
-        }
-        if (diff > maxDiff) {
-          maxDiff = diff;
-          tr = point;
-        }
-        if (diff < minDiff) {
-          minDiff = diff;
-          bl = point;
-        }
-      }
-      const bw = (maxX - minX + 1) * stride,
-        bh = (maxY - minY + 1) * stride;
-      if (bw < width * 0.09 || bh < height * 0.09) continue;
-      out.push({
-        quad: componentToQuad({ tl, tr, bl, br }, stride, width, height),
-        score: bw * bh * 0.7,
-        count: group.length,
-      });
-    }
-    return out.sort((a, b) => b.score - a.score);
-  }
-  function orderQuads(items) {
-    if (items.length < 2) return items;
-    const centers = items.map((item) => quadCenter(item.quad));
-    const spreadX =
-      Math.max(...centers.map((p) => p.x)) -
-      Math.min(...centers.map((p) => p.x));
-    const spreadY =
-      Math.max(...centers.map((p) => p.y)) -
-      Math.min(...centers.map((p) => p.y));
-    return items.slice().sort((a, b) => {
-      const ca = quadCenter(a.quad),
-        cb = quadCenter(b.quad);
-      return spreadX >= spreadY ? ca.x - cb.x : ca.y - cb.y;
-    });
-  }
-  function smoothQuad(previous, current, alpha = 0.42) {
-    if (!previous) return current;
-    const out = {};
-    for (const key of ["tl", "tr", "bl", "br"])
-      out[key] = {
-        x: previous[key].x * (1 - alpha) + current[key].x * alpha,
-        y: previous[key].y * (1 - alpha) + current[key].y * alpha,
-      };
-    return out;
-  }
-  function cyanAt(image, width, height, point) {
-    const x = clamp(Math.round(point.x), 0, width - 1),
-      y = clamp(Math.round(point.y), 0, height - 1);
-    return isCyanPixel(image.data, (y * width + x) * 4);
-  }
-  function median(values) {
-    if (!values.length) return null;
-    const ordered = values.slice().sort((a, b) => a - b),
-      middle = Math.floor(ordered.length / 2);
-    return ordered.length % 2
-      ? ordered[middle]
-      : (ordered[middle - 1] + ordered[middle]) / 2;
-  }
-  function detectRailMargins(image, width, height, quad, dimensions) {
-    const probes = [0.22, 0.38, 0.5, 0.62, 0.78];
-    function scan(side, position) {
-      const horizontal = side === "left" || side === "right";
-      const span = horizontal ? dimensions.width : dimensions.height;
-      const maxPixels = Math.max(8, Math.min(24, Math.ceil(span * 0.075)));
-      let seen = false,
-        lastCyan = -1,
-        clearRun = 0;
-      for (let pixel = 0; pixel <= maxPixels; pixel++) {
-        const t = pixel / Math.max(1, span);
-        let u = position,
-          v = position;
-        if (side === "left") {
-          u = t;
-          v = position;
-        } else if (side === "right") {
-          u = 1 - t;
-          v = position;
-        } else if (side === "top") {
-          u = position;
-          v = t;
-        } else {
-          u = position;
-          v = 1 - t;
-        }
-        if (cyanAt(image, width, height, projectQuadPoint(quad, u, v))) {
-          seen = true;
-          lastCyan = pixel;
-          clearRun = 0;
-        } else if (seen && ++clearRun >= 2) {
-          return clamp((lastCyan + 1.25) / Math.max(1, span), 0.003, 0.06);
-        }
-      }
-      return null;
-    }
-    const left = median(
-      probes.map((v) => scan("left", v)).filter(Number.isFinite),
-    );
-    const right = median(
-      probes.map((v) => scan("right", v)).filter(Number.isFinite),
-    );
-    const top = median(
-      probes.map((v) => scan("top", v)).filter(Number.isFinite),
-    );
-    const bottom = median(
-      probes.map((v) => scan("bottom", v)).filter(Number.isFinite),
-    );
-    const estimatedCell = Math.min(
-      dimensions.width /
-        (dimensions.width > dimensions.height ? LONG_SIDE : SHORT_SIDE),
-      dimensions.height /
-        (dimensions.width > dimensions.height ? SHORT_SIDE : LONG_SIDE),
-    );
-    const fallbackU = clamp(
-      (estimatedCell * 0.62) / Math.max(1, dimensions.width),
-      0.004,
-      0.038,
-    );
-    const fallbackV = clamp(
-      (estimatedCell * 0.62) / Math.max(1, dimensions.height),
-      0.004,
-      0.038,
-    );
-    return {
-      u: clamp(
-        Number.isFinite(left) && Number.isFinite(right)
-          ? (left + right) / 2
-          : Number.isFinite(left)
-            ? left
-            : Number.isFinite(right)
-              ? right
-              : fallbackU,
-        0.004,
-        0.05,
-      ),
-      v: clamp(
-        Number.isFinite(top) && Number.isFinite(bottom)
-          ? (top + bottom) / 2
-          : Number.isFinite(top)
-            ? top
-            : Number.isFinite(bottom)
-              ? bottom
-              : fallbackV,
-        0.004,
-        0.05,
-      ),
-    };
-  }
-  function rgbAt(data, width, height, x, y, radius = 0) {
-    x = Math.round(x);
-    y = Math.round(y);
-    const totals = [0, 0, 0];
-    let count = 0;
-    for (
-      let yy = Math.max(0, y - radius);
-      yy <= Math.min(height - 1, y + radius);
-      yy++
-    )
-      for (
-        let xx = Math.max(0, x - radius);
-        xx <= Math.min(width - 1, x + radius);
-        xx++
-      ) {
-        const offset = (yy * width + xx) * 4;
-        totals[0] += data[offset];
-        totals[1] += data[offset + 1];
-        totals[2] += data[offset + 2];
-        count++;
-      }
-    return count ? totals.map((value) => value / count) : [0, 0, 0];
-  }
   function colorDistance(a, b) {
     const dr = (a[0] - b[0]) * 0.88,
       dg = (a[1] - b[1]) * 1.12,
@@ -2648,74 +1719,51 @@
       rotation,
     };
   }
-  function decodeOpticalQuad(image, width, height, quad) {
-    const dimensions = quadDimensions(quad),
-      wide = dimensions.width > dimensions.height;
-    const cols = wide ? LONG_SIDE : SHORT_SIDE,
-      rows = wide ? SHORT_SIDE : LONG_SIDE;
-    const samples = new Float32Array(cols * rows * 3);
-    const estimatedCell = Math.min(
-      dimensions.width / cols,
-      dimensions.height / rows,
-    );
-    const margins = detectRailMargins(image, width, height, quad, dimensions);
-    const marginU = margins.u,
-      marginV = margins.v;
-    const radius = estimatedCell > 6 ? 1 : 0;
-    let sampleOffset = 0;
-    for (let y = 0; y < rows; y++)
-      for (let x = 0; x < cols; x++) {
-        const u = marginU + ((x + 0.5) / cols) * (1 - marginU * 2);
-        const v = marginV + ((y + 0.5) / rows) * (1 - marginV * 2);
-        const point = projectQuadPoint(quad, u, v),
-          rgb = rgbAt(image.data, width, height, point.x, point.y, radius);
-        samples[sampleOffset++] = rgb[0];
-        samples[sampleOffset++] = rgb[1];
-        samples[sampleOffset++] = rgb[2];
-      }
-    const preferred = app.rx?.modeId || app.modeId;
-    const modeIds = [preferred, ...MODE_ORDER].filter(
-      (modeId, index, all) =>
-        MODE_DEFINITIONS[modeId] && all.indexOf(modeId) === index,
-    );
+  function decodeOpticalQuad(image, width, height, quad, geometry = null) {
+    // AnchorScan yields the exact payload rectangle, not a frame with guessed margins.
+    // Its coded corner IDs resolve orientation, lane AND modulation before payload decode.
+    if (!geometry?.exact || !MODE_DEFINITIONS[geometry.modeId]) return null;
+    const cols = LONG_SIDE, rows = SHORT_SIDE, mode = resolveMode(geometry.modeId);
+    const ordered = [quad.tl, quad.tr, quad.br, quad.bl];
+    const h = globalThis.HopperAnchorScan.homography(ordered.map((p,i) => ({
+      u:[0,1,1,0][i],v:[0,0,1,1][i],x:p.x,y:p.y
+    })));
+    if (!h) return null;
+    const rgba = image.data;
     let bestBad = null;
-    for (const modeId of modeIds)
-      for (const rotation of [0, 180]) {
-        const classified = classifyColorSamples(
-          samples,
-          cols,
-          rows,
-          modeId,
-          rotation,
-        );
-        if (!classified) continue;
-        const bytes = symbolsToBytes(
-            classified.symbols,
-            cols,
-            rows,
-            classified.mode,
-          ),
-          packet = parsePacket(bytes, classified.mode);
-        const result = {
-          packet,
-          quality: classified.quality,
-          quad,
-          cols,
-          rows,
-          mode: classified.mode,
-          rotation,
-          centers: classified.centers,
-          pilotError: classified.pilotError,
-          minSeparation: classified.minSeparation,
-        };
-        if (packet?.bad) {
-          if (!bestBad || result.quality > bestBad.quality)
-            bestBad = { ...result, bad: true };
-          continue;
-        }
-        if (packet) return result;
+    // Small sampling-phase recovery; every attempt still requires a valid full CRC.
+    for (const [shiftX,shiftY] of [[0,0],[-0.14,0],[0.14,0],[0,-0.14],[0,0.14]]) {
+      const samples = new Float32Array(cols * rows * 3);
+      for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+        const p = globalThis.HopperAnchorScan.project(h,(x+0.5+shiftX)/cols,(y+0.5+shiftY)/rows);
+        const xx = clamp(Math.floor(p.x),0,width-2), yy=clamp(Math.floor(p.y),0,height-2);
+        const fx=clamp(p.x-xx,0,1), fy=clamp(p.y-yy,0,1), a=(yy*width+xx)*4, out=(y*cols+x)*3;
+        for (let c=0;c<3;c++) samples[out+c] =
+          (rgba[a+c]*(1-fx)+rgba[a+4+c]*fx)*(1-fy)+
+          (rgba[a+width*4+c]*(1-fx)+rgba[a+width*4+4+c]*fx)*fy;
       }
+      const classified=classifyColorSamples(samples,cols,rows,mode,0);
+      if (!classified) continue;
+      const packet=parsePacket(symbolsToBytes(classified.symbols,cols,rows,mode),mode);
+      if (!packet || packet.lane !== geometry.lane) continue;
+      const result={packet,quality:classified.quality,quad,cols,rows,mode,
+        pilotError:classified.pilotError,minSeparation:classified.minSeparation,
+        samplingPhase:[shiftX,shiftY]};
+      if (packet.bad) { bestBad={...result,bad:true}; continue; }
+      return result;
+    }
     return bestBad;
+  }
+  function scanAnchorFrame(scanner, image, timestamp) {
+    const start=performance.now(), result=scanner.detect(image,timestamp);
+    for (const item of result.items) {
+      const decoded=decodeOpticalQuad(image,image.width,image.height,item.quad,item);
+      item.decoded=decoded && !decoded.bad ? decoded : null;
+      item.rejected=decoded?.bad ? decoded : null;
+    }
+    result.processingMs=performance.now()-start;
+    result.width=image.width;result.height=image.height;
+    return result;
   }
   function drawGuide(width, height, items) {
     const canvas = $("guideCanvas"),
@@ -2936,7 +1984,7 @@
     $("rxQuality").textContent = average ? `${Math.round(average)}%` : "—";
     $("rxMode").textContent = rx
       ? `${resolveMode(rx.modeId).shortLabel}·${resolveMode(rx.modeId).bits}b`
-      : "AUTO 2/3/4-bit";
+      : app.candidateBits ? `${app.candidateBits}-bit · cabecera pendiente` : "AUTO 2/3/4-bit";
     if (!rx) {
       $("rxKnown").textContent = "0/—";
       $("rxPercent").textContent = "0%";
@@ -3053,7 +2101,7 @@
       )
         advanced.whiteBalanceMode = "continuous";
       if (capabilities.zoom && Number.isFinite(capabilities.zoom.min))
-        advanced.zoom = capabilities.zoom.min;
+        advanced.zoom = clamp(1, capabilities.zoom.min, capabilities.zoom.max);
       if (Object.keys(advanced).length)
         await track.applyConstraints({ advanced: [advanced] });
       flight.record("camera", "track-tuned", { advanced }, 100);
@@ -3071,7 +2119,7 @@
     const sourceHeight = Math.max(1, Number(video?.videoHeight) || 1920);
     const shortSide = Math.min(sourceWidth, sourceHeight);
     const longSide = Math.max(sourceWidth, sourceHeight);
-    const scale = Math.min(1, 720 / shortSide, 1280 / longSide);
+    const scale = Math.min(1, 1080 / shortSide, 1920 / longSide);
     return {
       width: Math.max(1, Math.round(sourceWidth * scale)),
       height: Math.max(1, Math.round(sourceHeight * scale)),
@@ -3142,14 +2190,17 @@
       $("cameraBtn").disabled = true;
       $("stopCameraBtn").disabled = false;
       $("receiverFullscreenBtn").disabled = false;
-      $("cameraState").textContent = "PRECISION DOCK·BUSCANDO A/B/C";
+      $("cameraState").textContent = "ANCHORSCAN · BUSCANDO MARCADORES";
       setEngineStatus("CÁMARA ACTIVA", "online");
       app.scanFrames = 0;
       app.scanFpsAt = performance.now();
       app.scanLastAt = 0;
-      app.lastTrackedQuads = [];
-      app.trackedAt = 0;
-      app.scanRaf = requestAnimationFrame(scanLoop);
+      app.candidateBits = null;
+      app.scanEpoch = (app.scanEpoch || 0) + 1;
+      app.scanBusy = false;
+      app.scanLastMediaTime = -1;
+      startScanWorker();
+      scheduleCameraFrame();
       flight.record(
         "camera",
         "started",
@@ -3167,6 +2218,11 @@
   }
   function stopCamera() {
     cancelAnimationFrame(app.scanRaf);
+    $("cameraVideo").cancelVideoFrameCallback?.(app.scanVideoCallback || 0);
+    app.scanEpoch = (app.scanEpoch || 0) + 1;
+    app.scanWorker?.terminate();
+    app.scanWorker = null;
+    app.scanBusy = false;
     app.scanRaf = 0;
     for (const track of app.cameraStream?.getTracks?.() || []) track.stop();
     app.cameraStream = null;
@@ -3190,118 +2246,88 @@
     setPhase(app.rx?.complete ? "RX_COMPLETE" : "IDLE");
     flight.record("camera", "stopped", {}, 100);
   }
-  function scanLoop(timestamp) {
-    if (!app.cameraStream) return;
-    app.scanRaf = requestAnimationFrame(scanLoop);
-    if (timestamp - app.scanLastAt < 68) return;
-    app.scanLastAt = timestamp;
-    const video = $("cameraVideo");
-    if (video.readyState < 2 || !video.videoWidth) return;
-    const { width, height } = receiverScanDimensions(video);
-    const canvas = $("captureCanvas"),
-      ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    ctx.drawImage(video, 0, 0, width, height);
-    let image;
+  function startScanWorker() {
+    app.scanWorker?.terminate();
+    app.scanWorker=null;
+    app.anchorScanner = new globalThis.HopperAnchorScan.Scanner();
+    if (typeof Worker !== "function") return;
     try {
-      image = ctx.getImageData(0, 0, width, height);
-    } catch {
+      const worker = new Worker("./anchor-worker.js?v=1300");
+      app.scanWorker=worker;
+      worker.onmessage=({data}) => {
+        if (app.scanWorker !== worker || data.epoch !== app.scanEpoch) return;
+        app.scanBusy=false;
+        if (data.error) { stopFailedWorker(data.error); return; }
+        if (app.cameraStream) applyScanResult(data.result);
+      };
+      worker.onerror=event => {
+        if(app.scanWorker === worker) stopFailedWorker(event.message || "worker failed");
+      };
+      flight.record("scan","worker-started",{build:"1300",singleFlight:true},100);
+    } catch(error) {stopFailedWorker(error.message);}
+  }
+  function stopFailedWorker(message) {
+    app.scanWorker?.terminate();app.scanWorker=null;app.scanBusy=false;
+    flight.record("scan","main-thread-fallback",{message},40);
+  }
+  function scheduleCameraFrame() {
+    if (!app.cameraStream) return;
+    const video=$("cameraVideo");
+    if (typeof video.requestVideoFrameCallback === "function")
+      app.scanVideoCallback=video.requestVideoFrameCallback(scanLoop);
+    else app.scanRaf=requestAnimationFrame(scanLoop);
+  }
+  function scanLoop(timestamp, metadata) {
+    if (!app.cameraStream) return;
+    scheduleCameraFrame();
+    if (app.scanBusy) {
+      if (performance.now()-app.scanSubmittedAt>3000) stopFailedWorker("worker-timeout");
       return;
     }
-    let items = orderQuads(detectCyanComponents(image, width, height));
-    const currentTime = performance.now();
-    if (items.length === 3) {
-      items = items.map((item, index) => ({
-        ...item,
-        quad: smoothQuad(app.lastTrackedQuads[index], item.quad),
-      }));
-      app.lastTrackedQuads = items.map((item) => item.quad);
-      app.trackedAt = currentTime;
-    } else if (
-      items.length < 3 &&
-      app.lastTrackedQuads.length === 3 &&
-      currentTime - app.trackedAt < 1800
-    ) {
-      const existing = items.map((item) => item.quad);
-      for (const tracked of app.lastTrackedQuads) {
-        if (existing.every((quad) => overlapRatio(quad, tracked) < 0.42))
-          items.push({ quad: tracked, score: 0, held: true });
-        if (items.length === 3) break;
-      }
-      items = orderQuads(items);
+    const video=$("cameraVideo"), mediaTime=metadata?.mediaTime ?? video.currentTime;
+    if (video.readyState<2 || !video.videoWidth || mediaTime===app.scanLastMediaTime) return;
+    // Worker: at most 30 real frames/s. Fallback is bounded to keep controls responsive.
+    if (timestamp-app.scanLastAt<(app.scanWorker?30:100)) return;
+    app.scanLastMediaTime=mediaTime;app.scanLastAt=timestamp;
+    const {width,height}=receiverScanDimensions(video);
+    const canvas=$("captureCanvas"),ctx=canvas.getContext("2d",{alpha:false,willReadFrequently:true});
+    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
+    ctx.drawImage(video,0,0,width,height);
+    try {
+      const image=ctx.getImageData(0,0,width,height);
+      if(app.scanWorker){
+        app.scanBusy=true;app.scanSubmittedAt=performance.now();
+        app.scanWorker.postMessage({epoch:app.scanEpoch,width,height,buffer:image.data.buffer,timestamp},[image.data.buffer]);
+      } else applyScanResult(scanAnchorFrame(app.anchorScanner,image,timestamp));
+    } catch(error) {app.scanBusy=false;flight.record("scan","frame-error",{message:error.message},0);}
+  }
+  function applyScanResult(result) {
+    if(!app.cameraStream)return;
+    const {items,width,height}=result,now=performance.now();
+    app.lastAnchorMetrics={markers:result.markers,strategy:result.strategy,scanMs:result.scanMs,processingMs:result.processingMs,
+      lanes:items.map(i=>({lane:i.lane,anchors:i.anchorCount,cellPx:i.cellPx,motionCells:i.motionCells,reprojection:i.reprojection,valid:!!i.decoded}))};
+    for(const item of items){
+      if(item.rejected){app.detection.rejected++;if(app.rx)app.rx.rejected++;}
+      else if(item.decoded?.packet)processDecodedPacket(item.decoded.packet,item.decoded.quality);
     }
-    for (const item of items) {
-      const decoded = decodeOpticalQuad(image, width, height, item.quad);
-      item.decoded = decoded && !decoded.bad ? decoded : null;
-      if (decoded?.bad) {
-        app.detection.rejected++;
-        if (app.rx) app.rx.rejected++;
-        if (app.detection.rejected % 20 === 1)
-          flight.record(
-            "optical",
-            "packet-crc-rejected",
-            {
-              lane: decoded.packet.lane,
-              session: decoded.packet.session,
-              expected: decoded.packet.expected,
-              actual: decoded.packet.actual,
-            },
-            decoded.quality,
-          );
-      } else if (decoded?.packet)
-        processDecodedPacket(decoded.packet, decoded.quality);
+    drawGuide(width,height,items);updateLaneLocks();
+    const valid=items.filter(i=>i.decoded?.packet).length;
+    if(app.rx?.complete)$("cameraState").textContent="ARCHIVO COMPLETO ✓";
+    else $("cameraState").textContent=valid
+      ? `ANCHORSCAN · LEYENDO ${valid}/3`
+      : items.length ? `ANCHORSCAN · ${items.length}/3 ZONAS · VALIDANDO DATOS`
+      : `ANCHORSCAN · ${result.markers}/12 MARCADORES`;
+    app.candidateBits = null;
+    if(!app.rx&&items.length){
+      const bits=[...new Set(items.map(i=>i.bits))];
+      app.candidateBits=bits.length===1?bits[0]:null;
     }
-    drawGuide(width, height, items);
-    updateLaneLocks();
-    const validItems = items.filter((item) => item.decoded?.packet),
-      detected = items.length;
-    const scanStrategy = items.some((item) => item.source === "precision-ring")
-      ? "PRECISION DOCK"
-      : items.some((item) => item.source === "portrait-rails")
-        ? "STACKSCAN V2"
-        : items.some((item) => item.source === "portrait-split")
-          ? "STACKSPLIT"
-          : "AUTODOCK 3";
-    $("cameraState").textContent =
-      detected === 3
-        ? validItems.length
-          ? `${scanStrategy}·DECODIFICANDO`
-          : `${scanStrategy}·GEOMETRÍA 3/3`
-        : `${scanStrategy}·BUSCANDO ${detected}/3`;
     app.scanFrames++;
-    if (currentTime - app.scanFpsAt >= 1000) {
-      app.scanFps = (app.scanFrames * 1000) / (currentTime - app.scanFpsAt);
-      app.scanFrames = 0;
-      app.scanFpsAt = currentTime;
-      $("scanFps").textContent = `${app.scanFps.toFixed(1)}fps`;
-    }
-    if (currentTime - app.detection.lastMetricAt > 2000) {
-      app.detection.lastMetricAt = currentTime;
-      const average = app.recentQuality.length
-        ? app.recentQuality.reduce((sum, value) => sum + value, 0) /
-          app.recentQuality.length
-        : 0;
-      flight.record(
-        "metric",
-        "rx-snapshot",
-        {
-          detectedQuads: detected,
-          decodedLanes: validItems.length,
-          scanFps: Number(app.scanFps.toFixed(1)),
-          validPackets: app.detection.valid,
-          rejectedCrc: app.detection.rejected,
-          known: app.rx?.decoder?.snapshot?.().known || 0,
-          total: app.rx?.sourceCount || 0,
-          mode: app.rx?.modeId || null,
-          bits: app.rx ? resolveMode(app.rx.modeId).bits : null,
-          scanStrategy,
-        },
-        average,
-      );
-    }
+    if(now-app.scanFpsAt>=1000){app.scanFps=app.scanFrames*1000/(now-app.scanFpsAt);app.scanFrames=0;app.scanFpsAt=now;
+      $("scanFps").textContent=`${app.scanFps.toFixed(1)} fps · ${Math.round(result.processingMs)} ms`;}
+    if(now-app.detection.lastMetricAt>2000){app.detection.lastMetricAt=now;
+      flight.record("metric","anchor-scan",{...app.lastAnchorMetrics,worker:!!app.scanWorker,
+        validPackets:app.detection.valid,rejectedCrc:app.detection.rejected,known:app.rx?.known||0},valid?100:null);}
     updateReceiverUI();
   }
   function switchRole(role) {
@@ -3435,6 +2461,8 @@
         app.tx.running = false;
         app.tx.loopToken++;
       }
+      app.scanWorker?.terminate();
+      app.scanWorker=null;
       sonic.stopListener();
       releaseWakeLock();
       for (const track of app.cameraStream?.getTracks?.() || []) track.stop();
@@ -3465,7 +2493,7 @@
     if (!("serviceWorker" in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(
-        "./sw.js?v=1204",
+        "./sw.js?v=1300",
         { scope: "./" },
       );
       flight.record(
@@ -3527,8 +2555,9 @@
           };
         }),
         fullscreen: true,
-        precisionDock: true,
-        autoDock3: true,
+        anchorScan: true,
+        precisionDock: false,
+        autoDock3: false,
         fountain: true,
         sonicAssist: true,
         flightRecorder: true,
@@ -3594,11 +2623,12 @@
               rejected: app.rx.rejected,
             }
           : null,
+        scan: app.lastAnchorMetrics || null,
         flightEvents: flight.events.length,
       }),
     };
   }
-  window.__hopperLinkOneInternals = {
+  globalThis.__hopperLinkOneInternals = {
     ENGINE_NAME,
     VERSION,
     PROTOCOL,
@@ -3621,13 +2651,14 @@
     symbolsToBytes,
     classifyColorSamples,
     receiverScanDimensions,
-    detectCyanComponents,
-    detectPrecisionFrameRings,
-    detectPortraitRailStack,
-    findPortraitRailBands,
-    validatePortraitStack,
     crc32,
+    decodeOpticalQuad,
+    scanAnchorFrame,
+    splitBlocks,
+    createFountainDecoder,
+    sha256Hex,
   };
+  if (typeof document === "undefined") return;
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", initialize, { once: true });
   else initialize();

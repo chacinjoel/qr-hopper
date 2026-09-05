@@ -17,10 +17,10 @@ for(const lane of ['A','B','C']){
   assert(html.includes(`aria-label="Cuadrante ${lane}"`));
 }
 assert.equal((html.match(/id="laneCanvas[A-C]"/g)||[]).length,3);
-const cssPath='premium-one-fullscreen.css?v=1204-clean1';
+const cssPath='premium-one-fullscreen.css?v=1300';
 assert(html.includes(cssPath)&&sw.includes(cssPath),'HTML and offline cache must load the fixed CSS');
 assert(html.includes('Pantalla limpia'));
-assert(sw.includes('hopperlink-one-v1204-clean1'));
-assert(sw.includes('./hopper-one.js?v=1204'));
-assert(sw.includes('./runtime/hopper-one.bundle-01.txt?v=1204'));
+assert(sw.includes('hopperlink-one-v1300'));
+assert(sw.includes('./hopper-one.js?v=1300'));
+assert(sw.includes('./runtime/hopper-one.bundle-01.txt?v=1300'));
 console.log('Unobstructed optical surface / stable HELLO-DATA geometry contract: PASS');

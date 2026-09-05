@@ -1,5 +1,5 @@
 {
-  "name": "HopperLink ONE StackScan",
+  "name": "HopperLink ONE AnchorScan",
   "short_name": "HopperLink",
   "start_url": "./index.html",
   "scope": "./",
@@ -7,5 +7,5 @@
   "orientation": "portrait",
   "background_color": "#060912",
   "theme_color": "#060912",
-  "description": "Transferencia offline premium con StackScan V2, visor vertical 2:3, detección adaptativa de rieles y tres lanes ópticos apilados."
+  "description": "Transferencia offline con marcadores monocromos codificados, seguimiento por cuadro y tres cuadrantes verticales."
 }

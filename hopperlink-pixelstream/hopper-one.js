@@ -1,6 +1,6 @@
 (() => {
 'use strict';
-const MANIFEST='./hopper-one.runtime.json?v=1203';
+const MANIFEST='./hopper-one.runtime.json?v=1300';
 const fatal=error=>{
   console.error('HopperLink ONE boot failed',error);
   const host=document.getElementById('engineStatus');
@@ -24,6 +24,7 @@ const gunzip=async bytes=>{
   return new Uint8Array(await new Response(stream).arrayBuffer());
 };
 (async()=>{
+  if(!globalThis.HopperAnchorScan)throw new Error('AnchorScan no se cargó; recarga la aplicación.');
   const response=await fetch(MANIFEST,{cache:'no-store'});
   if(!response.ok)throw new Error(`Runtime manifest ${response.status}`);
   const manifest=await response.json(),pieces=[];
@@ -38,6 +39,6 @@ const gunzip=async bytes=>{
   if(actual&&actual!==manifest.sha256)throw new Error('Runtime SHA-256 mismatch');
   const source=new TextDecoder().decode(sourceBytes);
   if(source.length!==manifest.length)throw new Error(`Runtime length ${source.length} != ${manifest.length}`);
-  (0,eval)(source+'\n//# sourceURL=hopper-one-runtime-v1200.js');
+  (0,eval)(source+'\n//# sourceURL=hopper-one-runtime-v1300.js');
 })().catch(fatal);
 })();
