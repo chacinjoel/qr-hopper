@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply static HPS7-style guide migration
+      - name: Apply static HPS7-style guide migration atomically
         run: node hopperlink-pixelstream/tools/migrate-h7-static-guide-v1500.mjs
       - name: Align tests to build 1500
         run: |
