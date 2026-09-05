@@ -1,0 +1,56 @@
+name: Apply H7 Receiver Real Camera 1510
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-h7-receiver-real-camera-v1510.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply receiver real-camera tolerance
+        run: node hopperlink-pixelstream/tools/relax-real-camera-guide-v1510.mjs
+      - name: Update build expectations
+        run: |
+          sed -i 's/1500/1510/g; s/1\.5\.0/1.5.1/g' hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py || true
+          sed -i 's/HOPPER_BUILD=1500/HOPPER_BUILD=1510/g' .github/workflows/hopperlink-one-check.yml
+      - name: Rebuild deterministic runtime
+        run: HOPPER_BUILD=1510 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Syntax and receiver contracts
+        run: |
+          node --check hopperlink-pixelstream/anchor-scan.js
+          node --check hopperlink-pixelstream/anchor-worker.js
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q "VERSION:'1.5.1'" hopperlink-pixelstream/anchor-scan.js
+          grep -q '1280/Math.max(sw,sh)' hopperlink-pixelstream/anchor-scan.js
+          grep -q 'markers.length<2' hopperlink-pixelstream/anchor-scan.js
+          grep -q 'contrast<24' hopperlink-pixelstream/anchor-scan.js
+          grep -q 'anchor-worker.js?v=1510' hopperlink-pixelstream/src/hopper-one-runtime.js
+      - name: Existing protocol regressions
+        run: |
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+          node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+      - name: Browser dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Browser end-to-end transfer
+        run: python hopperlink-pixelstream/tests/hopper-one-browser.py
+      - name: Commit validated receiver build
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream .github/workflows/hopperlink-one-check.yml
+          git commit -m 'fix: make H7 receiver tolerant to real camera capture'
+          git push
