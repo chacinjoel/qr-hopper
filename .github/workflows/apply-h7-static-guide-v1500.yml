@@ -1,0 +1,52 @@
+name: Apply H7 Static Guide 1500
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-h7-static-guide-v1500.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply static HPS7-style guide migration
+        run: node hopperlink-pixelstream/tools/migrate-h7-static-guide-v1500.mjs
+      - name: Rebuild deterministic runtime
+        run: HOPPER_BUILD=1500 node hopperlink-pixelstream/tools/build-runtime.mjs
+      - name: Syntax and source contracts
+        run: |
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node --check hopperlink-pixelstream/anchor-scan.js
+          node --check hopperlink-pixelstream/anchor-worker.js
+          grep -q 'const VERSION = "1.5.0"' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'const PROTOCOL = 5' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'GUIDE_FLAG = 0x40' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'function acceptQuickGuide' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'guidePackets=\[0,1,2\].map(quickGuidePacket)' hopperlink-pixelstream/src/hopper-one-runtime.js
+          ! grep -q 'startHelloCarousel();' hopperlink-pixelstream/src/hopper-one-runtime.js
+      - name: Existing optical and data integrity regressions
+        run: |
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+          node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+      - name: Browser dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Browser end-to-end filename and file bytes
+        run: python hopperlink-pixelstream/tests/hopper-one-browser.py
+      - name: Commit validated build
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream .github/workflows/hopperlink-one-check.yml
+          git commit -m 'fix: restore static HPS7 guide then sonic ACK before DATA'
+          git push
