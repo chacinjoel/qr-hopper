@@ -23,7 +23,7 @@ jobs:
         run: node hopperlink-pixelstream/tools/relax-real-camera-guide-v1510.mjs
       - name: Update build expectations
         run: |
-          sed -i 's/1500/1510/g; s/1\.5\.0/1.5.1/g' hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py || true
+          sed -i 's/1500/1510/g' hopperlink-pixelstream/tests/*.cjs hopperlink-pixelstream/tests/*.py || true
           sed -i 's/HOPPER_BUILD=1500/HOPPER_BUILD=1510/g' .github/workflows/hopperlink-one-check.yml
       - name: Rebuild deterministic runtime
         run: HOPPER_BUILD=1510 node hopperlink-pixelstream/tools/build-runtime.mjs
@@ -37,6 +37,7 @@ jobs:
           grep -q 'markers.length<2' hopperlink-pixelstream/anchor-scan.js
           grep -q 'contrast<24' hopperlink-pixelstream/anchor-scan.js
           grep -q 'anchor-worker.js?v=1510' hopperlink-pixelstream/src/hopper-one-runtime.js
+          grep -q 'const VERSION = "1.5.0"' hopperlink-pixelstream/src/hopper-one-runtime.js
       - name: Existing protocol regressions
         run: |
           node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
