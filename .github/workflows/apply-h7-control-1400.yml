@@ -1,0 +1,84 @@
+name: Apply verified H7 Control 1400
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-h7-control-1400.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-before-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify migration against exact source hashes
+        shell: bash
+        run: |
+          python <<'PY'
+          import base64,gzip,json,hashlib
+          from pathlib import Path
+          encoded=''.join(Path(f'.maintenance/h7-control-{i:02d}.b64').read_text().strip() for i in range(1,4))
+          raw=base64.b64decode(encoded,validate=True)
+          assert hashlib.sha256(raw).hexdigest()=='e4be1d889a3b139b6003b02ab5e7051a739ffa4330796602ba0f569566be3704','migration SHA mismatch'
+          entries=json.loads(gzip.decompress(raw))
+          pending=[]
+          for entry in entries:
+              path=Path(entry['path'])
+              assert str(path).startswith('hopperlink-pixelstream/') and '..' not in path.parts
+              old=path.read_text(encoding='utf-8') if path.exists() else ''
+              assert hashlib.sha256(old.encode()).hexdigest()==entry['before'],f'base changed: {path}'
+              lines=old.splitlines(keepends=True)
+              for start,end,text in reversed(entry['replacements']):
+                  lines[start:end]=[text]
+              new=''.join(lines)
+              assert hashlib.sha256(new.encode()).hexdigest()==entry['after'],f'patch mismatch: {path}'
+              pending.append((path,new))
+          for path,text in pending:
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_text(text,encoding='utf-8')
+          print(f'Verified and applied {len(pending)} source files')
+          PY
+      - name: Build and exercise actual pixel-to-packet decoder
+        shell: bash
+        run: |
+          HOPPER_BUILD=1400 node hopperlink-pixelstream/tools/build-runtime.mjs
+          node --check hopperlink-pixelstream/src/hopper-one-runtime.js
+          node --check hopperlink-pixelstream/anchor-scan.js
+          node --check hopperlink-pixelstream/anchor-worker.js
+          node hopperlink-pixelstream/tests/hopper-one-color-modes.test.cjs
+          node hopperlink-pixelstream/tests/hopper-one-unobstructed.test.cjs
+          node hopperlink-pixelstream/tests/hopper-one-h7-control.test.cjs
+      - name: Install browser test harness
+        shell: bash
+        run: |
+          python -m pip install playwright==1.55.0
+          if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null; then
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Same-origin production worker and complete file reception
+        env:
+          H7_PROOF_DIR: h7-browser-proof
+        run: python hopperlink-pixelstream/tests/hopper-one-browser.py
+      - name: Publish only after filename and file bytes pass in every mode
+        shell: bash
+        run: |
+          cp h7-browser-proof/browser-results.json hopperlink-pixelstream/docs/h7-browser-validation.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: restore HPS7 shared acquisition and error-corrected grayscale HELLO'
+          git push origin HEAD:main
+      - name: Preserve browser screenshots and validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h7-control-browser-proof
+          path: h7-browser-proof/
+          if-no-files-found: ignore
