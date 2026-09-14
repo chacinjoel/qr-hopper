@@ -26,8 +26,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add trade-risk-calculator/historico/fred_data.js \
+                  trade-risk-calculator/historico/btc_fred_data.js \
                   trade-risk-calculator/historico/macro_data.js \
                   trade-risk-calculator/historico/data.js \
+                  trade-risk-calculator/historico/btc_data.js \
                   trade-risk-calculator/historico/data_status.json
           git diff --cached --quiet && exit 0
           git commit -m "Update TradeLab market data"
