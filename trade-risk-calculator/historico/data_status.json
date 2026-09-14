@@ -1,9 +1,10 @@
 {
-  "generatedAt": "2026-09-14T19:52:17+00:00",
+  "generatedAt": "2026-09-14T21:14:58+00:00",
   "counts": {
-    "DEXMXUS": 2168,
-    "DFF": 3175,
-    "DTWEXBGS": 2166,
+    "DEXMXUS": 2172,
+    "CBBTCUSD": 3177,
+    "DFF": 3176,
+    "DTWEXBGS": 2170,
     "VIXCLS": 2218,
     "DCOILWTICO": 2171,
     "SP500": 2185,
@@ -11,5 +12,9 @@
     "CPALTT01MXM659N": 79,
     "IRSTCI01MXM156N": 102
   },
-  "massiveUpdated": true
+  "massiveUpdated": true,
+  "massiveBars": {
+    "USDMXN": 622,
+    "BTCUSD": 730
+  }
 }
