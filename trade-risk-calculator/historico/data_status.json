@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T18:59:49+00:00",
+  "generatedAt": "2026-09-14T19:52:17+00:00",
   "counts": {
     "DEXMXUS": 2168,
     "DFF": 3175,
@@ -11,5 +11,5 @@
     "CPALTT01MXM659N": 79,
     "IRSTCI01MXM156N": 102
   },
-  "massiveUpdated": false
+  "massiveUpdated": true
 }
