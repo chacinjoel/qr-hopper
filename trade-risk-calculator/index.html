@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090e18">
+  <meta name="description" content="Calculadora educativa de PnL, targets, stop y liquidación aproximada para operaciones apalancadas.">
+  <title>TradeLab · Riesgo y Targets</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23090e18'/%3E%3Cpath d='M13 44 25 32l9 8 17-21' fill='none' stroke='%236ee7b7' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M40 19h11v11' fill='none' stroke='%236ee7b7' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root{color-scheme:dark;--bg:#070b12;--panel:#0d1421;--panel2:#111b2b;--line:#223149;--text:#edf4ff;--muted:#8ea1bb;--green:#65e6b4;--red:#ff7485;--blue:#6aa7ff;--amber:#ffc66d;--shadow:0 24px 70px #0008}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 12% -10%,#17315a 0,transparent 34%),radial-gradient(circle at 92% 12%,#123d34 0,transparent 28%),var(--bg);color:var(--text);font:16px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+    button,input,select{font:inherit} button{cursor:pointer}.shell{width:min(1440px,100%);margin:auto;padding:28px clamp(16px,3vw,42px) 48px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}.brand{display:flex;align-items:center;gap:12px}.logo{width:42px;height:42px;border:1px solid #335175;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#15243a,#0a101c);box-shadow:inset 0 1px #ffffff17}.logo svg{width:24px}.brand h1{font-size:1.05rem;letter-spacing:.02em;margin:0}.brand p{margin:1px 0 0;color:var(--muted);font-size:.78rem}.status{font-size:.78rem;color:var(--green);border:1px solid #285a50;background:#102b28;padding:7px 11px;border-radius:999px}.grid{display:grid;grid-template-columns:minmax(320px,.86fr) minmax(500px,1.4fr);gap:20px}.card{background:linear-gradient(160deg,#101927f2,#0b111cf4);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}.inputs{padding:22px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}.section-head h2{margin:0;font-size:1.05rem}.section-head p{margin:5px 0 0;color:var(--muted);font-size:.82rem}.segmented{display:grid;grid-template-columns:1fr 1fr;background:#080d16;border:1px solid var(--line);padding:4px;border-radius:12px}.segmented button{border:0;background:transparent;color:var(--muted);padding:9px 14px;border-radius:9px;font-weight:750}.segmented button.active.long{color:#07140f;background:var(--green)}.segmented button.active.short{color:#1b070a;background:var(--red)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{min-width:0}.field.wide{grid-column:1/-1}.label{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px;color:#becbe0;font-size:.78rem;font-weight:700}.label span:last-child{font-weight:500;color:var(--muted)}.control{position:relative}.control input,.control select{width:100%;border:1px solid #263752;background:#090f1a;color:var(--text);border-radius:12px;padding:12px 46px 12px 13px;outline:none;transition:.2s}.control select{padding-right:34px}.control input:focus,.control select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #6aa7ff20}.suffix{position:absolute;right:13px;top:50%;transform:translateY(-50%);color:#70839e;font-size:.76rem;pointer-events:none}.inline-check{display:flex;align-items:center;gap:9px;color:var(--muted);font-size:.8rem;margin-top:14px}.inline-check input{accent-color:var(--blue);width:17px;height:17px}.subhead{margin:22px 0 11px;display:flex;justify-content:space-between;align-items:center}.subhead h3{font-size:.86rem;margin:0}.ghost{border:1px solid var(--line);background:#101827;color:#bcd0e9;padding:7px 10px;border-radius:10px;font-size:.76rem}.target-row{display:grid;grid-template-columns:28px 1fr 1fr 32px;gap:8px;align-items:center;margin:8px 0}.target-index{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#16253b;color:#9fc1ec;font-size:.72rem;font-weight:800}.target-row input{width:100%;min-width:0;background:#090f1a;color:var(--text);border:1px solid #263752;border-radius:10px;padding:9px 10px}.remove{width:32px;height:32px;border:0;border-radius:9px;background:transparent;color:#71829b;font-size:1.1rem}.remove:hover{background:#27141b;color:var(--red)}.hint{color:var(--muted);font-size:.72rem;margin:8px 0 0}.results{padding:22px;display:flex;flex-direction:column;gap:16px}.hero-result{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.metric{background:linear-gradient(145deg,#121e30,#0c1421);border:1px solid #243754;border-radius:17px;padding:17px}.metric.primary{background:linear-gradient(145deg,#153329,#101e20);border-color:#285946}.eyebrow{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.11em;font-weight:800}.value{font-size:clamp(1.35rem,3vw,2.35rem);font-weight:800;letter-spacing:-.04em;margin-top:4px}.value.small{font-size:1.35rem}.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.metric p{color:var(--muted);font-size:.74rem;margin:5px 0 0}.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.chart-card{border:1px solid var(--line);background:#090f19;border-radius:17px;padding:17px}.chart-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.chart-head h3{font-size:.86rem;margin:0}.chart-head p{color:var(--muted);font-size:.72rem;margin:3px 0 0}.range{position:relative;height:158px;margin:10px 10px 0}.track{position:absolute;left:10%;right:6%;top:71px;height:3px;border-radius:10px;background:linear-gradient(90deg,var(--red),#52647d 49%,var(--green))}.mark{position:absolute;top:0;transform:translateX(-50%);height:130px;width:1px;background:#ffffff1c}.dot{position:absolute;top:64px;left:50%;width:17px;height:17px;border:4px solid #0b111b;border-radius:50%;transform:translate(-50%,-50%);background:currentColor;box-shadow:0 0 0 1px currentColor}.tag{position:absolute;top:18px;left:50%;transform:translateX(-50%);white-space:nowrap;border:1px solid currentColor;border-radius:9px;padding:5px 8px;background:#0b111bea;font-size:.69rem;font-weight:800}.mark.down .tag{top:103px}.target-table{width:100%;border-collapse:collapse}.target-table th{text-align:left;color:#7689a3;font-size:.69rem;text-transform:uppercase;letter-spacing:.08em;padding:9px 10px;border-bottom:1px solid var(--line)}.target-table td{padding:11px 10px;border-bottom:1px solid #182438;font-size:.82rem}.target-table tr:last-child td{border-bottom:0}.pill{display:inline-block;padding:4px 8px;border-radius:8px;background:#112820;color:var(--green);font-size:.72rem;font-weight:800}.formula{padding:14px 16px;border-radius:14px;border:1px dashed #30435e;background:#0a111c;color:#92a7c2;font-size:.75rem}.formula strong{color:#d7e4f6}.warning{display:flex;gap:10px;border:1px solid #574622;background:#201b10;border-radius:14px;padding:13px;color:#e8cea0;font-size:.73rem}.warning svg{flex:0 0 auto;width:18px;margin-top:1px}.error{display:none;border:1px solid #733543;background:#271219;color:#ffb5bd;border-radius:12px;padding:11px 13px;font-size:.8rem}.error.show{display:block}.foot{margin-top:16px;color:#6f829c;font-size:.72rem;text-align:center}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.results{order:-1}.hero-result{grid-template-columns:1fr 1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}}
+    @media(max-width:600px){.shell{padding-top:18px}.topbar{align-items:flex-start}.status{display:none}.inputs,.results{padding:16px}.form-grid{grid-template-columns:1fr}.field.wide{grid-column:auto}.hero-result{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}.metric-grid .metric:last-child{grid-column:1/-1}.target-row{grid-template-columns:26px 1fr 1fr 28px}.target-table th:nth-child(4),.target-table td:nth-child(4){display:none}.range{margin-inline:0}.brand p{max-width:220px}}
+  </style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div class="brand"><div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m4 17 5-5 4 3 7-9" stroke="#65e6b4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 6h5v5" stroke="#65e6b4" stroke-width="2.4" stroke-linecap="round"/></svg></div><div><h1>TradeLab</h1><p>Calculadora de riesgo, PnL y targets</p></div></div>
+    <div class="status">Cálculo local · sin conexión</div>
+  </header>
+
+  <div class="grid">
+    <section class="card inputs" aria-labelledby="setup-title">
+      <div class="section-head"><div><h2 id="setup-title">Configura la operación</h2><p>Modelo lineal basado en el cambio porcentual del precio.</p></div></div>
+      <div class="segmented" role="group" aria-label="Dirección de la operación"><button class="active long" id="longBtn" type="button">↑ Long</button><button id="shortBtn" type="button">↓ Short</button></div>
+      <div class="form-grid" style="margin-top:16px">
+        <label class="field wide"><span class="label"><span>Instrumento</span><span>Editable</span></span><span class="control"><input id="symbol" value="USD/MXN" maxlength="24" autocomplete="off"></span></label>
+        <label class="field"><span class="label"><span>Capital / margen</span><span>Tu aporte</span></span><span class="control"><input id="margin" type="number" inputmode="decimal" min="0.01" step="1" value="50"><span class="suffix" id="currencySuffix1">USD</span></span></label>
+        <label class="field"><span class="label"><span>Apalancamiento</span><span>1×–200×</span></span><span class="control"><input id="leverage" type="number" inputmode="decimal" min="1" max="200" step="1" value="60"><span class="suffix">×</span></span></label>
+        <label class="field"><span class="label"><span>Precio de entrada</span><span id="pairUnit">MXN por USD</span></span><span class="control"><input id="entry" type="number" inputmode="decimal" min="0.00000001" step="any" value="17"></span></label>
+        <label class="field"><span class="label"><span>Moneda del PnL</span><span>Etiqueta</span></span><span class="control"><input id="currency" value="USD" maxlength="8" autocomplete="off"></span></label>
+        <label class="field"><span class="label"><span>Margen de mantenimiento</span><span>Aprox.</span></span><span class="control"><input id="mmr" type="number" inputmode="decimal" min="0" max="99" step="0.1" value="0.5"><span class="suffix">%</span></span></label>
+        <label class="field"><span class="label"><span>Comisión por lado</span><span>Entrada/salida</span></span><span class="control"><input id="fee" type="number" inputmode="decimal" min="0" max="10" step="0.01" value="0.05"><span class="suffix">%</span></span></label>
+        <label class="field"><span class="label"><span>Ganancia neta deseada</span><span>Target principal</span></span><span class="control"><input id="desiredProfit" type="number" inputmode="decimal" min="0" step="1" value="50"><span class="suffix currency-suffix">USD</span></span></label>
+        <label class="field"><span class="label"><span>Pérdida máxima</span><span>Stop sugerido</span></span><span class="control"><input id="maxLoss" type="number" inputmode="decimal" min="0" step="1" value="15"><span class="suffix currency-suffix">USD</span></span></label>
+      </div>
+      <label class="inline-check"><input id="includeFees" type="checkbox" checked> Incluir comisión estimada de entrada y salida en targets y PnL</label>
+
+      <div class="subhead"><h3>Escalera de targets</h3><button id="addTarget" class="ghost" type="button">+ Agregar</button></div>
+      <div id="targets"></div>
+      <p class="hint">Indica una ganancia neta y el porcentaje de la posición que cerrarías. La suma puede ser menor o igual a 100 %.</p>
+    </section>
+
+    <section class="card results" aria-live="polite" aria-labelledby="results-title">
+      <div class="section-head" style="margin-bottom:0"><div><h2 id="results-title">Mapa de la operación</h2><p id="summary">Long USD/MXN · entrada 17,0000</p></div><button id="resetBtn" class="ghost" type="button">Restablecer</button></div>
+      <div id="error" class="error"></div>
+      <div class="hero-result">
+        <div class="metric primary"><div class="eyebrow">Precio para la ganancia deseada</div><div id="takeProfit" class="value green">17,2950</div><p id="tpDetail">Movimiento requerido: +1,74 %</p></div>
+        <div class="metric"><div class="eyebrow">Liquidación aproximada</div><div id="liquidation" class="value small red">16,8017</div><p id="liqDetail">Distancia: −1,17 %</p></div>
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><div class="eyebrow">Posición nominal</div><div id="notional" class="value small">3.000 USD</div><p>Margen × apalancamiento</p></div>
+        <div class="metric"><div class="eyebrow">Stop sugerido</div><div id="stopPrice" class="value small amber">16,9064</div><p id="slDetail">Pérdida neta: −15 USD</p></div>
+        <div class="metric"><div class="eyebrow">Riesgo / recompensa</div><div id="riskReward" class="value small">1 : 3,33</div><p>Objetivo ÷ pérdida máxima</p></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><div><h3>Placement de precios</h3><p>Relación visual; la escala se adapta a los valores calculados.</p></div><span id="directionPill" class="pill">LONG</span></div>
+        <div class="range" id="priceRange"><div class="track"></div></div>
+      </div>
+
+      <div class="chart-card"><div class="chart-head"><div><h3>Targets calculados</h3><p>Resultados estimados al cerrar cada porcentaje.</p></div></div><div style="overflow:auto"><table class="target-table"><thead><tr><th>Target</th><th>Precio</th><th>Ganancia neta</th><th>Cierre</th></tr></thead><tbody id="targetTable"></tbody></table></div></div>
+
+      <div class="formula"><strong>Modelo:</strong> PnL bruto = posición nominal × movimiento porcentual favorable. Comisión estimada = posición nominal × comisión × entrada/salida. La liquidación usa la aproximación aislada entrada × (1 ∓ 1/apalancamiento ± mantenimiento). Funding, spread, slippage, impuestos y reglas particulares no están incluidos.</div>
+      <div class="warning"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 2.7 20h18.6L12 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span><strong>Herramienta educativa.</strong> La liquidación real puede ocurrir antes por comisiones, funding, margen cruzado, tier de riesgo o fórmula del bróker. Verifica siempre el precio mostrado por tu plataforma antes de operar.</span></div>
+    </section>
+  </div>
+  <p class="foot">Los cálculos se realizan en tu navegador y no constituyen asesoría financiera.</p>
+</main>
+
+<template id="targetTemplate"><div class="target-row"><span class="target-index"></span><label><span class="sr-only">Ganancia neta</span><input class="target-profit" type="number" min="0" step="1"></label><label><span class="sr-only">Porcentaje de cierre</span><input class="target-close" type="number" min="1" max="100" step="1"></label><button class="remove" type="button" aria-label="Eliminar target">×</button></div></template>
+
+<script>
+(() => {
+  const $=id=>document.getElementById(id), fmt=(v,d=2)=>Number.isFinite(v)?new Intl.NumberFormat('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d}).format(v):'—';
+  const inputs=['symbol','margin','leverage','entry','currency','mmr','fee','desiredProfit','maxLoss','includeFees'].map($);
+  let direction='long', targetId=0;
+  const read=id=>Number($(id).value), currency=()=>($('currency').value.trim()||'USD').toUpperCase();
+  function addTarget(profit,close){
+    const node=$('targetTemplate').content.firstElementChild.cloneNode(true);node.dataset.id=++targetId;
+    node.querySelector('.target-profit').value=profit;node.querySelector('.target-close').value=close;
+    node.querySelector('.target-profit').addEventListener('input',calculate);node.querySelector('.target-close').addEventListener('input',calculate);
+    node.querySelector('.remove').addEventListener('click',()=>{node.remove();renumber();calculate()});$('targets').append(node);renumber();
+  }
+  function renumber(){[...document.querySelectorAll('.target-row')].forEach((r,i)=>{r.querySelector('.target-index').textContent=i+1;r.querySelector('.target-profit').setAttribute('aria-label',`Ganancia neta target ${i+1}`);r.querySelector('.target-close').setAttribute('aria-label',`Porcentaje de cierre target ${i+1}`)})}
+  function priceForNet(net,entry,notional,fees,dir){const pct=(net+fees)/notional;return dir==='long'?entry*(1+pct):entry*(1-pct)}
+  function calculate(){
+    const margin=read('margin'),lev=read('leverage'),entry=read('entry'),mmr=read('mmr')/100,fee=read('fee')/100,profit=read('desiredProfit'),loss=read('maxLoss');
+    const invalid=[];if(!(margin>0))invalid.push('El capital debe ser mayor que cero.');if(!(lev>=1&&lev<=200))invalid.push('El apalancamiento debe estar entre 1× y 200×.');if(!(entry>0))invalid.push('El precio de entrada debe ser mayor que cero.');if(!(mmr>=0&&mmr<1))invalid.push('El mantenimiento debe estar entre 0 % y menos de 100 %.');if(!(fee>=0&&fee<=.1))invalid.push('Revisa la comisión ingresada.');if(profit<0||loss<0)invalid.push('Ganancia y pérdida no pueden ser negativas.');
+    const err=$('error');err.textContent=invalid.join(' ');err.classList.toggle('show',!!invalid.length);if(invalid.length)return;
+    const ccy=currency(),notional=margin*lev,roundTrip=$('includeFees').checked?notional*fee*2:0;
+    const tp=priceForNet(profit,entry,notional,roundTrip,direction);const sl=priceForNet(-loss,entry,notional,roundTrip,direction);
+    const liq=direction==='long'?entry*(1-1/lev+mmr):entry*(1+1/lev-mmr);
+    const tpMove=(tp/entry-1)*100,liqMove=(liq/entry-1)*100;
+    $('takeProfit').textContent=fmt(tp,Math.abs(entry)<1?6:4);$('liquidation').textContent=liq>0?fmt(liq,Math.abs(entry)<1?6:4):'≤ 0';$('notional').textContent=`${fmt(notional,2)} ${ccy}`;$('stopPrice').textContent=sl>0?fmt(sl,Math.abs(entry)<1?6:4):'≤ 0';
+    $('tpDetail').textContent=`Movimiento requerido: ${tpMove>=0?'+':''}${fmt(tpMove,2)} % · incluye ${fmt(roundTrip,2)} ${ccy} en fees`;
+    $('liqDetail').textContent=`Distancia: ${liqMove>=0?'+':''}${fmt(liqMove,2)} % · modelo aislado`;$('slDetail').textContent=`Pérdida neta objetivo: −${fmt(loss,2)} ${ccy}`;$('riskReward').textContent=loss>0?`1 : ${fmt(profit/loss,2)}`:'—';
+    const symbol=$('symbol').value.trim()||'Instrumento';$('summary').textContent=`${direction==='long'?'Long':'Short'} ${symbol} · entrada ${fmt(entry,Math.abs(entry)<1?6:4)}`;$('directionPill').textContent=direction.toUpperCase();$('directionPill').style.color=direction==='long'?'var(--green)':'var(--red)';
+    document.querySelectorAll('.currency-suffix').forEach(x=>x.textContent=ccy);$('currencySuffix1').textContent=ccy;
+    const parts=symbol.split('/');$('pairUnit').textContent=parts.length===2?`${parts[1]} por ${parts[0]}`:'Precio';
+    const targets=[...document.querySelectorAll('.target-row')].map((r,i)=>({name:`T${i+1}`,profit:Number(r.querySelector('.target-profit').value)||0,close:Number(r.querySelector('.target-close').value)||0}));
+    const totalClose=targets.reduce((s,t)=>s+t.close,0);$('targets').title=totalClose>100?'La suma de cierres supera 100 %':'';
+    $('targetTable').innerHTML=targets.map(t=>{const p=priceForNet(t.profit,entry,notional,roundTrip,direction);return `<tr><td><span class="pill">${t.name}</span></td><td>${fmt(p,Math.abs(entry)<1?6:4)}</td><td class="green">+${fmt(t.profit,2)} ${ccy}</td><td>${fmt(t.close,0)} %</td></tr>`}).join('')+(totalClose>100?`<tr><td colspan="4" class="red">La suma de cierres es ${fmt(totalClose,0)} %. Ajústala a 100 % o menos.</td></tr>`:'');
+    renderRange([{label:'Liquidación',price:liq,color:'var(--red)',down:true},{label:'Stop',price:sl,color:'var(--amber)',down:false},{label:'Entrada',price:entry,color:'var(--blue)',down:true},{label:'Target',price:tp,color:'var(--green)',down:false}],entry);
+  }
+  function renderRange(items,entry){
+    const root=$('priceRange');root.querySelectorAll('.mark').forEach(x=>x.remove());const vals=items.map(x=>x.price).filter(x=>Number.isFinite(x)&&x>0);let min=Math.min(...vals),max=Math.max(...vals),span=max-min||Math.max(entry*.02,.01);min-=span*.18;max+=span*.18;
+    items.forEach((it,i)=>{if(!(it.price>0))return;const m=document.createElement('div');m.className='mark'+(it.down?' down':'');m.style.left=`${10+(it.price-min)/(max-min)*84}%`;m.style.color=it.color;m.innerHTML=`<span class="tag">${it.label}<br>${fmt(it.price,Math.abs(entry)<1?6:4)}</span><span class="dot"></span>`;root.append(m)});
+  }
+  $('longBtn').onclick=()=>setDirection('long');$('shortBtn').onclick=()=>setDirection('short');function setDirection(d){direction=d;$('longBtn').className=d==='long'?'active long':'';$('shortBtn').className=d==='short'?'active short':'';calculate()}
+  $('addTarget').onclick=()=>{if(document.querySelectorAll('.target-row').length<6)addTarget(read('desiredProfit'),25);calculate()};
+  $('resetBtn').onclick=()=>{Object.entries({symbol:'USD/MXN',margin:50,leverage:60,entry:17,currency:'USD',mmr:.5,fee:.05,desiredProfit:50,maxLoss:15}).forEach(([k,v])=>$(k).value=v);$('includeFees').checked=true;direction='long';$('targets').innerHTML='';targetId=0;addTarget(15,30);addTarget(30,30);addTarget(50,40);setDirection('long')};
+  inputs.forEach(x=>x.addEventListener('input',calculate));addTarget(15,30);addTarget(30,30);addTarget(50,40);calculate();
+})();
+</script>
+</body>
+</html>
