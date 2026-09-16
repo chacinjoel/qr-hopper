@@ -1,22 +1,31 @@
-# HopperLink X — Optical SuperStream v2
+# HopperLink X — Optical SuperStream v2 + HDP v1
 
-Reinicio arquitectónico de HopperLink. La implementación anterior basada en “archivo → frame → imagen” fue reemplazada por un transporte de **bitstream óptico**:
+HopperLink X reemplaza el modelo antiguo `archivo → frame → imagen` por un transporte óptico continuo:
 
-`archivo → análisis → compresión adaptativa → SuperStream → SuperBlocks → Reed-Solomon FEC → símbolos ópticos → pantalla`.
+`archivo → análisis → compresión adaptativa → SuperStream → SuperBlocks → Reed-Solomon FEC → HDP → símbolos ópticos → cámara`.
 
-## Principios
+## HDP v1 — HopperLink Discovery Protocol
 
-- **SuperStream**: el archivo deja de estar atado 1:1 a frames visuales. Se empaqueta como un flujo continuo autocontenido con metadata, SHA-256 y compresión adaptativa.
-- **SuperBlocks**: el flujo se corta según la capacidad real del frame óptico. Si la compresión permite representar el equivalente de varios frames lógicos dentro de uno físico, el sistema lo hace automáticamente.
-- **Compresión adaptativa**: gzip nativo cuando aporta una mejora real; pass-through para formatos ya comprimidos o alta entropía.
-- **FEC real**: Reed-Solomon sistemático sobre GF(256), configurable por perfil (`6+3`, `8+2`, `10+2`).
-- **Modulación adaptativa**: perfiles de 2, 3 o 4 bits por celda con grids variables y cadencia configurable.
-- **Fiduciales ópticos**: cuatro anclas de color grandes para lock geométrico y futura homografía/demodulación.
-- **Separación de capas**: codec, FEC, transporte óptico y cámara están desacoplados para poder mejorar cada capa sin reescribir las demás.
+La adquisición visual y la lectura de datos son capas separadas. El receptor primero encuentra el área de emisión usando una geometría monocromática robusta y solo después intenta demodular color.
 
-## Estado de esta versión
+- Quiet zone negra exterior.
+- Guard rail blanco de alto contraste.
+- Cuatro finders B/N protegidos y asimétricos.
+- Discovery inicial con firma temporal Barker.
+- Aspect ratio exacto según el grid activo.
+- Recovery beacon cada 30 frames para relock rápido.
+- Header, calibración y payload no pueden sobrescribir los finders.
+- Tracking temporal suavizado en el receptor.
+- Calibración cromática después del lock, no antes.
 
-El **transmisor** ya ejecuta el nuevo pipeline completo hasta el render óptico y muestra métricas de compresión, colapso de frames equivalentes, capacidad y FEC. El **receptor** ya incluye cámara, detector de los cuatro fiduciales y el ensamblador SuperStream/Reed-Solomon. La siguiente iteración debe completar la demodulación física de las celdas desde cámara (calibración de paleta + homografía + header + payload) y luego cerrar el loop adaptativo bidireccional.
+## SuperStream
+
+- Compresión adaptativa: comprime solo cuando realmente reduce tamaño.
+- Pass-through para formatos ya comprimidos o de alta entropía.
+- El archivo no está ligado 1:1 a frames visuales.
+- SuperBlocks se dimensionan según la capacidad óptica del perfil.
+- Reed-Solomon sistemático GF(256) para recuperación de bloques.
+- CRC32 por frame y SHA-256 de extremo a extremo.
 
 ## Perfiles
 
@@ -24,8 +33,10 @@ El **transmisor** ya ejecuta el nuevo pipeline completo hasta el render óptico 
 |---|---:|---:|---|
 | Robusto | 2 | RS 6+3 | movimiento/ruido |
 | Balanceado | 3 | RS 8+2 | uso general |
-| Turbo | 4 | RS 10+2 | teléfonos/cámaras de alta calidad |
+| Turbo | 4 | RS 10+2 | cámaras/pantallas de alta calidad |
 
-## Ejecución
+## Estado
 
-Sitio estático sin servidor ni librerías externas. Requiere HTTPS para cámara (`getUserMedia`).
+El transmisor implementa SuperStream + FEC + HDP. El receptor localiza primero el perímetro monocromático, estabiliza el quad, prueba el header HDP, calibra la paleta y reconstruye el archivo cuando la señal es válida.
+
+Los parámetros de HDP son una base experimental. La siguiente fase es medir lock, BER, distancia, inclinación y cobertura de pantalla en teléfonos reales y ajustar los umbrales automáticamente.
