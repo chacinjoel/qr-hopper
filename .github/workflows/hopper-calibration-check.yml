@@ -2,7 +2,7 @@ name: Hopper calibration validation
 on:
   push:
     branches: [hopper-calibration-20260916]
-    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-calibration-check.yml', '.github/adaptive-source/**']
+    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-calibration-check.yml', '.github/adaptive-source/**', '.github/adaptive-fixes.py']
   workflow_dispatch:
 permissions:
   contents: read
@@ -40,6 +40,7 @@ jobs:
                   target.write_text(content,encoding='utf-8')
               print('Materialized',len(files),'verified source files')
           PY
+          python3 .github/adaptive-fixes.py
       - name: Obtain pinned offline QR codecs and notices
         run: |
           mkdir -p /tmp/hopper-qr
@@ -52,7 +53,7 @@ jobs:
           cp node_modules/qrcode-generator/qrcode.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.js"
           cp -R node_modules/qrcode-generator "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode-package"
           cp package-lock.json "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qr-package-lock.json"
-      - name: Syntax and 23 core/adaptive regression tests
+      - name: Syntax and core/adaptive regression tests
         run: |
           for f in hopperlink-pixelstream/adaptive-v1/*.js; do node --input-type=module --check < "$f"; done
           node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/tests/adaptive.test.mjs
@@ -67,8 +68,8 @@ jobs:
       - name: Commit only validated implementation to staging branch
         run: |
           test "$GITHUB_REF" = refs/heads/hopper-calibration-20260916
-          rm -rf .github/adaptive-source
-          git add hopperlink-pixelstream .github/workflows/hopperlink-static-check.yml .github/adaptive-source
+          rm -rf .github/adaptive-source .github/adaptive-fixes.py
+          git add hopperlink-pixelstream .github/workflows/hopperlink-static-check.yml .github/adaptive-source .github/adaptive-fixes.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if ! git diff --cached --quiet; then
