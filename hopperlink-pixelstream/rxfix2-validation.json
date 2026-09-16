@@ -1,0 +1,25 @@
+{
+  "release": "adaptive-2.0.2-rxfix2",
+  "runtimeCommit": "edf35c1dffeccc2093c578c7d5635c081884453f",
+  "workflowRun": 35159589241,
+  "workflowConclusion": "success",
+  "unitTests": {"passed": 39, "failed": 0},
+  "screenshotReplay": {
+    "input": "User-supplied idle Lighthouse screenshot, camera crop only",
+    "processing": "Production detector and real Chromium video/canvas APIs",
+    "beaconsLocated": 4,
+    "inventedPayloads": 0,
+    "imagePublishedToRepository": false
+  },
+  "browserCoverage": [
+    "Idle acquisition without creating a session or advancing download",
+    "Constant mediaTime with advancing presentedFrames",
+    "Occlusion and reacquisition",
+    "Previously added low-chroma, late-join and stale-profile regression",
+    "Paired calibration, optical file recovery, SHA-256 and acoustic closure"
+  ],
+  "hardwareValidated": false,
+  "livePhoneRootCauseConclusive": false,
+  "unchanged": ["Optical renderer", "Wire format and catalogue", "Palettes", "FEC", "Sector transport", "Compression", "Transmission queues"],
+  "reloadBothPhones": true
+}
