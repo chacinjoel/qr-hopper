@@ -1,5 +1,5 @@
 """Real DOM/canvas/video/WebAudio/AudioWorklet loopback; NOT physical phone proof."""
-import json, os, pathlib, threading, time
+import json, os, pathlib, threading
 from functools import partial
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from playwright.sync_api import sync_playwright
@@ -28,7 +28,6 @@ with sync_playwright() as pw:
         page.evaluate('''() => {
           const a=frames.sender,b=frames.receiver;
           const canvas=a.document.getElementById('txCanvas'),video=canvas.captureStream(30);
-          // A physical camera produces frames for a static scene too.
           window.captureClock=setInterval(()=>{canvas.getContext('2d').drawImage(canvas,0,0);video.getVideoTracks()[0].requestFrame?.();},33);
           Object.defineProperty(b.navigator.mediaDevices,'getUserMedia',{value:async c=>{if(c.video)return video;throw Error('Receiver should not request microphone');}, configurable:true});
         }''')
@@ -39,11 +38,16 @@ with sync_playwright() as pw:
           const dest=ac.createMediaStreamDestination(),make=ac.createBufferSource.bind(ac);
           ac.createBufferSource=()=>{const s=make(),connect=s.connect.bind(s);s.connect=(node,...args)=>connect(node===ac.destination?dest:node,...args);return s;};
           Object.defineProperty(a.navigator.mediaDevices,'getUserMedia',{value:async c=>{if(c.audio)return dest.stream;throw Error('Unexpected video request in acoustic test');},configurable:true});
+          window.audioEvents=[];window.features=[];
+          const snd=b.hopperAdaptive.sound,listen=a.hopperAdaptive.sound,send=snd.send.bind(snd),got=listen.onPacket,push=listen.decoder.push.bind(listen.decoder);
+          snd.send=async (...args)=>{window.audioEvents.push({kind:'send',t:performance.now(),packet:args[0],busy:snd.busy});const ok=await send(...args);window.audioEvents.push({kind:'sent',t:performance.now(),ok});return ok;};
+          listen.onPacket=p=>{window.audioEvents.push({kind:'got',t:performance.now(),packet:p});return got(p);};
+          listen.decoder.push=(t,f)=>{window.features.push({t,f});if(window.features.length>24000)window.features.shift();push(t,f);};
         }''')
         a.locator('#fileInput').set_input_files({'name':'prueba <literal> 🪐.png','mimeType':'image/png','buffer':bytes((i*37+i//5)%256 for i in range(18000))})
         a.locator('#prepareBtn').click();a.wait_for_function("!document.querySelector('#calibrateBtn').disabled")
         a.locator('#calibrateBtn').click()
-        a.wait_for_function("window.hopperAdaptive.sender?.state==='ready'",timeout=180000)
+        a.wait_for_function("window.hopperAdaptive.sender?.state==='ready'",timeout=150000)
         proof['negotiated']=a.evaluate('({profile:hopperAdaptive.sender.selected,band:hopperAdaptive.sender.audioBand,round:hopperAdaptive.sender.round})')
         assert proof['negotiated']['band']>=0,proof['negotiated']
         assert proof['negotiated']['round']==2
@@ -70,6 +74,8 @@ with sync_playwright() as pw:
     except Exception as e:
         proof['failure']=str(e)
         try:
+            proof['audioEvents']=page.evaluate('window.audioEvents')
+            (OUT/'features.json').write_text(json.dumps(page.evaluate('window.features')))
             proof['sender_state']=a.evaluate('({state:hopperAdaptive.sender?.state,round:hopperAdaptive.sender?.round,band:hopperAdaptive.sender?.audioBand,log:document.querySelector("#diagnostics").textContent})')
             proof['receiver_state']=b.evaluate('({sid:hopperAdaptive.receiver.sid,report:hopperAdaptive.receiver.report,log:document.querySelector("#diagnostics").textContent,state:document.querySelector("#rxCalState").textContent})')
             page.screenshot(path=str(OUT/'failure.png'))
