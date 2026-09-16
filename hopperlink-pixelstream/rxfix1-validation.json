@@ -1,0 +1,26 @@
+{
+  "release": "adaptive-2.0.1-rxfix1",
+  "runtimeCommit": "c816e0c131813cca3691d12c27bc7f43000e3988",
+  "scope": "Software regression tests with synthetic optical and acoustic channels in real browser APIs; not physical-phone measurements",
+  "hardwareValidated": false,
+  "unitTests": {"passed": 35, "failed": 0},
+  "acquisitionBrowser": {
+    "runId": 35124260232,
+    "conclusion": "success",
+    "cases": [
+      "Portrait viewport, scaled screen and joining after HELLO",
+      "Reduced colour contrast, rotated and translated screen",
+      "Complete occlusion followed by reacquisition without session reset",
+      "Stale profile recovery after a missed TRIAL announcement",
+      "Visible incompatible-catalogue error",
+      "Video callback watchdog using an advancing video stream"
+    ]
+  },
+  "pairedBrowserOnMain": {
+    "runId": 35124527014,
+    "conclusion": "success",
+    "coverage": "Optical calibration, acoustic report/READY, file reconstruction, SHA-256, acoustic COMPLETE and sender stop"
+  },
+  "unchanged": ["Lighthouse marker design", "Profile catalogue and payload layout", "Compression", "Reed-Solomon FEC", "Sector transport", "Transmission schedules"],
+  "reloadBothPhones": true
+}
