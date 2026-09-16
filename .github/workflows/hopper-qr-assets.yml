@@ -22,7 +22,7 @@ jobs:
           tar -xf jsqr.tgz -C jsqr
           cp qrcode/package/qrcode.js vendor/qrcode.js
           cp jsqr/package/dist/jsQR.js vendor/jsQR.js
-          cp qrcode/package/LICENSE vendor/qrcode-LICENSE
+          cp qrcode/package/README.md vendor/qrcode-README.md
           cp jsqr/package/LICENSE vendor/jsQR-LICENSE
           sha256sum vendor/* > vendor/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
