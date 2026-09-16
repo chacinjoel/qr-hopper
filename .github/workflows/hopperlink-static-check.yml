@@ -1,57 +1,44 @@
 name: HopperLink static check
-
 on:
   push:
     paths:
       - 'hopperlink-pixelstream/**'
       - '.github/workflows/hopperlink-static-check.yml'
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - name: Validate JSON and referenced assets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate page resources and module syntax
         run: |
           python3 - <<'PY'
-          import json, pathlib, re, sys
-          root = pathlib.Path('hopperlink-pixelstream')
-          json.load(open(root/'manifest.json', encoding='utf-8'))
-          html = (root/'index.html').read_text(encoding='utf-8')
-          required = ['app2.js', 'style2.css', 'manifest.json', 'src/superstream.js', 'src/optical2.js', 'src/receiver2.js', 'src/gf256.js', 'src/crc32.js']
-          missing = [p for p in required if not (root/p).exists()]
-          if missing:
-              raise SystemExit('Missing assets: ' + ', '.join(missing))
-          if 'app2.js' not in html or 'style2.css' not in html:
-              raise SystemExit('index.html does not reference current HopperLink assets')
-          print('HTML asset references OK')
+          import json, pathlib, re
+          p=pathlib.Path('hopperlink-pixelstream')
+          json.loads((p/'manifest.json').read_text())
+          html=(p/'index.html').read_text()
+          assert 'app-metrics.js' in html
+          for path in re.findall(r'(?:src|href)="(\./[^"]+)"', html):
+              assert (p/path.split('?')[0]).exists(), path
+          for raw in re.findall(r'<script type="importmap">(.*?)</script>',html,re.S):
+              for path in json.loads(raw)['imports'].values():
+                  assert (p/path.split('?')[0]).exists(), path
+          print('HTML, manifest and versioned import map OK')
           PY
-
-      - name: Parse JavaScript as ES modules
-        run: |
-          set -e
-          for f in hopperlink-pixelstream/app2.js hopperlink-pixelstream/src/superstream.js hopperlink-pixelstream/src/optical2.js hopperlink-pixelstream/src/receiver2.js hopperlink-pixelstream/src/gf256.js hopperlink-pixelstream/src/crc32.js; do
-            echo "Checking $f"
+          for f in hopperlink-pixelstream/app-metrics.js hopperlink-pixelstream/src/*.js; do
             node --input-type=module --check < "$f"
           done
-
-      - name: Resolve HopperLink module graph
+      - name: Test metrics, feedback CRC, selective repair and frozen DATA protocol
+        run: node --test hopperlink-pixelstream/tests/core.test.mjs
+      - name: Install browser test tools
         run: |
-          set -e
-          rm -rf /tmp/hoppercheck
-          cp -R hopperlink-pixelstream /tmp/hoppercheck
-          printf '{"type":"module"}\n' > /tmp/hoppercheck/package.json
-          cd /tmp/hoppercheck
-          node -e "Promise.all([import('./src/superstream.js'),import('./src/optical2.js'),import('./src/receiver2.js')]).then(()=>console.log('Module graph OK')).catch(e=>{console.error(e);process.exit(1)})"
-
-      - name: Serve static page and verify HTTP load
-        run: |
-          python3 -m http.server 8123 >/tmp/hopper-http.log 2>&1 &
-          PID=$!
-          trap 'kill $PID || true' EXIT
-          sleep 1
-          curl --fail --silent --show-error http://127.0.0.1:8123/hopperlink-pixelstream/ >/tmp/hopper-index.html
-          grep -q 'HOPPERLINK X' /tmp/hopper-index.html
-          echo 'Static page load OK'
+          python3 -m pip install playwright==1.55.0
+          python3 -m playwright install --with-deps chromium
+      - name: Browser load and synthetic optical loopback
+        run: python3 hopperlink-pixelstream/tests/browser_smoke.py
