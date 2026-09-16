@@ -1,0 +1,51 @@
+name: Hopper RX2 idle and video regression
+on:
+  push:
+    branches: [hopper-rxfix2]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply guarded receiver edits
+        if: github.ref == 'refs/heads/hopper-rxfix2'
+        run: python .github/scripts/apply_rxfix2.py
+      - name: Validate source and all unit regressions
+        run: |
+          for f in hopperlink-pixelstream/adaptive/*.js; do node --check "$f"; done
+          node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/adaptive/tests/*.test.mjs
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Idle area, frame counter, occlusion and control decode
+        run: python hopperlink-pixelstream/adaptive/tests/idle_browser.py
+      - name: Existing acquisition regression
+        run: python hopperlink-pixelstream/adaptive/tests/acquisition_browser.py
+      - name: Paired calibration, file SHA256 and acoustic closure
+        run: python hopperlink-pixelstream/adaptive/tests/browser.py
+      - name: Commit only tested runtime on feature branch
+        if: success() && github.ref == 'refs/heads/hopper-rxfix2'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream
+          if ! git diff --cached --quiet; then
+            git commit -m 'RX FIX 2: stable white-centre acquisition, frame identity and visible idle state'
+            git push origin HEAD:hopper-rxfix2
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hopper-rxfix2-proof
+          path: |
+            idle-proof/
+            acquisition-proof/
+            adaptive-proof/
