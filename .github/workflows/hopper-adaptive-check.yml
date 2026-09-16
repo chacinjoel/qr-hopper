@@ -1,7 +1,7 @@
 name: Hopper adaptive paired-browser validation
 on:
   push:
-    branches: [hopper-adaptive-calibration]
+    branches: [hopper-adaptive-calibration, main]
     paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-adaptive-check.yml']
   workflow_dispatch:
 permissions:
@@ -39,8 +39,8 @@ jobs:
       - name: Validate real core and adaptive modules
         run: |
           for f in hopperlink-pixelstream/adaptive/*.js; do node --check "$f"; done
-          node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/adaptive/tests/adaptive.test.mjs
-      - name: Install browser harness without Playwright 1.55 worklet-loader regression
+          node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/adaptive/tests/*.test.mjs
+      - name: Install browser harness
         run: |
           python -m pip install playwright==1.56.0
           python -m playwright install --with-deps chromium

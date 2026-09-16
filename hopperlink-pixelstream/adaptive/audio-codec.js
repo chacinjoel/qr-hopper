@@ -19,20 +19,57 @@ export function synthesize(packet,sampleRate=48000,gain=.12){
 export function spectralFeatures(samples,sampleRate){let rms=0;for(const x of samples)rms+=x*x;rms/=samples.length;
  return BANDS.map(tones=>{const energies=tones.map(f=>{const coeff=2*Math.cos(2*Math.PI*f/sampleRate);let s0=0,s1=0,s2=0;for(let i=0;i<samples.length;i++){const w=.5-.5*Math.cos(2*Math.PI*i/(samples.length-1));s0=samples[i]*w+coeff*s1-s2;s2=s1;s1=s0;}return Math.max(0,s1*s1+s2*s2-coeff*s1*s2)/(samples.length*samples.length);});const ordered=energies.map((e,i)=>[e,i]).sort((a,b)=>b[0]-a[0]),margin=10*Math.log10((ordered[0][0]+1e-12)/(ordered[1][0]+1e-12));return {symbol:rms>1e-8&&margin>3?ordered[0][1]:-1,margin,rms,energy:ordered[0][0]};});
 }
+// Timing recovery is required: independent capture and playback clocks do not
+// necessarily deliver the same effective symbol period. A preamble is only a
+// candidate; only a complete versioned packet with valid CRC is accepted.
 export class AudioDecoder{
- constructor(onPacket){this.onPacket=onPacket;this.samples=[];this.pending=[];this.lastStart=[-10,-10,-10];}
- push(t,features){this.samples.push({t,features});while(this.samples.length&&this.samples[0].t<t-5)this.samples.shift();
-  const sample=(when,band)=>{let best=null,d=.009;for(let i=this.samples.length-1;i>=0;i--){const a=this.samples[i],delta=Math.abs(a.t-when);if(delta<d){d=delta;best=a.features[band];}if(a.t<when-.012)break;}return best;};
+ constructor(onPacket){this.onPacket=onPacket;this.reset();}
+ sample(when,band){
+  let lo=0,hi=this.samples.length;
+  while(lo<hi){const mid=(lo+hi)>>1;if(this.samples[mid].t<when)lo=mid+1;else hi=mid;}
+  let best=null,d=.009;
+  for(const i of [lo-1,lo]){const a=this.samples[i];if(a&&Math.abs(a.t-when)<d){d=Math.abs(a.t-when);best=a.features[band];}}
+  return best;
+ }
+ preamble(start,period,band){let match=0,margin=0;
+  for(let i=0;i<PREAMBLE.length;i++){const f=this.sample(start+i*period,band);if(f?.symbol===PREAMBLE[i]){match++;margin+=f.margin;}}
+  return {match,margin:margin/PREAMBLE.length};
+ }
+ recover(candidate){
+  const rates=[0,.0025,-.0025,.005,-.005,.0075,-.0075,.01,-.01,.0125,-.0125,.015,-.015];
+  const phases=[0,.0025,-.0025,.005,-.005,.0075,-.0075,.01,-.01,.0125,.015];
+  for(const rate of rates)for(const phase of phases){
+   const period=SYMBOL_SECONDS*(1+rate),start=candidate.start+phase,proof=this.preamble(start,period,candidate.band);
+   if(proof.match<PREAMBLE.length-2)continue;
+   const bits=[];let invalid=0;
+   for(let j=0;j<PACKET_BYTES*6;j++){const f=this.sample(start+(PREAMBLE.length+j)*period,candidate.band);if(!f||f.symbol<0)invalid++;const s=f?.symbol>=0?f.symbol:0;bits.push(s>>1,s&1);}
+   if(invalid>8)continue;
+   const bytes=decodeHamming(bits),packet=bytes&&unpackAudio(bytes);
+   if(packet&&packet.band===candidate.band)return {...packet,margin:proof.margin,symbolPeriod:period};
+  }
+  return null;
+ }
+ push(t,features){
+  if(!Number.isFinite(t)||!Array.isArray(features)||features.length!==3)return;
+  if(this.samples.length&&t<=this.samples[this.samples.length-1].t)return;
+  this.samples.push({t,features});while(this.samples.length&&this.samples[0].t<t-5)this.samples.shift();
   for(let band=0;band<3;band++){
    const start=t-(PREAMBLE.length-1)*SYMBOL_SECONDS;if(start-this.lastStart[band]<.15)continue;
-   let match=0,margins=0;for(let i=0;i<PREAMBLE.length;i++){const f=sample(start+i*SYMBOL_SECONDS,band);if(f?.symbol===PREAMBLE[i]){match++;margins+=f.margin;}}
-   if(match>=PREAMBLE.length-1){this.pending.push({start,band,margin:margins/PREAMBLE.length});this.lastStart[band]=start;}
+   const proof=this.preamble(start,SYMBOL_SECONDS,band);
+   if(proof.match>=PREAMBLE.length-1){this.pending.push({start,band});this.lastStart[band]=start;}
   }
+  if(this.pending.length>12)this.pending.splice(0,this.pending.length-12);
   const total=PREAMBLE.length+PACKET_BYTES*6;
-  for(let i=this.pending.length-1;i>=0;i--){const p=this.pending[i];if(t<p.start+(total-1)*SYMBOL_SECONDS)continue;this.pending.splice(i,1);const bits=[];let invalid=0;
-   for(let j=0;j<PACKET_BYTES*6;j++){const f=sample(p.start+(PREAMBLE.length+j)*SYMBOL_SECONDS,p.band);if(!f||f.symbol<0)invalid++;const s=f?.symbol>=0?f.symbol:0;bits.push(s>>1,s&1);}
-   if(invalid>8)continue;const bytes=decodeHamming(bits),packet=bytes&&unpackAudio(bytes);if(packet&&packet.band===p.band)this.onPacket({...packet,margin:p.margin});
+  for(let i=this.pending.length-1;i>=0;i--){const p=this.pending[i];
+   // Wait for the slowest supported clock plus phase guard, not merely the
+   // nominal last symbol (which can truncate the packet being decoded).
+   if(t<p.start+(total-1)*SYMBOL_SECONDS*1.015+.024)continue;
+   this.pending.splice(i,1);const packet=this.recover(p);if(!packet)continue;
+   const key=[packet.type,packet.band,packet.sid,packet.seq,packet.arg0,packet.arg1,packet.token].join(':');
+   if(this.accepted.has(key)&&t-this.accepted.get(key)<1)continue;
+   this.accepted.set(key,t);for(const [k,seen] of this.accepted)if(t-seen>10)this.accepted.delete(k);
+   this.onPacket(packet);
   }
  }
- reset(){this.samples=[];this.pending=[];this.lastStart=[-10,-10,-10];}
+ reset(){this.samples=[];this.pending=[];this.lastStart=[-10,-10,-10];this.accepted=new Map();}
 }
