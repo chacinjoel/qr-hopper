@@ -37,6 +37,10 @@ jobs:
         run: |
           python -m pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
+      - name: Verify native worklet loading before full session
+        run: |
+          mkdir -p adaptive-proof
+          python hopperlink-pixelstream/adaptive/tests/audio_browser_debug.py | tee adaptive-proof/audio-debug.json
       - name: Test negotiated optics and acoustic PCM through real browser APIs
         run: python hopperlink-pixelstream/adaptive/tests/browser.py
       - name: Commit verified local dependencies on the feature branch only
