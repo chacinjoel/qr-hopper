@@ -1,0 +1,32 @@
+name: Prepare Hopper QR assets
+on:
+  push:
+    branches: [hopper-adaptive-calibration]
+    paths: ['.github/workflows/hopper-qr-assets.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch fixed released packages without lifecycle scripts
+        run: |
+          mkdir -p vendor qrcode jsqr
+          curl -fL --retry 2 https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-1.4.4.tgz -o qrcode.tgz
+          curl -fL --retry 2 https://registry.npmjs.org/jsqr/-/jsqr-1.4.0.tgz -o jsqr.tgz
+          tar -xf qrcode.tgz -C qrcode
+          tar -xf jsqr.tgz -C jsqr
+          cp qrcode/package/qrcode.js vendor/qrcode.js
+          cp jsqr/package/dist/jsQR.js vendor/jsQR.js
+          cp qrcode/package/LICENSE vendor/qrcode-LICENSE
+          cp jsqr/package/LICENSE vendor/jsQR-LICENSE
+          sha256sum vendor/* > vendor/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hopper-qr-vendor
+          path: vendor/
+          retention-days: 3
