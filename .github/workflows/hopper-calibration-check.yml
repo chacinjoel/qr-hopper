@@ -1,0 +1,38 @@
+name: Hopper calibration validation
+on:
+  push:
+    branches: [hopper-calibration-20260916]
+    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-calibration-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Obtain pinned offline QR codecs
+        run: |
+          mkdir -p /tmp/hopper-qr
+          cd /tmp/hopper-qr
+          npm init -y >/dev/null
+          npm install --ignore-scripts --save-exact jsqr@1.4.0 qrcode-generator@1.4.4
+          mkdir -p "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor"
+          cp node_modules/jsqr/dist/jsQR.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/jsQR.js"
+          cp node_modules/jsqr/LICENSE "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/jsQR.LICENSE"
+          cp node_modules/qrcode-generator/qrcode.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.js"
+          cp node_modules/qrcode-generator/LICENSE "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.LICENSE"
+          cp package-lock.json "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qr-package-lock.json"
+      - name: Core regression tests
+        run: node --test hopperlink-pixelstream/tests/core.test.mjs
+      - name: Package isolated source workspace
+        run: tar -czf hopper-workspace.tar.gz hopperlink-pixelstream .github/workflows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hopper-calibration-workspace
+          path: hopper-workspace.tar.gz
+          retention-days: 7
