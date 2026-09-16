@@ -27,7 +27,9 @@ with sync_playwright() as pw:
         assert b.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
         page.evaluate('''() => {
           const a=frames.sender,b=frames.receiver;
-          const video=a.document.getElementById('txCanvas').captureStream(30);
+          const canvas=a.document.getElementById('txCanvas'),video=canvas.captureStream(30);
+          // A physical camera produces frames for a static scene too.
+          window.captureClock=setInterval(()=>{canvas.getContext('2d').drawImage(canvas,0,0);video.getVideoTracks()[0].requestFrame?.();},33);
           Object.defineProperty(b.navigator.mediaDevices,'getUserMedia',{value:async c=>{if(c.video)return video;throw Error('Receiver should not request microphone');}, configurable:true});
         }''')
         b.locator('[data-tab=receive]').click();b.locator('#cameraBtn').click()
