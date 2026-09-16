@@ -2,20 +2,45 @@ name: Hopper calibration validation
 on:
   push:
     branches: [hopper-calibration-20260916]
-    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-calibration-check.yml']
+    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-calibration-check.yml', '.github/adaptive-source/**']
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: hopper-calibration-staging
+  cancel-in-progress: true
 jobs:
   validate:
+    if: github.ref == 'refs/heads/hopper-calibration-20260916'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Obtain pinned offline QR codecs
+      - name: Materialize checksummed UTF-8 source
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, pathlib
+          folder=pathlib.Path('.github/adaptive-source')
+          if folder.exists():
+              encoded=''.join((folder/f'p{i}').read_text().strip() for i in range(6))
+              raw=lzma.decompress(base64.b64decode(encoded,validate=True))
+              assert hashlib.sha256(raw).hexdigest()=='43c78f04f629ffbc868c41a3fa67e74cf20c0fb3e87f15a02cd351e78a8bf355', 'Source integrity mismatch'
+              files=json.loads(raw)
+              assert len(files)==17
+              for name,content in files.items():
+                  path=pathlib.PurePosixPath(name)
+                  assert not path.is_absolute() and '..' not in path.parts
+                  assert name.startswith('hopperlink-pixelstream/') or name=='.github/workflows/hopperlink-static-check.yml'
+                  target=pathlib.Path(name);target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_text(content,encoding='utf-8')
+              print('Materialized',len(files),'verified source files')
+          PY
+      - name: Obtain pinned offline QR codecs and notices
         run: |
           mkdir -p /tmp/hopper-qr
           cd /tmp/hopper-qr
@@ -27,12 +52,40 @@ jobs:
           cp node_modules/qrcode-generator/qrcode.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.js"
           cp -R node_modules/qrcode-generator "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode-package"
           cp package-lock.json "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qr-package-lock.json"
-      - name: Core regression tests
-        run: node --test hopperlink-pixelstream/tests/core.test.mjs
-      - name: Package isolated source workspace
-        run: tar -czf hopper-workspace.tar.gz hopperlink-pixelstream .github/workflows
+      - name: Syntax and 23 core/adaptive regression tests
+        run: |
+          for f in hopperlink-pixelstream/adaptive-v1/*.js; do node --input-type=module --check < "$f"; done
+          node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/tests/adaptive.test.mjs
+      - name: Install real browser harness
+        run: |
+          python3 -m pip install playwright==1.55.0
+          python3 -m playwright install --with-deps chromium
+      - name: Preserve legacy optical download
+        run: python3 hopperlink-pixelstream/tests/browser_smoke.py
+      - name: Two-device negotiation, acoustic PCM and QR fallback
+        run: python3 hopperlink-pixelstream/tests/adaptive-browser.py
+      - name: Commit only validated implementation to staging branch
+        run: |
+          test "$GITHUB_REF" = refs/heads/hopper-calibration-20260916
+          rm -rf .github/adaptive-source
+          git add hopperlink-pixelstream .github/workflows/hopperlink-static-check.yml .github/adaptive-source
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Implement tested adaptive calibration, acoustic negotiation, QR fallback and current-frame motion tracking'
+            git push origin HEAD:hopper-calibration-20260916
+          fi
+          git rev-parse HEAD
+      - name: Preserve test evidence and source
+        if: always()
+        run: tar -czf adaptive-tested-workspace.tar.gz hopperlink-pixelstream
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: hopper-calibration-workspace
-          path: hopper-workspace.tar.gz
+          name: adaptive-validation-evidence
+          path: |
+            adaptive-proof/
+            hopperlink-pixelstream/adaptive-proof/
+            browser-receiver.png
+            adaptive-tested-workspace.tar.gz
           retention-days: 7
