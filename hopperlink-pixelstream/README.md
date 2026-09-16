@@ -1,16 +1,31 @@
-# HopperLink ONE · HopperCore 1.5.0 · H7 Static Guide
+# HopperLink X — Optical SuperStream v2
 
-Build 1500, protocol 5. La adquisición vuelve al flujo simple inspirado en HPS7: **guía óptica estática → validación del archivo → ACK sónico → DATA TriFrame**.
+Reinicio arquitectónico de HopperLink. La implementación anterior basada en “archivo → frame → imagen” fue reemplazada por un transporte de **bitstream óptico**:
 
-## Flujo
+`archivo → análisis → compresión adaptativa → SuperStream → SuperBlocks → Reed-Solomon FEC → símbolos ópticos → pantalla`.
 
-1. El emisor prepara el archivo y abre fullscreen.
-2. Aparece una guía gris fija con las cuatro referencias HPS7 grandes. Los tres sectores contienen tres partes fijas del mismo descriptor rápido; no hay carrusel ni cambios cada 400 ms.
-3. El receptor acumula esas tres partes, valida CRC32 y obtiene nombre, tamaño, modo, número de bloques y tamaño de bloque.
-4. Solo después crea la sesión y emite ACK por sonido.
-5. El emisor escucha ACK y cambia a DATA tras la demora de seguridad existente.
-6. Durante DATA se siguen enviando fragmentos de metadata completa de baja frecuencia para actualizar nombre completo/SHA-256 sin bloquear el arranque.
+## Principios
 
-La guía rápida admite hasta 36 bytes UTF-8 del nombre para el primer reconocimiento. Si el nombre real es más largo, la metadata completa transmitida durante DATA actualiza el nombre. El CRC32 del archivo está en la guía; SHA-256 se conserva en la metadata completa.
+- **SuperStream**: el archivo deja de estar atado 1:1 a frames visuales. Se empaqueta como un flujo continuo autocontenido con metadata, SHA-256 y compresión adaptativa.
+- **SuperBlocks**: el flujo se corta según la capacidad real del frame óptico. Si la compresión permite representar el equivalente de varios frames lógicos dentro de uno físico, el sistema lo hace automáticamente.
+- **Compresión adaptativa**: gzip nativo cuando aporta una mejora real; pass-through para formatos ya comprimidos o alta entropía.
+- **FEC real**: Reed-Solomon sistemático sobre GF(256), configurable por perfil (`6+3`, `8+2`, `10+2`).
+- **Modulación adaptativa**: perfiles de 2, 3 o 4 bits por celda con grids variables y cadencia configurable.
+- **Fiduciales ópticos**: cuatro anclas de color grandes para lock geométrico y futura homografía/demodulación.
+- **Separación de capas**: codec, FEC, transporte óptico y cámara están desacoplados para poder mejorar cada capa sin reescribir las demás.
 
-Los modos DATA siguen siendo 2-bit/3-bit/4-bit y las capacidades por lane no cambian. Sonic Assist continúa siendo ACK/COMPLETE básico.
+## Estado de esta versión
+
+El **transmisor** ya ejecuta el nuevo pipeline completo hasta el render óptico y muestra métricas de compresión, colapso de frames equivalentes, capacidad y FEC. El **receptor** ya incluye cámara, detector de los cuatro fiduciales y el ensamblador SuperStream/Reed-Solomon. La siguiente iteración debe completar la demodulación física de las celdas desde cámara (calibración de paleta + homografía + header + payload) y luego cerrar el loop adaptativo bidireccional.
+
+## Perfiles
+
+| Perfil | Bits/celda | FEC | Objetivo |
+|---|---:|---:|---|
+| Robusto | 2 | RS 6+3 | movimiento/ruido |
+| Balanceado | 3 | RS 8+2 | uso general |
+| Turbo | 4 | RS 10+2 | teléfonos/cámaras de alta calidad |
+
+## Ejecución
+
+Sitio estático sin servidor ni librerías externas. Requiere HTTPS para cámara (`getUserMedia`).

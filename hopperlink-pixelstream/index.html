@@ -1,279 +1,59 @@
 <!doctype html>
-<html lang="es" data-ui-build="1510">
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#060912">
-  <meta name="color-scheme" content="dark">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Transferencia premium de archivos sin internet mediante tres canales ópticos sincronizados y asistencia sónica.">
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="premium-one.css?v=1510">
-  <link rel="stylesheet" href="premium-one-receiver.css?v=1510">
-  <link rel="stylesheet" href="premium-one-fullscreen.css?v=1510">
-  <title>HopperLink ONE · H7 Static Guide</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#05080f" />
+  <title>HopperLink X · Optical SuperStream</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="ambient ambient-a"></div>
-  <div class="ambient ambient-b"></div>
-
-  <div class="app-shell" id="appShell">
-    <header class="app-header">
-      <div class="brand-lockup">
-        <div class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div>
-          <div class="eyebrow">TRANSFERENCIA OFFLINE PREMIUM</div>
-          <h1>HopperLink <span>ONE</span></h1>
-          <p>HopperCore · Color TriFrame · H7 Static Guide · Sonic Assist</p>
-        </div>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">HOPPERLINK X · V2</div>
+        <h1>Optical SuperStream</h1>
+        <p class="subtitle">Archivo → bitstream comprimido → SuperBlocks → FEC → símbolos ópticos.</p>
       </div>
-      <div class="header-actions">
-        <span class="status-pill online" id="engineStatus"><b></b> MOTOR LISTO</span>
-        <span class="status-pill" id="sonicStatus"><b></b> SONIC EN ESPERA</span>
-        <button class="ghost-button compact" id="installBtn" hidden>Instalar app</button>
-      </div>
+      <span id="secureBadge" class="badge">OFFLINE</span>
     </header>
-
-    <main>
-      <section class="hero-panel">
-        <div>
-          <div class="eyebrow">UN SOLO MOTOR. TRES CUADRANTES. CERO INTERNET.</div>
-          <h2>Cuatro referencias grandes. Tres cuadrantes. Inicio en grises.</h2>
-          <p>El receptor identifica primero el archivo mediante control gris protegido. Después recibe los tres cuadrantes en el modo seleccionado y conserva los bloques válidos si se pierde un cuadro.</p>
+    <nav class="tabs" aria-label="Modo">
+      <button class="tab active" data-tab="send">Enviar</button>
+      <button class="tab" data-tab="receive">Recibir</button>
+      <button class="tab" data-tab="bench">Diagnóstico</button>
+    </nav>
+    <section id="send" class="panel active">
+      <div class="card setup-card">
+        <div class="card-head"><div><span class="step">01</span><h2>Preparar SuperStream</h2></div><span id="fileState" class="muted">Sin archivo</span></div>
+        <label class="dropzone" id="dropzone"><input id="fileInput" type="file" /><strong>Selecciona un archivo</strong><span>Todo se procesa localmente en el teléfono.</span></label>
+        <div class="controls-grid">
+          <label>Perfil óptico<select id="profileSelect"><option value="auto">Auto</option><option value="robust">Robusto · 2 bit/celda</option><option value="balanced">Balanceado · 3 bit/celda</option><option value="turbo">Turbo · 4 bit/celda</option></select></label>
+          <label>Grid<select id="gridSelect"><option value="72x112">72 × 112</option><option value="84x132" selected>84 × 132</option><option value="96x152">96 × 152</option><option value="112x176">112 × 176</option></select></label>
+          <label>Cadencia<select id="fpsSelect"><option value="30">30 símbolos/s</option><option value="45">45 símbolos/s</option><option value="60" selected>60 símbolos/s</option><option value="90">90 símbolos/s</option><option value="120">120 símbolos/s</option></select></label>
         </div>
-        <div class="hero-metrics">
-          <div><strong>3</strong><span>cuadrantes independientes</span></div>
-          <div><strong>CRC + SHA</strong><span>integridad final</span></div>
-          <div><strong>BLACK BOX</strong><span>traza exportable</span></div>
-        </div>
-      </section>
-
-      <nav class="role-switch" aria-label="Seleccionar función">
-        <button class="role-button active" id="sendTab" data-role="send">
-          <span class="role-icon">↑</span>
-          <span><b>Enviar</b><small>Pantalla → cámara</small></span>
-        </button>
-        <button class="role-button" id="receiveTab" data-role="receive">
-          <span class="role-icon">⌁</span>
-          <span><b>Recibir</b><small>Cámara + H7 Static Guide</small></span>
-        </button>
-      </nav>
-
-      <section class="modulation-panel" aria-labelledby="modulationTitle">
-        <div class="modulation-heading">
-          <div>
-            <div class="eyebrow">MODULACIÓN ÓPTICA SELECCIONABLE</div>
-            <h3 id="modulationTitle">Elige densidad y tolerancia antes de preparar</h3>
-          </div>
-          <div class="selected-mode-summary">
-            <span>Modo activo</span>
-            <b id="selectedModeName">Color Adaptativo 3-bit</b>
-            <small id="selectedModeSpeed">17.3–25.9 KiB/s teóricos</small>
-          </div>
-        </div>
-        <div class="modulation-grid" role="group" aria-label="Seleccionar modulación óptica">
-          <button type="button" class="mode-card" data-optical-mode="robust2" aria-pressed="false">
-            <span class="mode-top"><b>Robusto</b><i>2 BIT</i></span>
-            <span class="mode-spectrum spectrum-2" aria-hidden="true"></span>
-            <strong>4 símbolos · 480 B/lane</strong>
-            <small>11.3–16.9 KiB/s · máxima tolerancia a distancia, reflejos y exposición.</small>
-          </button>
-          <button type="button" class="mode-card active" data-optical-mode="adaptive3" aria-pressed="true">
-            <span class="mode-top"><b>Color Adaptativo</b><i>3 BIT</i></span>
-            <span class="mode-spectrum spectrum-3" aria-hidden="true"></span>
-            <strong>8 colores · 736 B/lane</strong>
-            <small>17.3–25.9 KiB/s · equilibrio recomendado entre velocidad y estabilidad.</small>
-          </button>
-          <button type="button" class="mode-card" data-optical-mode="turbo4" aria-pressed="false">
-            <span class="mode-top"><b>Color Turbo</b><i>4 BIT</i></span>
-            <span class="mode-spectrum spectrum-4" aria-hidden="true"></span>
-            <strong>16 colores · 1,000 B/lane</strong>
-            <small>23.4–35.2 KiB/s · máxima densidad para cámara cercana y pantalla brillante.</small>
-          </button>
-        </div>
-        <div class="modulation-foot">
-          <span><b id="selectedModeCapacity">736 B/lane</b> útiles por cuadrante</span>
-          <span>Los marcadores identifican el modo; pilotos y CRC32 validan los datos antes de aceptarlos.</span>
-        </div>
-      </section>
-
-      <section class="workspace-grid">
-        <article class="workspace-card active" id="sendView">
-          <div class="card-heading">
-            <div>
-              <div class="eyebrow">EMISOR</div>
-              <h3>Preparar transferencia TriFrame</h3>
-            </div>
-            <span class="engine-badge">HopperCore ONE</span>
-          </div>
-
-          <label class="drop-zone" id="dropZone">
-            <input id="fileInput" type="file">
-            <span class="drop-icon">＋</span>
-            <span class="drop-copy"><b id="dropTitle">Selecciona o arrastra un archivo</b><small id="dropDetail">Se fragmentará localmente. Nada sale a internet.</small></span>
-          </label>
-
-          <div class="feature-row">
-            <label class="toggle-line">
-              <input type="checkbox" id="sonicToggle" checked>
-              <span class="toggle-ui"></span>
-              <span><b>Sonic Assist</b><small>ACK y COMPLETE por audio; el canal visual siempre funciona solo.</small></span>
-            </label>
-            <div class="auto-profile">
-              <span>Perfil</span>
-              <b>AUTO ADAPTATIVO</b>
-              <small>8–12 frames/s según estabilidad real</small>
-            </div>
-          </div>
-
-          <div class="metric-strip">
-            <div><span>Archivo</span><b id="txFileSize">—</b></div>
-            <div><span>Bloques fuente</span><b id="txSourceCount">—</b></div>
-            <div><span>Carga por lane</span><b id="txChunkSize">736 B</b></div>
-            <div><span>Sesión</span><b id="txSession">—</b></div>
-          </div>
-
-          <div class="progress-block" id="txProgressBlock">
-            <div class="progress-copy"><span id="txProgressLabel">Sin archivo preparado</span><b id="txProgressText">0%</b></div>
-            <div class="progress-track"><i id="txProgressBar"></i></div>
-          </div>
-
-          <div class="action-row">
-            <button class="primary-button" id="prepareBtn">Preparar archivo</button>
-            <button class="secondary-button accent" id="launchBtn" disabled>Abrir fullscreen vertical</button>
-          </div>
-
-          <div class="assurance-grid">
-            <div><i>01</i><span><b>Geometría constante</b><small>HELLO y DATA usan los mismos tres cuadrantes; no existe el salto de geometría que rompía el lock.</small></span></div>
-            <div><i>02</i><span><b>Paquetes independientes</b><small>Cada lane posee secuencia, tipo y CRC propios; un error no invalida los otros dos.</small></span></div>
-            <div><i>03</i><span><b>Recuperación Fountain</b><small>Systematic + ecuaciones XOR permiten completar sin recibir una lista exacta de frames.</small></span></div>
-          </div>
-        </article>
-
-        <article class="workspace-card" id="receiveView">
-          <div class="card-heading">
-            <div>
-              <div class="eyebrow">RECEPTOR</div>
-              <h3>H7 Static Guide reconoce cada cuadrante con marcadores codificados</h3>
-            </div>
-            <span class="engine-badge">SIN ENCUADRE MANUAL</span>
-          </div>
-
-          <div class="camera-shell" id="cameraShell">
-            <video id="cameraVideo" playsinline muted></video>
-            <canvas id="guideCanvas"></canvas>
-            <div class="camera-empty" id="cameraEmpty">
-              <div class="scanner-glyph"><i></i><i></i><i></i></div>
-              <b>Cámara detenida</b>
-              <span>Incluye los marcadores negros y blancos de los tres cuadrantes. La lectura recupera la posición en cada cuadro nítido.</span>
-            </div>
-            <div class="camera-head">
-              <span id="cameraState">CÁMARA EN ESPERA</span>
-              <span id="scanFps">0 fps</span>
-            </div>
-            <div class="lane-locks" aria-label="Estado de los tres lanes">
-              <span id="lockA">A · BUSCANDO</span>
-              <span id="lockB">B · BUSCANDO</span>
-              <span id="lockC">C · BUSCANDO</span>
-            </div>
-          </div>
-
-          <div class="receiver-summary">
-            <div class="receiver-file">
-              <span>Transferencia detectada</span>
-              <b id="rxFileName">Esperando HELLO TriFrame…</b>
-              <small id="rxSession">La vista 2:3 amplía la torre A/B/C sin deformar la cámara.</small>
-            </div>
-            <strong id="rxPercent">0%</strong>
-          </div>
-          <div class="progress-track large"><i id="rxProgressBar"></i></div>
-
-          <div class="metric-strip receiver">
-            <div><span>Bloques resueltos</span><b id="rxKnown">0 / —</b></div>
-            <div><span>Paquetes válidos</span><b id="rxValid">0</b></div>
-            <div><span>CRC rechazados</span><b id="rxRejected">0</b></div>
-            <div><span>Modo detectado</span><b id="rxMode">ESPERANDO HELLO GRIS</b></div>
-            <div><span>Calidad de lectura</span><b id="rxQuality">—</b></div>
-          </div>
-
-          <div class="action-row">
-            <button class="primary-button" id="cameraBtn">Iniciar cámara</button>
-            <button class="secondary-button" id="receiverFullscreenBtn" disabled>Vista fullscreen 2:3</button>
-            <button class="danger-button" id="stopCameraBtn" disabled>Detener</button>
-            <button class="ghost-button" id="captureScanBtn">Captura para diagnóstico</button>
-          </div>
-
-          <div class="received-file" id="receivedFile" hidden>
-            <div><span>INTEGRIDAD VERIFICADA</span><b id="receivedName">Archivo listo</b><small id="receivedIntegrity">CRC32 + SHA-256</small></div>
-            <a class="primary-button" id="downloadLink" download>Guardar archivo</a>
-          </div>
-        </article>
-      </section>
-
-      <section class="blackbox-card">
-        <div class="card-heading blackbox-heading">
-          <div>
-            <div class="eyebrow">FLIGHT RECORDER · CAJA NEGRA</div>
-            <h3>Qué ocurrió, cuándo ocurrió y con qué confianza</h3>
-          </div>
-          <div class="blackbox-actions">
-            <button class="ghost-button" id="exportJsonBtn">Exportar JSON</button>
-            <button class="ghost-button" id="exportCsvBtn">Exportar CSV</button>
-            <button class="ghost-button danger-text" id="clearLogBtn">Limpiar</button>
-          </div>
-        </div>
-        <div class="blackbox-summary">
-          <span id="blackboxCount">0 eventos</span>
-          <span id="blackboxPhase">IDLE</span>
-          <span id="blackboxHealth">Salud: 100%</span>
-        </div>
-        <div class="blackbox-log" id="flightLog" role="log" aria-live="polite"></div>
-      </section>
-    </main>
-
-    <footer class="app-footer">
-      <span>HopperLink ONE · HopperCore 1.5.0 · H7 Static Guide · Pantalla limpia</span>
-      <span>Offline · sin servidor · sin nube · procesamiento local</span>
-    </footer>
-  </div>
-
-  <section class="transmission-stage" id="transmissionStage" aria-hidden="true">
-    <header class="stage-hud">
-      <div class="stage-brand">
-        <div class="brand-mark small" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div><b>HopperLink ONE</b><span id="stageFileName">TriFrame</span></div>
+        <button id="prepareBtn" class="primary" disabled>Analizar y preparar</button>
       </div>
-      <div class="stage-status">
-        <span id="stagePhase">HELLO</span>
-        <span id="stageRate">0 frames/s</span>
-        <span id="stageMode">COLOR 3-BIT · 3b</span>
-        <span id="stageCoverage">0%</span>
-        <span id="stageSonic">SONIC · ESPERA</span>
+      <div class="metrics" id="metrics"><article><span>Original</span><strong id="mOriginal">—</strong></article><article><span>SuperStream</span><strong id="mPacked">—</strong></article><article><span>Compresión</span><strong id="mCompression">—</strong></article><article><span>Frames equivalentes</span><strong id="mCollapse">—</strong></article><article><span>Payload/frame</span><strong id="mPayload">—</strong></article><article><span>FEC</span><strong id="mFec">—</strong></article></div>
+      <div class="card optical-card">
+        <div class="card-head"><div><span class="step">02</span><h2>Emisión óptica</h2></div><span id="txStatus" class="status-dot idle">LISTO</span></div>
+        <div class="optical-stage" id="txStage"><canvas id="txCanvas" width="840" height="1320"></canvas><div id="txPlaceholder" class="stage-placeholder"><div class="pulse-orb"></div><strong>El SuperStream aparecerá aquí</strong><span>Las esquinas son fiduciales; el centro es payload multicolor.</span></div></div>
+        <div class="progress"><div id="txProgress"></div></div>
+        <div class="action-row"><button id="startTxBtn" class="primary" disabled>Transmitir</button><button id="pauseTxBtn" class="secondary" disabled>Pausar</button><button id="fullTxBtn" class="secondary">Pantalla completa</button></div>
+        <div class="telemetry"><span>Frame <b id="tFrame">0/0</b></span><span>Útil <b id="tRate">0 KB/s</b></span><span>Bruto <b id="tGross">0 KB/s</b></span><span>Ganancia <b id="tGain">1.00×</b></span></div>
       </div>
-      <button class="stage-close" id="stageCloseBtn" aria-label="Cerrar transmisión">×</button>
-    </header>
-
-    <div class="orientation-note" id="orientationNote">Modo vertical: los cuadrantes A, B y C permanecen apilados en una columna.</div>
-
-    <div class="triframe-grid" id="triframeGrid">
-      <canvas id="stageDockCanvas" class="h7-dock-canvas" width="92" height="166" aria-label="Emisor: cuadrantes A, B y C apilados; cuatro referencias HPS7 exteriores"></canvas>
-    </div>
-
-    <footer class="stage-controls">
-      <div class="stage-message">
-        <b id="stageMessageTitle">Muestra esta pantalla al receptor</b>
-        <span id="stageMessageDetail">Espera a que el receptor muestre el nombre del archivo. El inicio siempre se transmite en grises protegidos.</span>
+    </section>
+    <section id="receive" class="panel">
+      <div class="card">
+        <div class="card-head"><div><span class="step">01</span><h2>Receptor óptico</h2></div><span id="rxStatus" class="status-dot idle">CÁMARA OFF</span></div>
+        <div class="camera-stage"><video id="rxVideo" playsinline muted></video><canvas id="rxOverlay"></canvas><div id="rxHint" class="camera-hint">Apunta la cámara hacia la pantalla emisora.</div></div>
+        <div class="action-row"><button id="cameraBtn" class="primary">Iniciar cámara</button><button id="receiveBtn" class="secondary" disabled>Comenzar recepción</button><button id="resetRxBtn" class="secondary">Reiniciar</button></div>
+        <div class="metrics rx-metrics"><article><span>Lock</span><strong id="rLock">0%</strong></article><article><span>Frames válidos</span><strong id="rFrames">0</strong></article><article><span>FEC recuperados</span><strong id="rRecovered">0</strong></article><article><span>BER estimado</span><strong id="rBer">—</strong></article></div>
+        <div class="progress"><div id="rxProgress"></div></div><div id="receivedFile" class="received-file hidden"></div>
       </div>
-      <div class="stage-buttons">
-        <button class="stage-button start" id="stageStartBtn">Receptor listo · Iniciar DATA</button>
-        <button class="stage-button" id="stagePauseBtn" hidden>Pausar</button>
-      </div>
-    </footer>
-  </section>
-
-  <canvas id="captureCanvas" hidden></canvas>
-  <script src="anchor-scan.js?v=1510" defer></script>
-  <script src="hopper-one.js?v=1510" defer></script>
+    </section>
+    <section id="bench" class="panel"><div class="card"><div class="card-head"><div><span class="step">LAB</span><h2>Capacidad teórica del enlace</h2></div></div><p class="muted">La tasa se calcula con celdas útiles × bits/celda × símbolos/s, descontando cabecera y FEC.</p><div class="metrics bench-metrics"><article><span>Celdas útiles</span><strong id="bCells">—</strong></article><article><span>Bits/celda</span><strong id="bBpc">—</strong></article><article><span>Bruto</span><strong id="bGross">—</strong></article><article><span>Útil estimado</span><strong id="bNet">—</strong></article></div><pre id="diagnostics" class="console">HopperLink X listo.</pre></div></section>
+  </main>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

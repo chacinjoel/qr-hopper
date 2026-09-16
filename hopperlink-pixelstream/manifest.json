@@ -1,11 +1,8 @@
 {
-  "name": "HopperLink ONE AnchorScan",
-  "short_name": "HopperLink",
-  "start_url": "./index.html",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#060912",
-  "theme_color": "#060912",
-  "description": "Transferencia offline con guía H7 estática, ACK sónico y tres lanes ópticos."
+  "name":"HopperLink X · Optical SuperStream",
+  "short_name":"HopperLink X",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#05080f",
+  "theme_color":"#05080f"
 }
