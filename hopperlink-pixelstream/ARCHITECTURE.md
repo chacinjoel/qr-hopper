@@ -1,37 +1,34 @@
-# HopperLink X v2 — Architecture
+# HopperLink X v2 — Optical SuperStream + HDP v1
 
-## 1. Nuevo modelo mental
+`archivo → compresión adaptativa → SuperStream → SuperBlocks → RS-FEC → HDP → símbolos ópticos → cámara → HDP lock → demodulación → FEC → SHA-256`
 
-No existe una relación obligatoria entre “frame de archivo” y “frame óptico”. HopperLink X trata el archivo como un bitstream continuo y usa cada intervalo de pantalla como un contenedor de símbolos de canal.
+## HDP: HopperLink Discovery Protocol
 
-## 2. Pipeline
+La localización de la pantalla es una capa independiente del color del payload.
 
-1. **Content analyzer** estima entropía y detecta formatos precomprimidos.
-2. **Adaptive compressor** usa gzip sólo si reduce al menos ~1.5%; de lo contrario usa RAW.
-3. **Envelope HXS2** agrega nombre, MIME, tamaño, codec, SHA-256 y payload.
-4. **SuperBlock splitter** corta por `payloadBytes` derivados de grid × bits/celda.
-5. **Reed-Solomon erasure FEC** genera paridad por grupos.
-6. **Optical frame builder** añade header fijo, calibración y payload multicolor.
-7. **Renderer** pinta anclas, cabecera binaria, banda de calibración y símbolos.
-8. **Receiver tracker** detecta cuatro anclas y produce lock geométrico.
-9. **Demodulator** (siguiente iteración) corrige perspectiva, aprende la paleta observada y reconstruye bytes.
-10. **FEC + assembler** recupera bloques faltantes, recompone HXS2, descomprime y verifica SHA-256.
+### Área emisora
 
-## 3. Por qué “3 frames en 1” sí tiene sentido
+- Quiet zone negra exterior de 4 celdas.
+- Guard rail blanco continuo de 2 celdas.
+- Cuatro finders monocromáticos 10×10, asimétricos y reservados.
+- Ningún header, sync, calibración ni payload puede pintar sobre finders.
+- Aspect ratio del canvas = `cols/rows`; nunca se estira el grid.
+- Discovery inicial de 1.2 s con firma temporal.
+- Recovery beacon cada 30 frames **sin consumir ni saltar un frame de datos**.
 
-La capa no comprime imágenes ópticas ya codificadas. Comprime **antes** de segmentar. Si 3 bloques lógicos de 2 KB contienen 6 KB originales y el codec los reduce a 1.9 KB, el resultado entra en un solo frame físico de ~2 KB. La interfaz muestra esta ganancia como `Frames equivalentes: baseline → systematic`.
+### Receptor
 
-## 4. Fórmula de capacidad
+1. Estima rango dinámico de luminancia.
+2. Busca componentes blancos conectados compatibles con el rail.
+3. Refina sus cuatro esquinas mediante gradiente local.
+4. Expande el rail detectado para estimar los límites completos del canvas.
+5. Mantiene tracking temporal suavizado y confianza de lock.
+6. Prueba orientación/rotación y luego header HDP.
+7. Solo tras el lock aprende la paleta RGB observada.
+8. Decodifica payload, valida CRC32, recupera RS-FEC y finalmente SHA-256.
 
-`gross_Bps = usableCells × bitsPerCell × symbolsPerSecond / 8`
+El receptor inicia captura y recepción en una sola acción: el usuario únicamente necesita incluir la pantalla emisora dentro del preview; no debe hacer coincidir manualmente ningún marco.
 
-La tasa útil descuenta FEC, cabecera, sincronización y eficiencia óptica real.
+## Métrica prioritaria
 
-## 5. Reglas v2
-
-- No re-comprimir datos de alta entropía por costumbre.
-- No usar frames lógicos como unidad de transporte.
-- FEC antes que retransmisión fina.
-- Modulación adaptativa por calidad del canal.
-- Fiduciales y calibración ocupan espacio fijo y pequeño.
-- El receptor debe validar integridad de extremo a extremo con SHA-256.
+Antes de aumentar bits/celda o FPS, medir en hardware real: `time-to-lock`, cobertura mínima de pantalla, inclinación máxima, porcentaje de relock, CRC pass rate y throughput útil.
