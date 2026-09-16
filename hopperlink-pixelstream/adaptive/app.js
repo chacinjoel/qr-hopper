@@ -27,9 +27,11 @@ $('fileInput').onchange=e=>{if(tx?.running||cal&&!cal.ended)return;selectedFile=
 $('prepareBtn').onclick=async()=>{if(!selectedFile||preparing)return;preparing=true;lockSetup(true);try{packed=await prepareTransfer(selectedFile);chosen=null;transport=null;text('calState','Preparado: '+humanBytes(packed.stream.length)+' de flujo. Inicia el receptor y calibra el enlace.');note('Archivo preparado localmente: '+packed.meta.name);render($('txCanvas'),null,bootstrap,packed.meta.linkId);}catch(e){error(e);}finally{preparing=false;lockSetup(false);}};
 function runCalibration(now){if(!cal||cal.ended)return;cal.tick(now);if(!cal.ended)calRaf=requestAnimationFrame(runCalibration);}
 $('calibrateBtn').onclick=async()=>{if(!packed||tx?.running||cal&&!cal.ended)return;
+ if(media)return error(Error('Apaga la cámara receptora antes de calibrar como emisor.'));
  lockSetup(true);chosen=null;try{
+  if(cal){packed=await prepareTransfer(selectedFile);transport=null;pendingReport=null;}
   if($('useAudio').checked){try{await sound.enable({microphone:true});micReady=true;}catch(e){micReady=false;text('audioState','Sin micrófono: usa el informe QR. '+e.message);}}
-  else micReady=false;
+  else{sound.close();micReady=false;}
   cal=new CalibrationSender({sid:packed.meta.linkId,mode:$('calMode').value,audio:micReady,onEvent:senderEvent});
   // A previous result only prioritises a candidate. Every session is re-tested.
   try{const cached=JSON.parse(localStorage.getItem('hopper-adaptive-hint')||'null');if(cached?.catalog===CATALOG_HASH&&Date.now()-cached.date<86400000&&cached.chosen>0&&cached.chosen<11&&cal.mode==='quick')cal.plan=[...new Set([cached.chosen,...cal.plan])];}catch{}
@@ -89,7 +91,8 @@ function onAudio(packet){
  }
 }
 function beginControl(){control({op:'begin',sid:packed.meta.linkId,pid:chosen.profile,audio:chosen.audioBand,epoch:chosen.report.epoch,fingerprint:chosen.report.fingerprint,hash:packed.meta.sha256.slice(0,8),bytes:transport.streamLength,block:transport.blockLen});}
-$('startTxBtn').onclick=()=>{if(!transport||!chosen||tx?.running)return;
+$('startTxBtn').onclick=async()=>{if(!transport||!chosen||tx?.running)return;
+ if(chosen.audioBand>=0&&!micReady){try{await sound.enable({microphone:true});micReady=true;}catch(e){note('No se pudo reactivar el retorno: '+e.message);}}
  const p=profile(chosen.profile),plans=fourOpportunitySchedules(transport);tx={running:true,sid:packed.meta.linkId,queue:[...metadataSchedule(transport,packed.metadataBytes),...plans.flat()],position:0,fps:p.fps,last:0,started:performance.now(),ended:null,holdUntil:performance.now()+1300,sinceBeacon:0,bytes:0,finished:false,confirmed:false,lastSlow:0,extra:false,repairs:0};
  beginControl();surface(true);lockSetup(true);text('txConfirmed','Pendiente');text('txState','Cuatro oportunidades por bloque + FEC.');txRaf=requestAnimationFrame(transmit);
 };
@@ -146,7 +149,7 @@ function refresh(){const m=download.metrics();text('downloadName',m.name);text('
  $('downloadFill').style.width=m.percent+'%';$('downloadBar').setAttribute('aria-valuenow',m.percent.toFixed(1));text('downloadState',m.verified?'Archivo completo · SHA-256 OK'+(rxClosed?' · cierre confirmado':''):m.failure?'Error: '+m.failure:m.awaitingVerification?'Verificando integridad…':m.stalled?'Esperando bloques; el progreso se conserva.':m.total?'Recibiendo datos únicos.':'Esperando datos.');const p=download.progress();text('rxCounters','Bloques '+p.have+'/'+p.total+' · pendientes '+p.missing+' · FEC '+p.recovered);
  if(download.verified)sendComplete().catch(error);if(tx){const elapsed=((tx.ended??performance.now())-tx.started)/1000;text('txElapsed',duration(elapsed));text('txRate',rate(tx.bytes/Math.max(.001,elapsed)));}}
 const refreshTimer=setInterval(refresh,250);
-$('exportBtn').onclick=()=>{const data={build:BUILD,captureSessionActive:!!media,catalog:CATALOG_HASH,results,events,failures,quality:lastQuality,download:download.metrics(),camera:media?.getVideoTracks()[0]?.getSettings?.()};if(data.camera)delete data.camera.deviceId;const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='hopper-diagnostico.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),10000);};
+$('exportBtn').onclick=()=>{const data={build:BUILD,captureSessionActive:!!media,catalog:CATALOG_HASH,results,events,failures,quality:lastQuality,download:download.metrics(),camera:media?.getVideoTracks()[0]?.getSettings?.()};if(data.camera){delete data.camera.deviceId;delete data.camera.groupId;}const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='hopper-diagnostico.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),10000);};
 document.addEventListener('visibilitychange',()=>{if(document.hidden){sound.cancel();if(cal&&!cal.ended)stopEverything('Calibración cancelada: la página quedó oculta. Repite con ambos teléfonos visibles.');}});
 window.addEventListener('pagehide',()=>{clearInterval(refreshTimer);cancelAnimationFrame(calRaf);cancelAnimationFrame(txRaf);sound.close();tracker?.stop();qrScanner.stop();media?.getTracks().forEach(t=>t.stop());});
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});

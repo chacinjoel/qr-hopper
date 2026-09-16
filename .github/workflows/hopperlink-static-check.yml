@@ -21,7 +21,7 @@ jobs:
           node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/adaptive/tests/adaptive.test.mjs
       - name: Browser harness
         run: |
-          python -m pip install playwright==1.55.0
+          python -m pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
       - name: Legacy browser regression
         run: python hopperlink-pixelstream/tests/browser_smoke.py
