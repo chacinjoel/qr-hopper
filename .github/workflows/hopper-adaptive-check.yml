@@ -1,0 +1,57 @@
+name: Hopper adaptive paired-browser validation
+on:
+  push:
+    branches: [hopper-adaptive-calibration]
+    paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-adaptive-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Vendor fixed QR assets locally with checksum verification
+        run: |
+          mkdir -p /tmp/hopper-vendor/qr /tmp/hopper-vendor/jsqr hopperlink-pixelstream/adaptive/vendor
+          curl -fsSL --retry 2 https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-1.4.4.tgz -o /tmp/hopper-vendor/qr.tgz
+          curl -fsSL --retry 2 https://registry.npmjs.org/jsqr/-/jsqr-1.4.0.tgz -o /tmp/hopper-vendor/jsqr.tgz
+          tar -xf /tmp/hopper-vendor/qr.tgz -C /tmp/hopper-vendor/qr
+          tar -xf /tmp/hopper-vendor/jsqr.tgz -C /tmp/hopper-vendor/jsqr
+          cp /tmp/hopper-vendor/qr/package/qrcode.js hopperlink-pixelstream/adaptive/vendor/
+          cp /tmp/hopper-vendor/qr/package/README.md hopperlink-pixelstream/adaptive/vendor/qrcode-README.md
+          cp /tmp/hopper-vendor/jsqr/package/dist/jsQR.js hopperlink-pixelstream/adaptive/vendor/
+          cp /tmp/hopper-vendor/jsqr/package/LICENSE hopperlink-pixelstream/adaptive/vendor/jsQR-LICENSE
+          cd hopperlink-pixelstream/adaptive/vendor
+          printf '%s\n' 'bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859  jsQR.js' '18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780  qrcode.js' 'c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08  jsQR-LICENSE' 'e2e665eb157725a8543c37951b064f58c564eb38f8507bf34309c39f58db6003  qrcode-README.md' > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Validate real core and adaptive modules
+        run: |
+          for f in hopperlink-pixelstream/adaptive/*.js; do node --check "$f"; done
+          node --test hopperlink-pixelstream/tests/core.test.mjs hopperlink-pixelstream/adaptive/tests/adaptive.test.mjs
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install --with-deps chromium
+      - name: Test negotiated optics and acoustic PCM through real browser APIs
+        run: python hopperlink-pixelstream/adaptive/tests/browser.py
+      - name: Commit verified local dependencies on the feature branch only
+        if: success() && github.ref == 'refs/heads/hopper-adaptive-calibration'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add hopperlink-pixelstream/adaptive/vendor
+          if ! git diff --cached --quiet; then
+            git commit -m 'Vendor checksum-verified offline QR assets after adaptive browser validation'
+            git push origin HEAD:hopper-adaptive-calibration
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hopper-adaptive-browser-proof
+          path: adaptive-proof/
+          if-no-files-found: ignore

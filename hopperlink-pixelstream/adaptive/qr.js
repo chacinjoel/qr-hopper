@@ -1,0 +1,12 @@
+import {encodeReport,decodeReport} from './protocol.js';
+export function reportQR(canvas,report){
+ if(!globalThis.qrcode)throw Error('No se cargó el generador QR local. Usa el código de texto.');
+ const compact={sid:report.sid,catalog:report.catalog,epoch:report.epoch,chosen:report.chosen,fallback:report.fallback,fingerprint:report.fingerprint};
+ const text=encodeReport(compact),qr=globalThis.qrcode(0,'M');qr.addData(text,'Byte');qr.make();const cells=qr.getModuleCount(),scale=8;canvas.width=canvas.height=(cells+8)*scale;const c=canvas.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,canvas.width,canvas.height);c.fillStyle='#000';for(let y=0;y<cells;y++)for(let x=0;x<cells;x++)if(qr.isDark(y,x))c.fillRect((x+4)*scale,(y+4)*scale,scale,scale);return text;
+}
+export class QRScanner{
+ constructor(video,onReport,onError=()=>{}){this.video=video;this.onReport=onReport;this.onError=onError;this.canvas=document.createElement('canvas');this.ctx=this.canvas.getContext('2d',{willReadFrequently:true});this.stream=null;this.timer=0;this.busy=false;this.generation=0;}
+ async start(sid){this.stop();const generation=this.generation;this.sid=sid;const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'user'},width:{ideal:1280},height:{ideal:720}},audio:false});if(generation!==this.generation){stream.getTracks().forEach(t=>t.stop());return;}this.stream=stream;this.video.srcObject=stream;await this.video.play();this.tick();}
+ async tick(){if(!this.stream)return;try{if(this.video.readyState>=2){const w=Math.min(960,this.video.videoWidth),h=Math.round(w*this.video.videoHeight/this.video.videoWidth);this.canvas.width=w;this.canvas.height=h;this.ctx.drawImage(this.video,0,0,w,h);const image=this.ctx.getImageData(0,0,w,h);let text=null;if(globalThis.jsQR)text=globalThis.jsQR(image.data,w,h,{inversionAttempts:'dontInvert'})?.data;else if(globalThis.BarcodeDetector){this.detector??=new BarcodeDetector({formats:['qr_code']});text=(await this.detector.detect(this.canvas))[0]?.rawValue;}else throw Error('Escáner QR no disponible. Introduce el código de texto.');const report=decodeReport(text,this.sid);if(report){this.stop();this.onReport(report);return;}}}catch(e){this.onError(e);}if(this.stream)this.timer=setTimeout(()=>this.tick(),180);}
+ stop(){this.generation++;clearTimeout(this.timer);this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;this.video.srcObject=null;}
+}
