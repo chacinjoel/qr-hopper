@@ -1,11 +1,12 @@
-import {BUILD,CATALOG_HASH,profile,bootstrap,KIND,controlBytes,readControl,decodeReport,encodeReport,fourOpportunitySchedules} from './protocol.js?v=rxfix1';
-import {render,AdaptiveTracker,stabilizeTrack} from './optics.js?v=rxfix1';
-import {CalibrationSender,CalibrationReceiver} from './calibration.js?v=rxfix1';
-import {SoundChannel} from './audio.js?v=rxfix1';
-import {AUDIO,BANDS,SOUND_SECONDS} from './audio-codec.js?v=rxfix1';
-import {QRScanner,reportQR} from './qr.js?v=rxfix1';
-import {prepareTransfer,DownloadSession,metadataSchedule,duration} from '../src/transfer-metrics.js?v=rxfix1';
-import {buildTransport,buildFrameSchedule,humanBytes} from '../src/superstream.js?v=rxfix1';
+import {acquisitionMessage} from './acquisition.js?v=rxfix2';
+import {BUILD,CATALOG_HASH,profile,bootstrap,KIND,controlBytes,readControl,decodeReport,encodeReport,fourOpportunitySchedules} from './protocol.js?v=rxfix2';
+import {render,AdaptiveTracker,stabilizeTrack} from './optics.js?v=rxfix2';
+import {CalibrationSender,CalibrationReceiver} from './calibration.js?v=rxfix2';
+import {SoundChannel} from './audio.js?v=rxfix2';
+import {AUDIO,BANDS,SOUND_SECONDS} from './audio-codec.js?v=rxfix2';
+import {QRScanner,reportQR} from './qr.js?v=rxfix2';
+import {prepareTransfer,DownloadSession,metadataSchedule,duration} from '../src/transfer-metrics.js?v=rxfix2';
+import {buildTransport,buildFrameSchedule,humanBytes} from '../src/superstream.js?v=rxfix2';
 const $=id=>document.getElementById(id),text=(id,s)=>{$(id).textContent=String(s);},rate=n=>humanBytes(n)+'/s';
 const log=s=>{text('diagnostics',new Date().toLocaleTimeString()+' '+s+'\n'+$('diagnostics').textContent.slice(0,14000));};
 const failures=[],events=[],results=[];
@@ -136,16 +137,17 @@ async function sendComplete(force=false){if(!download.verified||rxClosed||rxAudi
  await sound.send({type:AUDIO.COMPLETE,sid:rxSid,seq:receiver.report.epoch,arg0:rxProfile,arg1:parseInt(download.meta.sha256.slice(0,8),16)>>>0,band:rxAudio});}
 $('repeatAckBtn').onclick=()=>sendComplete(true);
 async function requestRepair(){if(sound.busy||rxAudio<0||!$('rxSound').checked||performance.now()-lastSlow<7000)return;const p=download.progress(),m=download.nextMissing();if(!m)return;lastSlow=performance.now();await sound.send({type:AUDIO.STATUS,band:rxAudio,sid:rxSid,seq:receiver.report.epoch,arg0:p.pendingGroups>3?65535:m.group,token:m.mask,arg1:rxToken});}
-function quality(q){lastQuality=q;const stats=q.stats||{};text('lockState','Área: '+Math.round(q.lock*100)+'%');text('motionState','Movimiento: '+(stats.motion||0).toFixed(2)+' celdas / captura');
+function quality(q){lastQuality=q;const stats=q.stats||{};text('lockState',q.lock>.45?'Área detectada · 4/4 balizas':'Área: '+Math.round(q.lock*100)+'%');text('motionState','Movimiento: '+(stats.motion||0).toFixed(2)+' celdas / captura');
  if(q.error){text('captureState','Error de procesamiento: '+q.error);if(failures.at(-1)!==q.error){failures.push(q.error);note('Cámara: '+q.error);}}
- else text('captureState','Capturas '+(stats.capture||0)+' · cabeceras '+(stats.headers||0)+' · CRC válidos '+(stats.valid||0)+' · '+(q.lock>0?'área localizada':'buscando las 4 balizas'));
+ else text('captureState',acquisitionMessage({lock:q.lock,beacons:stats.beacons,headers:stats.headers,lastPacketAge:q.lastPacketAge,stalled:q.stalled})+'\nCapturas '+(stats.capture||0)+' · cabeceras '+(stats.headers||0)+' · CRC válidos '+(stats.valid||0));
+ if(!receiver.sid&&q.lock>.45&&!q.error)text('rxCalState','Pantalla localizada. Pulsa Calibrar enlace en el emisor; las cuatro balizas solas todavía no contienen datos.');
 
  if(!stabilized&&q.lock>.8&&receiver.sid){stabilized=true;stabilizeTrack(media.getVideoTracks()[0]).then(r=>note(r.locked?'Ajustes de cámara fijados en valores observados.':r.note));}
  if(rxActive&&rxSid&&!download.verified&&rxAudio>=0&&$('rxSound').checked&&!sound.busy&&performance.now()-lastSlow>15000){const now=performance.now();if(!lastCheckpoint){lastCheckpoint={t:now,...stats};return;}if(now-lastCheckpoint.t>4500){const h=stats.headers-lastCheckpoint.headers,bad=stats.crcFailed-lastCheckpoint.crcFailed;if(h>8&&bad/h>.32){lastSlow=now;sound.send({type:AUDIO.SLOW,sid:rxSid,band:rxAudio,seq:receiver.report.epoch,arg1:rxToken}).catch(error);}lastCheckpoint={t:now,...stats};}}
 }
 let cameraBusy=false;
 $('cameraBtn').onclick=async()=>{if(cameraBusy)return;cameraBusy=true;$('cameraBtn').disabled=true;try{
- if(media){tracker?.stop();media.getTracks().forEach(t=>t.stop());media=null;rxActive=false;rxAudio=-1;sound.cancel();text('cameraBtn','Iniciar cámara y sonido');return;}
+ if(media){tracker?.stop();media.getTracks().forEach(t=>t.stop());media=null;rxActive=false;rxAudio=-1;sound.cancel();tracker?.resetAcquisition();text('captureState','Cámara apagada.');text('lockState','Área: no detectada');text('cameraBtn','Iniciar cámara y sonido');return;}
  if(tx?.running||cal&&!cal.ended)throw Error('Detén la emisión antes de recibir en este teléfono.');
  if($('rxSound').checked){try{await sound.enable();}catch(e){$('rxSound').checked=false;note('Se usará QR: '+e.message);}}
  media=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:60}},audio:false});$('rxVideo').srcObject=media;await $('rxVideo').play();$('cameraStage').style.aspectRatio=$('rxVideo').videoWidth+'/'+$('rxVideo').videoHeight;

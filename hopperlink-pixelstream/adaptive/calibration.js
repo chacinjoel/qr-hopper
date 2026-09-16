@@ -1,8 +1,8 @@
-import {buildTransport,buildFrameSchedule} from '../src/superstream.js?v=rxfix1';
-import {recoverData} from '../src/gf256.js?v=rxfix1';
-import {crc32} from '../src/crc32.js?v=rxfix1';
-import {CATALOG_HASH,profile,randomBytes,trialSeed} from './protocol.js?v=rxfix1';
-import {AUDIO} from './audio-codec.js?v=rxfix1';
+import {buildTransport,buildFrameSchedule} from '../src/superstream.js?v=rxfix2';
+import {recoverData} from '../src/gf256.js?v=rxfix2';
+import {crc32} from '../src/crc32.js?v=rxfix2';
+import {CATALOG_HASH,profile,randomBytes,trialSeed} from './protocol.js?v=rxfix2';
+import {AUDIO} from './audio-codec.js?v=rxfix2';
 export const PLANS={quick:[9,1,2,4],full:[9,1,2,3,4,5,6,7,8,10]};
 export function createTrial(sid,pid,round,groups=3){const p=profile(pid),source=randomBytes(p.payloadBytes*p.k*groups-7,trialSeed(sid,pid,round)),transport=buildTransport(source,p);return {p,source,transport,schedule:buildFrameSchedule(transport,{pass:round})};}
 function lowerBound(success,total){if(!total)return 0;const z=1.645,f=success/total,den=1+z*z/total;return(f+z*z/(2*total)-z*Math.sqrt(f*(1-f)/total+z*z/(4*total*total)))/den;}

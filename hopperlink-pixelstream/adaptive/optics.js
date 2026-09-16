@@ -1,6 +1,7 @@
-import {CameraTracker as LegacyTracker} from '../src/receiver2.js?v=rxfix1';
-import {crc32} from '../src/crc32.js?v=rxfix1';
-import {PROFILES,bootstrap,profile,PALETTES,rgb,headerBytes,parseHeader,HEADER_BYTES,finderCenters,KIND,readControl} from './protocol.js?v=rxfix1';
+import {centreSpot,videoFrameKey} from './acquisition.js?v=rxfix2';
+import {CameraTracker as LegacyTracker} from '../src/receiver2.js?v=rxfix2';
+import {crc32} from '../src/crc32.js?v=rxfix2';
+import {PROFILES,bootstrap,profile,PALETTES,rgb,headerBytes,parseHeader,HEADER_BYTES,finderCenters,KIND,readControl} from './protocol.js?v=rxfix2';
 
 const COLORS=['#ff00ff','#00ffff','#ffff00','#00ff00'];
 const renderVisits=new WeakMap();
@@ -39,45 +40,49 @@ const lum=c=>.2126*c[0]+.7152*c[1]+.0722*c[2];
 const bitsToBytes=bits=>{const out=new Uint8Array(Math.floor(bits.length/8));bits.forEach((b,i)=>{if(i<out.length*8)out[i>>3]|=b<<(7-i%8);});return out;};
 
 export class AdaptiveTracker extends LegacyTracker{
- constructor(video,overlay,onQuality,onFrame){super(video,overlay,onQuality,onFrame);this.visibleQuad=null;this.rawQuad=null;this.lastSeen=0;this.lastMedia=-1;this.lastProfile=0;this.expectedProfile=null;this.globalAt=0;this.counter=0;this.partial=new Map();this.headerMisses=0;this.lastHeaderAt=-Infinity;this.lastCallbackAt=0;this.watchdog=0;this.stats={capture:0,headers:0,valid:0,crcFailed:0,motion:0,processMs:0,globalScan:0,localTrack:0,sectorsValid:0,sectorsFailed:0,sectorAssemblies:0,headerMisses:0,coarseFallbacks:0,profileReacquires:0,callbackFallbacks:0};this.detectCanvas=document.createElement('canvas');this.detectCtx=this.detectCanvas.getContext('2d',{willReadFrequently:true});}
+ constructor(video,overlay,onQuality,onFrame){super(video,overlay,onQuality,onFrame);this.visibleQuad=null;this.rawQuad=null;this.lastSeen=0;this.lastMedia=-1;this.lastProfile=0;this.expectedProfile=null;this.globalAt=0;this.counter=0;this.partial=new Map();this.headerMisses=0;this.lastHeaderAt=-Infinity;this.lastCallbackAt=0;this.lastProcessedAt=0;this.lastFrameKey=null;this.watchdog=0;this.stats={capture:0,headers:0,valid:0,crcFailed:0,motion:0,processMs:0,globalScan:0,localTrack:0,sectorsValid:0,sectorsFailed:0,sectorAssemblies:0,headerMisses:0,coarseFallbacks:0,profileReacquires:0,callbackFallbacks:0,beacons:0,centreRefinements:0,videoStalled:false};this.detectCanvas=document.createElement('canvas');this.detectCtx=this.detectCanvas.getContext('2d',{willReadFrequently:true});}
  setExpectedProfile(id){this.expectedProfile=Number.isInteger(id)&&PROFILES[id]?id:null;}
  start(){
-  if(this.running)return;this.running=true;this.lastMedia=-1;this.lastCallbackAt=performance.now();this.schedule();
+  if(this.running)return;this.running=true;this.lastMedia=-1;this.lastFrameKey=null;this.lastCallbackAt=performance.now();this.lastProcessedAt=this.lastCallbackAt;this.schedule();
   // Some video pipelines can stop delivering callbacks while currentTime advances.
   // Never process a duplicate timestamp or fake camera input to hide that failure.
-  this.watchdog=setInterval(()=>{if(this.running&&!document.hidden&&performance.now()-this.lastCallbackAt>750){
-   this.stats.callbackFallbacks++;this.tick(performance.now(),this.video.currentTime);
+  this.watchdog=setInterval(()=>{if(this.running&&!document.hidden&&performance.now()-this.lastProcessedAt>750){
+   this.stats.callbackFallbacks++;this.tick(performance.now(),this.video.currentTime,videoFrameKey(this.video));
+   if(performance.now()-this.lastProcessedAt>1600){this.stats.videoStalled=true;this.rawQuad=null;this.visibleQuad=null;this.draw(null,0);this.onQuality?.({lock:0,stats:{...this.stats},stalled:true});}
   }},250);
  }
  stop(){this.running=false;clearInterval(this.watchdog);this.watchdog=0;cancelAnimationFrame(this.raf);if(this.video.cancelVideoFrameCallback&&this.vfc)this.video.cancelVideoFrameCallback(this.vfc);this.vfc=0;}
  schedule(){
   if(!this.running)return;
-  const next=(now,meta)=>{this.lastCallbackAt=now;try{this.tick(now,Number.isFinite(meta?.mediaTime)?meta.mediaTime:this.video.currentTime);}finally{this.schedule();}};
+  const next=(now,meta)=>{this.lastCallbackAt=now;try{this.tick(now,Number.isFinite(meta?.mediaTime)?meta.mediaTime:this.video.currentTime,videoFrameKey(this.video,meta));}finally{this.schedule();}};
   if(this.video.requestVideoFrameCallback)this.vfc=this.video.requestVideoFrameCallback(next);
   else this.raf=requestAnimationFrame(now=>next(now));
  }
- resetAcquisition(){this.rawQuad=null;this.visibleQuad=null;this.lastSeen=0;this.expectedProfile=null;this.lastProfile=0;this.lastHeaderAt=-Infinity;this.headerMisses=0;this.partial.clear();}
- tick(now,mediaTime){
-  if(!this.running||this.video.readyState<2||!Number.isFinite(mediaTime)||mediaTime===this.lastMedia||document.hidden)return;this.lastMedia=mediaTime;
+ resetAcquisition(){this.rawQuad=null;this.visibleQuad=null;this.lastSeen=0;this.expectedProfile=null;this.lastProfile=0;this.lastHeaderAt=-Infinity;this.headerMisses=0;this.lastFrameKey=null;this.lastMedia=-1;this.partial.clear();}
+ tick(now,mediaTime,frameKey=null){
+  const key=frameKey??(Number.isFinite(mediaTime)?`time:${mediaTime}`:null);
+  if(!this.running||this.video.readyState<2||key===null||key===this.lastFrameKey||document.hidden)return;this.lastFrameKey=key;this.lastMedia=mediaTime;
   try{const began=performance.now(),sw=this.video.videoWidth,sh=this.video.videoHeight;if(!sw||!sh)return;
    const p=this.expectedProfile!==null?profile(this.expectedProfile):profile(this.lastProfile),target=Math.max(1280,Math.min(1920,p.cols*10)),W=Math.min(target,sw),H=Math.round(W*sh/sw);if(this.work.width!==W||this.work.height!==H){this.work.width=W;this.work.height=H;this.rawQuad=null;this.visibleQuad=null;}
-   this.ctx.drawImage(this.video,0,0,W,H);const img=this.ctx.getImageData(0,0,W,H);this.counter++;let current=null,coarse=null;
+   this.ctx.drawImage(this.video,0,0,W,H);const img=this.ctx.getImageData(0,0,W,H);this.lastProcessedAt=performance.now();this.stats.videoStalled=false;this.counter++;let current=null,coarse=null;
    if(this.rawQuad&&now-this.lastSeen<500&&this.counter%8!==0&&now-this.lastHeaderAt<400){const local=this.refine(img.data,W,H,this.rawQuad);if(local&&this.geometryScore(local,W,H)>.45){current=local;this.stats.localTrack++;}}
    if(!current){const dw=Math.min(720,W),dh=Math.round(dw*H/W);if(this.detectCanvas.width!==dw||this.detectCanvas.height!==dh){this.detectCanvas.width=dw;this.detectCanvas.height=dh;}this.detectCtx.drawImage(this.work,0,0,dw,dh);const low=this.detectCtx.getImageData(0,0,dw,dh),expected=now-this.lastHeaderAt<400?this.rawQuad?.map(q=>({x:q.x*dw/W,y:q.y*dh/H})):null,found=this.detectBeacons(low.data,dw,dh,expected);this.stats.globalScan++;if(found){coarse=found.quad.map(q=>({x:q.x*W/dw,y:q.y*H/dh}));current=this.refine(img.data,W,H,coarse);
     // A fine-search failure must not erase the globally validated Lighthouse.
     if(!current){current=coarse;this.stats.coarseFallbacks++;}}}
    if(current){const old=this.rawQuad;if(old){const pitch=Math.max(1,Math.hypot(current[1].x-current[0].x,current[1].y-current[0].y)/(p.cols-18));this.stats.motion=current.reduce((s,q,i)=>s+Math.hypot(q.x-old[i].x,q.y-old[i].y),0)/4/pitch;}this.rawQuad=current;this.lastSeen=now;this.visibleQuad=this.smooth(this.visibleQuad,current,.4);}else if(now-this.lastSeen>250){this.rawQuad=null;this.visibleQuad=null;}
-   this.stats.capture++;const lock=current?this.geometryScore(current,W,H):0;this.draw(this.visibleQuad,lock);if(current){let decoded=this.decodeAdaptive(img.data,W,H,current);
+   this.stats.capture++;this.stats.beacons=current?4:0;const lock=current?this.geometryScore(current,W,H):0;this.draw(this.visibleQuad,lock);if(current){let decoded=this.decodeAdaptive(img.data,W,H,current);
     // Refinement can be biased by payload colours or a profile transition. Try
     // the stable acquisition centres too; CRC still gates every returned packet.
     if(!decoded&&coarse&&current!==coarse)decoded=this.decodeAdaptive(img.data,W,H,coarse);
     if(decoded){this.lastHeaderAt=now;this.onFrame?.(decoded);}
-   }this.stats.processMs=performance.now()-began;this.onQuality?.({lock,quad:current,stats:{...this.stats}});
+   }this.stats.processMs=performance.now()-began;this.onQuality?.({lock,quad:current,lastPacketAge:now-this.lastHeaderAt,stats:{...this.stats}});
   }catch(e){this.onQuality?.({lock:0,error:e.message,stats:{...this.stats}});}
  }
  refine(data,W,H,q){
   const top=Math.hypot(q[1].x-q[0].x,q[1].y-q[0].y),left=Math.hypot(q[3].x-q[0].x,q[3].y-q[0].y),active=Number.isInteger(this.expectedProfile)&&PROFILES[this.expectedProfile]?profile(this.expectedProfile):profile(this.lastProfile||0),pitch=Math.max(1,(top/Math.max(1,active.cols-18)+left/Math.max(1,active.rows-18))/2),radius=Math.max(7,pitch*(active.finder/2+1)),out=[];
-  for(let i=0;i<q.length;i++){const c=q[i];let sx=0,sy=0,n=0;for(let y=Math.max(0,Math.floor(c.y-radius));y<Math.min(H,c.y+radius);y++)for(let x=Math.max(0,Math.floor(c.x-radius));x<Math.min(W,c.x+radius);x++){const o=(y*W+x)*4,r=data[o],g=data[o+1],b=data[o+2],s=i===0?Math.min(r,b)-g:i===1?Math.min(g,b)-r:i===2?Math.min(r,g)-b:g-Math.max(r,b);if(s>72&&Math.max(r,g,b)>115){const w=s-71;sx+=x*w;sy+=y*w;n+=w;}}if(!n)return null;out.push({x:sx/n,y:sy/n});}return out;
+  for(let i=0;i<q.length;i++){const c=q[i],spot=centreSpot(data,W,H,c,pitch);
+   if(spot){out.push(spot);this.stats.centreRefinements=(this.stats.centreRefinements||0)+1;continue;}
+   let sx=0,sy=0,n=0;for(let y=Math.max(0,Math.floor(c.y-radius));y<Math.min(H,c.y+radius);y++)for(let x=Math.max(0,Math.floor(c.x-radius));x<Math.min(W,c.x+radius);x++){const o=(y*W+x)*4,r=data[o],g=data[o+1],b=data[o+2],s=i===0?Math.min(r,b)-g:i===1?Math.min(g,b)-r:i===2?Math.min(r,g)-b:g-Math.max(r,b);if(s>72&&Math.max(r,g,b)>115){const w=s-71;sx+=x*w;sy+=y*w;n+=w;}}if(!n)return null;out.push({x:sx/n,y:sy/n});}return out;
  }
  decodeAdaptive(data,W,H,quad){
   const locked=Number.isInteger(this.expectedProfile)&&!!PROFILES[this.expectedProfile],preferred=locked?this.expectedProfile:(this.lastProfile||0);
