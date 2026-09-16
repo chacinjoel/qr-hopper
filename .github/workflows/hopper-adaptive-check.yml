@@ -1,7 +1,7 @@
 name: Hopper adaptive paired-browser validation
 on:
   push:
-    branches: [hopper-adaptive-calibration, main]
+    branches: [hopper-adaptive-calibration, hopper-throughput-v2, main]
     paths: ['hopperlink-pixelstream/**', '.github/workflows/hopper-adaptive-check.yml']
   workflow_dispatch:
 permissions:
