@@ -24,7 +24,7 @@ with sync_playwright() as pw:
           const {bootstrap,controlBytes,profile}=await import('./adaptive/protocol.js?v=rxfix1');
           const {createTrial}=await import('./adaptive/calibration.js?v=rxfix1');
           const src=document.createElement('canvas'),scene=document.createElement('canvas');scene.width=720;scene.height=1280;
-          const ctx=scene.getContext('2d',{willReadFrequently:true}),video=scene.captureStream(20);
+          const ctx=scene.getContext('2d',{willReadFrequently:true});let video=scene.captureStream(20);
           let image={kind:2,payload:controlBytes({op:'trial',sid:141,epoch:1,serial:2,pid:1,round:0,audio:-1})},p=bootstrap,seq=0,total=1,length=1;
           let state={angle:0,x:0,y:0,gain:1,offset:0,blank:false};
           window.paintTest=changes=>{
@@ -36,7 +36,7 @@ with sync_playwright() as pw:
           window.testProfile=pid=>{const t=createTrial(141,pid,0);p=t.p;image={...t.transport.frames[0],kind:3,round:0};total=t.transport.frames.length;length=t.transport.streamLength;paintTest({gain:1,offset:0,angle:0,blank:false});};
           window.foreignVersion=()=>{p=bootstrap;image={kind:2,payload:new TextEncoder().encode(JSON.stringify({op:'hello',sid:141,catalog:123}))};total=1;length=1;paintTest({gain:1,offset:0,angle:0,blank:false});};
           window.sceneClock=setInterval(()=>paintTest({}),70);paintTest({});
-          Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async c=>{if(c.video)return video;throw Error('No microphone expected');},configurable:true});
+          Object.defineProperty(navigator.mediaDevices,'getUserMedia',{value:async c=>{if(c.video){if(video.getVideoTracks()[0].readyState==='ended')video=scene.captureStream(20);return video;}throw Error('No microphone expected');},configurable:true});
         }''')
         page.locator('[data-tab=receive]').click();page.locator('#rxSound').uncheck();page.locator('#cameraBtn').click()
         page.wait_for_function('hopperAdaptive.receiver.sid===141 && hopperAdaptive.tracker.stats.valid>0',timeout=12000)
