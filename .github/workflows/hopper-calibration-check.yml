@@ -25,7 +25,7 @@ jobs:
           cp node_modules/jsqr/dist/jsQR.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/jsQR.js"
           cp node_modules/jsqr/LICENSE "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/jsQR.LICENSE"
           cp node_modules/qrcode-generator/qrcode.js "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.js"
-          cp node_modules/qrcode-generator/LICENSE "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode.LICENSE"
+          cp -R node_modules/qrcode-generator "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qrcode-package"
           cp package-lock.json "$GITHUB_WORKSPACE/hopperlink-pixelstream/vendor/qr-package-lock.json"
       - name: Core regression tests
         run: node --test hopperlink-pixelstream/tests/core.test.mjs
