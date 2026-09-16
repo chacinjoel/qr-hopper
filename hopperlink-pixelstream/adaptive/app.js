@@ -1,11 +1,11 @@
-import {BUILD,CATALOG_HASH,profile,bootstrap,KIND,controlBytes,readControl,decodeReport,encodeReport,fourOpportunitySchedules} from './protocol.js';
-import {render,AdaptiveTracker,stabilizeTrack} from './optics.js';
-import {CalibrationSender,CalibrationReceiver} from './calibration.js';
-import {SoundChannel} from './audio.js';
-import {AUDIO,BANDS,SOUND_SECONDS} from './audio-codec.js';
-import {QRScanner,reportQR} from './qr.js';
-import {prepareTransfer,DownloadSession,metadataSchedule,duration} from '../src/transfer-metrics.js';
-import {buildTransport,buildFrameSchedule,humanBytes} from '../src/superstream.js';
+import {BUILD,CATALOG_HASH,profile,bootstrap,KIND,controlBytes,readControl,decodeReport,encodeReport,fourOpportunitySchedules} from './protocol.js?v=rxfix1';
+import {render,AdaptiveTracker,stabilizeTrack} from './optics.js?v=rxfix1';
+import {CalibrationSender,CalibrationReceiver} from './calibration.js?v=rxfix1';
+import {SoundChannel} from './audio.js?v=rxfix1';
+import {AUDIO,BANDS,SOUND_SECONDS} from './audio-codec.js?v=rxfix1';
+import {QRScanner,reportQR} from './qr.js?v=rxfix1';
+import {prepareTransfer,DownloadSession,metadataSchedule,duration} from '../src/transfer-metrics.js?v=rxfix1';
+import {buildTransport,buildFrameSchedule,humanBytes} from '../src/superstream.js?v=rxfix1';
 const $=id=>document.getElementById(id),text=(id,s)=>{$(id).textContent=String(s);},rate=n=>humanBytes(n)+'/s';
 const log=s=>{text('diagnostics',new Date().toLocaleTimeString()+' '+s+'\n'+$('diagnostics').textContent.slice(0,14000));};
 const failures=[],events=[],results=[];
@@ -54,6 +54,7 @@ function senderEvent(e){
  }
 }
 async function receiverEvent(e){try{
+ if(e.type==='session-acquired')note(e.late?'Sesión recuperada después del anuncio inicial.':'Anuncio de sesión recibido.');
  if(e.type==='play-training'){if($('rxSound').checked)await sound.send(e.packet);else text('rxCalState','Sonido desactivado. El informe se intercambiará por QR.');}
  if(e.type==='trial'){text('rxCalState',(e.round===0?'Exploración':e.round===1?'Validación con datos nuevos':'Comprobación final')+' · '+profile(e.id).name);}
  if(e.type==='result'){results.push(e.result);const tr=document.createElement('tr');for(const v of [profile(e.result.id).name,e.result.round,e.result.valid+'/'+e.result.expected,e.result.groups+'/'+e.result.totalGroups,rate(e.result.rate),e.result.pass?'Superada':'No apta']){const td=document.createElement('td');td.textContent=v;tr.append(td);}$('probeTable').tBodies[0].append(tr);note('Prueba '+e.result.id+' ronda '+e.result.round+': '+e.result.valid+'/'+e.result.expected+' · '+rate(e.result.rate));}
@@ -110,7 +111,12 @@ function stopEverything(message='Detenido por el usuario.'){
 }
 $('cancelBtn').onclick=()=>stopEverything();$('exitSurfaceBtn').onclick=()=>stopEverything();
 async function onFrame(d){
- if(d.header.kind===KIND.CONTROL){const c=readControl(d);if(!c)return;
+ if(d.header.kind===KIND.CONTROL){const c=readControl(d);if(!c){
+  try{const raw=JSON.parse(new TextDecoder().decode(d.payload));if(d.crcOK&&raw.catalog!==CATALOG_HASH){
+   text('rxCalState','Versiones diferentes: recarga HopperLink en AMBOS teléfonos. Área detectada, pero el protocolo no coincide.');
+   text('captureState','Control recibido de otra versión. No se mezclan los archivos.');
+  }}catch{}return;
+ }
   if(['hello','audio','trial','endtrial','summary','reacquire','offer'].includes(c.op)){if(rxActive&&download.streamLength&&!download.verified&&rxSid!==c.sid)return;receiver.control(c,performance.now());return;}
   if(c.op==='begin'){
    if(!receiver.report||c.sid!==receiver.sid||c.pid!==receiver.report.chosen||c.fingerprint!==receiver.report.fingerprint||!profile(c.pid))return;
@@ -131,7 +137,9 @@ async function sendComplete(force=false){if(!download.verified||rxClosed||rxAudi
 $('repeatAckBtn').onclick=()=>sendComplete(true);
 async function requestRepair(){if(sound.busy||rxAudio<0||!$('rxSound').checked||performance.now()-lastSlow<7000)return;const p=download.progress(),m=download.nextMissing();if(!m)return;lastSlow=performance.now();await sound.send({type:AUDIO.STATUS,band:rxAudio,sid:rxSid,seq:receiver.report.epoch,arg0:p.pendingGroups>3?65535:m.group,token:m.mask,arg1:rxToken});}
 function quality(q){lastQuality=q;const stats=q.stats||{};text('lockState','Área: '+Math.round(q.lock*100)+'%');text('motionState','Movimiento: '+(stats.motion||0).toFixed(2)+' celdas / captura');
- if(q.error)note('Cámara: '+q.error);
+ if(q.error){text('captureState','Error de procesamiento: '+q.error);if(failures.at(-1)!==q.error){failures.push(q.error);note('Cámara: '+q.error);}}
+ else text('captureState','Capturas '+(stats.capture||0)+' · cabeceras '+(stats.headers||0)+' · CRC válidos '+(stats.valid||0)+' · '+(q.lock>0?'área localizada':'buscando las 4 balizas'));
+
  if(!stabilized&&q.lock>.8&&receiver.sid){stabilized=true;stabilizeTrack(media.getVideoTracks()[0]).then(r=>note(r.locked?'Ajustes de cámara fijados en valores observados.':r.note));}
  if(rxActive&&rxSid&&!download.verified&&rxAudio>=0&&$('rxSound').checked&&!sound.busy&&performance.now()-lastSlow>15000){const now=performance.now();if(!lastCheckpoint){lastCheckpoint={t:now,...stats};return;}if(now-lastCheckpoint.t>4500){const h=stats.headers-lastCheckpoint.headers,bad=stats.crcFailed-lastCheckpoint.crcFailed;if(h>8&&bad/h>.32){lastSlow=now;sound.send({type:AUDIO.SLOW,sid:rxSid,band:rxAudio,seq:receiver.report.epoch,arg1:rxToken}).catch(error);}lastCheckpoint={t:now,...stats};}}
 }
@@ -144,7 +152,7 @@ $('cameraBtn').onclick=async()=>{if(cameraBusy)return;cameraBusy=true;$('cameraB
  tracker=new AdaptiveTracker($('rxVideo'),$('rxOverlay'),quality,onFrame);tracker.start();rxActive=true;stabilized=false;text('cameraBtn','Apagar cámara');text('rxCalState','Listo para pruebas. Inicia Calibrar enlace en el emisor.');
  }catch(e){media?.getTracks().forEach(t=>t.stop());media=null;error(e);}finally{cameraBusy=false;$('cameraBtn').disabled=false;}};
 $('rxSound').onchange=async()=>{if(!$('rxSound').checked){sound.cancel();return;}try{await sound.enable();}catch(e){$('rxSound').checked=false;error(e);}};
-$('resetRxBtn').onclick=()=>{rxEpoch++;sound.cancel();download.reset();receiver.reset();rxSid=0;rxProfile=null;rxClosed=false;verifyBusy=false;stabilized=false;rxActive=!!media;if(url)URL.revokeObjectURL(url);url=null;$('receivedFile').replaceChildren();$('receivedFile').classList.add('hidden');$('repeatAckBtn').hidden=true;$('showReportBtn').hidden=true;text('rxCalState','Nueva recepción. Esperando calibración.');};
+$('resetRxBtn').onclick=()=>{rxEpoch++;sound.cancel();download.reset();receiver.reset();tracker?.resetAcquisition();rxSid=0;rxProfile=null;rxClosed=false;verifyBusy=false;stabilized=false;rxActive=!!media;if(url)URL.revokeObjectURL(url);url=null;$('receivedFile').replaceChildren();$('receivedFile').classList.add('hidden');$('repeatAckBtn').hidden=true;$('showReportBtn').hidden=true;text('rxCalState','Nueva recepción. Esperando calibración.');text('captureState','Detector reiniciado; los permisos se conservan.');};
 function refresh(){const m=download.metrics();text('downloadName',m.name);text('downloadPercent',m.percent.toFixed(1)+'%');text('downloadSpeed',rate(m.speed));text('downloadAverage',rate(m.average));text('downloadElapsed',duration(m.elapsed));text('downloadEta',m.eta===null?(m.stalled?'Esperando bloques…':'Calculando…'):duration(m.eta));text('downloadSizes',m.total?humanBytes(m.bytes)+' / '+humanBytes(m.total)+' del flujo · original '+humanBytes(m.originalSize||0):'Esperando metadatos del archivo.');
  $('downloadFill').style.width=m.percent+'%';$('downloadBar').setAttribute('aria-valuenow',m.percent.toFixed(1));text('downloadState',m.verified?'Archivo completo · SHA-256 OK'+(rxClosed?' · cierre confirmado':''):m.failure?'Error: '+m.failure:m.awaitingVerification?'Verificando integridad…':m.stalled?'Esperando bloques; el progreso se conserva.':m.total?'Recibiendo datos únicos.':'Esperando datos.');const p=download.progress();text('rxCounters','Bloques '+p.have+'/'+p.total+' · pendientes '+p.missing+' · FEC '+p.recovered);
  if(download.verified)sendComplete().catch(error);if(tx){const elapsed=((tx.ended??performance.now())-tx.started)/1000;text('txElapsed',duration(elapsed));text('txRate',rate(tx.bytes/Math.max(.001,elapsed)));}}
@@ -154,5 +162,5 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){sound.canc
 window.addEventListener('pagehide',()=>{clearInterval(refreshTimer);cancelAnimationFrame(calRaf);cancelAnimationFrame(txRaf);sound.close();tracker?.stop();qrScanner.stop();media?.getTracks().forEach(t=>t.stop());});
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
 // Explicit diagnostic hooks: same production classes, no fake received state.
-window.hopperAdaptive={get sender(){return cal;},get receiver(){return receiver;},get download(){return download;},get tx(){return tx;},sound,profile,receiverEvent,onAudio};
+window.hopperAdaptive={get sender(){return cal;},get receiver(){return receiver;},get download(){return download;},get tx(){return tx;},get tracker(){return tracker;},sound,profile,receiverEvent,onAudio};
 render($('txCanvas'),null,bootstrap,0);refresh();window.__hopperBootOK=true;

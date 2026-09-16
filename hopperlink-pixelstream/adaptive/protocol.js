@@ -1,8 +1,8 @@
-import {crc32} from '../src/crc32.js';
-import {buildFrameSchedule} from '../src/superstream.js';
-import {gridSpec, finderCenters} from '../src/optical2.js';
+import {crc32} from '../src/crc32.js?v=rxfix1';
+import {buildFrameSchedule} from '../src/superstream.js?v=rxfix1';
+import {gridSpec, finderCenters} from '../src/optical2.js?v=rxfix1';
 
-export const BUILD='adaptive-2.0.0-throughput';
+export const BUILD='adaptive-2.0.1-rxfix1';
 export const MAGIC=0x48415031;
 export const HEADER_BYTES=40;
 export const KIND={DATA:0,PARITY:1,CONTROL:2,PROBE:3};

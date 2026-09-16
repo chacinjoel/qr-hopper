@@ -1,8 +1,8 @@
-import {buildTransport,buildFrameSchedule} from '../src/superstream.js';
-import {recoverData} from '../src/gf256.js';
-import {crc32} from '../src/crc32.js';
-import {CATALOG_HASH,profile,randomBytes,trialSeed} from './protocol.js';
-import {AUDIO} from './audio-codec.js';
+import {buildTransport,buildFrameSchedule} from '../src/superstream.js?v=rxfix1';
+import {recoverData} from '../src/gf256.js?v=rxfix1';
+import {crc32} from '../src/crc32.js?v=rxfix1';
+import {CATALOG_HASH,profile,randomBytes,trialSeed} from './protocol.js?v=rxfix1';
+import {AUDIO} from './audio-codec.js?v=rxfix1';
 export const PLANS={quick:[9,1,2,4],full:[9,1,2,3,4,5,6,7,8,10]};
 export function createTrial(sid,pid,round,groups=3){const p=profile(pid),source=randomBytes(p.payloadBytes*p.k*groups-7,trialSeed(sid,pid,round)),transport=buildTransport(source,p);return {p,source,transport,schedule:buildFrameSchedule(transport,{pass:round})};}
 function lowerBound(success,total){if(!total)return 0;const z=1.645,f=success/total,den=1+z*z/total;return(f+z*z/(2*total)-z*Math.sqrt(f*(1-f)/total+z*z/(4*total*total)))/den;}
@@ -70,7 +70,14 @@ const profileSafe=id=>Number.isInteger(id)&&id>0&&id<11;
 export class CalibrationReceiver{
  constructor(onEvent=()=>{}){this.onEvent=onEvent;this.reset();}
  reset(){this.sid=0;this.epoch=0;this.trial=null;this.results=[];this.report=null;this.audioBand=-1;this.seen=new Set();this.allowNew=true;}
- control(c,now){if(c.op==='hello'&&c.sid!==this.sid){this.reset();this.sid=c.sid;}
+ control(c,now){
+  // The application calls this only for a CRC-valid, matching-catalogue control.
+  // Joining after HELLO (permissions/focus/reacquisition) must not strand sid=0.
+  const joinable=['hello','audio','trial'].includes(c.op);
+  if(c.sid!==this.sid&&joinable&&(c.op==='hello'||!this.sid||c.round===0)){
+   this.reset();this.sid=c.sid;
+   this.onEvent({type:'session-acquired',sid:c.sid,late:c.op!=='hello'});
+  }
   if(c.sid!==this.sid)return false;this.audioBand=c.audio??this.audioBand;const key=c.epoch+':'+c.serial;if(this.seen.has(key))return true;this.seen.add(key);
   if(c.epoch!==this.epoch){this.epoch=c.epoch;this.results=[];this.report=null;}
   if(c.op==='audio')this.onEvent({type:'play-training',packet:{type:AUDIO.TRAIN,sid:c.sid,band:c.band,seq:c.index,arg0:c.band}});

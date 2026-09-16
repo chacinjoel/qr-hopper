@@ -1,4 +1,4 @@
-import {encodeReport,decodeReport} from './protocol.js';
+import {encodeReport,decodeReport} from './protocol.js?v=rxfix1';
 export function reportQR(canvas,report){
  if(!globalThis.qrcode)throw Error('No se cargó el generador QR local. Usa el código de texto.');
  const compact={sid:report.sid,catalog:report.catalog,epoch:report.epoch,chosen:report.chosen,fallback:report.fallback,fingerprint:report.fingerprint};
