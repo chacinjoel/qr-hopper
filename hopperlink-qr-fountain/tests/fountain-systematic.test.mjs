@@ -56,7 +56,7 @@ test('dual Turbo profile doubles physical QR channel budget',()=>{
 test('dual Lighthouse layout keeps two non-overlapping QR regions inside four beacons',()=>{
   const l=layoutForCodes(2);
   assert.equal(l.qrRects.length,2);
-  assert.ok(l.width>l.height);
-  assert.ok(l.qrRects[0].x+l.qrRects[0].w<l.qrRects[1].x);
+  assert.ok(l.height>l.width);
+  assert.ok(l.qrRects[0].y+l.qrRects[0].h<l.qrRects[1].y);
   assert.equal(l.beacons.length,4);
 });
