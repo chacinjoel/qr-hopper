@@ -1,14 +1,15 @@
-export const BUILD='qr-fountain-0.1.1-physical';
+export const BUILD='qr-fountain-0.1.2-safe';
 export const MAGIC=[0x48,0x51,0x46,0x31]; // HQF1
 export const VERSION=1;
 export const HEADER_BYTES=40;
 export const MAX_QR_BYTES=2920;
 export const PROFILES={
-  robust:{key:'robust',label:'Robusto físico · QR v27 · ~1.36 KB',blockLen:1360,fps:20,codes:1,qrVersion:27},
-  balanced:{key:'balanced',label:'Balanceado físico · QR v35 · ~2.16 KB',blockLen:2160,fps:24,codes:1,qrVersion:35},
-  turbo:{key:'turbo',label:'Turbo físico · QR v40 · ~2.86 KB',blockLen:2860,fps:24,codes:1,qrVersion:40},
-  turbo60:{key:'turbo60',label:'Turbo 60 · QR v40 · experimental',blockLen:2860,fps:60,codes:1,qrVersion:40},
-  turbo2:{key:'turbo2',label:'Turbo ×2 · QR v40 · 2 códigos · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40},
+  safe:{key:'safe',label:'Compatibilidad extrema · QR v15 · 8 fps · ECC M · 280 B',blockLen:280,fps:8,codes:1,qrVersion:15,ecLevel:'M'},
+  robust:{key:'robust',label:'Robusto físico · QR v27 · 12 fps · 1.36 KB',blockLen:1360,fps:12,codes:1,qrVersion:27,ecLevel:'L'},
+  balanced:{key:'balanced',label:'Balanceado físico · QR v27 · 20 fps · 1.36 KB',blockLen:1360,fps:20,codes:1,qrVersion:27,ecLevel:'L'},
+  turbo:{key:'turbo',label:'Turbo físico · QR v35 · 20 fps · 2.16 KB',blockLen:2160,fps:20,codes:1,qrVersion:35,ecLevel:'L'},
+  turbo60:{key:'turbo60',label:'Turbo 60 · QR v40 · experimental',blockLen:2860,fps:60,codes:1,qrVersion:40,ecLevel:'L'},
+  turbo2:{key:'turbo2',label:'Turbo ×2 · QR v40 · 2 códigos · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
 };
 
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
@@ -33,5 +34,5 @@ export function parsePacket(bytes){
 }
 
 export function randomSession(){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]||1;}
-export function profileByKey(key){return PROFILES[key]||PROFILES.robust;}
+export function profileByKey(key){return PROFILES[key]||PROFILES.safe;}
 export function nominalRate(p){return p.blockLen*p.fps*p.codes;}
