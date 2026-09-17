@@ -1,8 +1,8 @@
-export const BUILD='qr-fountain-0.3.0-dual';
+export const BUILD='qr-fountain-0.4.0-reference';
 export const MAGIC=[0x48,0x51,0x46,0x31]; // HQF1
 export const VERSION=1;
 export const HEADER_BYTES=40;
-export const MAX_QR_BYTES=2920;
+export const MAX_QR_BYTES=2953;
 export const PROFILES={
   safe:{key:'safe',label:'Compatibilidad extrema · QR v15 · 8 fps · ECC M · 280 B',blockLen:280,fps:8,codes:1,qrVersion:15,ecLevel:'M'},
   robust:{key:'robust',label:'Robusto · QR v27 · 16 fps · 1.36 KB',blockLen:1360,fps:16,codes:1,qrVersion:27,ecLevel:'L'},
@@ -10,6 +10,9 @@ export const PROFILES={
   turbo:{key:'turbo',label:'Turbo · QR v35 · 24 fps · 2.16 KB',blockLen:2160,fps:24,codes:1,qrVersion:35,ecLevel:'L'},
   max:{key:'max',label:'Máximo físico · QR v40 · 24 fps · 2.86 KB',blockLen:2860,fps:24,codes:1,qrVersion:40,ecLevel:'L'},
   max30:{key:'max30',label:'Máximo 30 · QR v40 · 30 fps · experimental',blockLen:2860,fps:30,codes:1,qrVersion:40,ecLevel:'L'},
+  reference:{key:'reference',label:'Referencia externa · QR v40 · 2953 B/frame total · 24 fps',blockLen:2913,fps:24,codes:1,qrVersion:40,ecLevel:'L'},
+  reference60:{key:'reference60',label:'Referencia externa 60 · QR v40 · 2953 B/frame · experimental',blockLen:2913,fps:60,codes:1,qrVersion:40,ecLevel:'L'},
+  referenceDual:{key:'referenceDual',label:'Referencia Dual · 2 QR v40 · 2953 B/frame c/u · 24 fps · experimental',blockLen:2913,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
   dual:{key:'dual',label:'Dual · 2 QR v27 · 24 fps · 1.36 KB c/u',blockLen:1360,fps:24,codes:2,qrVersion:27,ecLevel:'L'},
   dualTurbo:{key:'dualTurbo',label:'Dual Turbo · 2 QR v35 · 24 fps · 2.16 KB c/u',blockLen:2160,fps:24,codes:2,qrVersion:35,ecLevel:'L'},
   dualMax:{key:'dualMax',label:'Dual Máximo · 2 QR v40 · 24 fps · 2.86 KB c/u · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
@@ -32,7 +35,7 @@ export function parsePacket(bytes){
   if(bytes[4]!==VERSION||r16(bytes,6)!==0x51f0)return null;
   if(r32(bytes,36)!==crc32(bytes.subarray(0,36)))return null;
   const session=r32(bytes,8),seq=r32(bytes,12),k=r16(bytes,16),blockLen=r16(bytes,18),totalLen=r32(bytes,20),degree=bytes[24],codeIndex=bytes[25],seed=r32(bytes,28),payloadCrc=r32(bytes,32),flags=bytes[5];
-  if(!session||!k||k>65535||blockLen<64||blockLen>2880||totalLen<1||totalLen>256*1024*1024||degree<1||degree>Math.min(k,64)||bytes.length!==HEADER_BYTES+blockLen)return null;
+  if(!session||!k||k>65535||blockLen<64||blockLen>2913||totalLen<1||totalLen>256*1024*1024||degree<1||degree>Math.min(k,64)||bytes.length!==HEADER_BYTES+blockLen)return null;
   const payload=bytes.slice(HEADER_BYTES);if(crc32(payload)!==payloadCrc)return null;
   return{session,seq,k,blockLen,totalLen,degree,codeIndex,seed,systematic:!!(flags&1),payload};
 }
