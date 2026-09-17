@@ -10,13 +10,13 @@ self.onmessage=async e=>{const m=e.data;try{
  const mod=await loadReader(),rgba=new Uint8ClampedArray(m.rgba),imageData=new ImageData(rgba,m.width,m.height),seen=new Set(),packets=[];
  const add=results=>{for(const r of results){const p=packetFromResult(r);if(!p)continue;const key=`${p.header.session}:${p.header.seq}`;if(seen.has(key))continue;seen.add(key);packets.push(p);}};
  add(await scan(mod,imageData,2,false));
- // Dense v40 pairs are more reliable when decoded as known display regions.
- // Turbo x2 is intended for landscape; use overlapping halves so perspective
- // and centering error do not place a QR exactly on a crop boundary.
+ // Turbo x2 renders one dense QR in each physical half of the display.
+ // A crop that overlaps the neighbouring finder pattern can make ZXing reject
+ // both symbols. Decode the two non-overlapping display halves independently.
  if(packets.length<2){
    const W=m.width,H=m.height;
-   if(W>=H){const cw=Math.ceil(W*.62);add(await scan(mod,crop(rgba,W,H,0,0,cw,H),1,false));if(packets.length<2)add(await scan(mod,crop(rgba,W,H,W-cw,0,cw,H),1,false));}
-   else{const ch=Math.ceil(H*.62);add(await scan(mod,crop(rgba,W,H,0,0,W,ch),1,false));if(packets.length<2)add(await scan(mod,crop(rgba,W,H,0,H-ch,W,ch),1,false));}
+   if(W>=H){const cut=Math.floor(W/2);add(await scan(mod,crop(rgba,W,H,0,0,cut,H),1,false));add(await scan(mod,crop(rgba,W,H,cut,0,W-cut,H),1,false));}
+   else{const cut=Math.floor(H/2);add(await scan(mod,crop(rgba,W,H,0,0,W,cut),1,false));add(await scan(mod,crop(rgba,W,H,0,cut,W,H-cut),1,false));}
  }
  self.postMessage({type:'decoded',id:m.id,packets,regionFallback:packets.length>0},packets.map(p=>p.payload));
 }catch(error){self.postMessage({type:'error',id:m?.id,message:error?.message||String(error)});}};
