@@ -43,3 +43,20 @@ test('maximum physical profile exposes expected single-QR budget',()=>{
   assert.equal(PROFILES.max.codes,1);
   assert.equal(nominalRate(PROFILES.max),68640);
 });
+
+import {layoutForCodes} from '../lighthouse-roi.js';
+
+test('dual Turbo profile doubles physical QR channel budget',()=>{
+  assert.equal(PROFILES.dualTurbo.blockLen,2160);
+  assert.equal(PROFILES.dualTurbo.fps,24);
+  assert.equal(PROFILES.dualTurbo.codes,2);
+  assert.equal(nominalRate(PROFILES.dualTurbo),103680);
+});
+
+test('dual Lighthouse layout keeps two non-overlapping QR regions inside four beacons',()=>{
+  const l=layoutForCodes(2);
+  assert.equal(l.qrRects.length,2);
+  assert.ok(l.width>l.height);
+  assert.ok(l.qrRects[0].x+l.qrRects[0].w<l.qrRects[1].x);
+  assert.equal(l.beacons.length,4);
+});
