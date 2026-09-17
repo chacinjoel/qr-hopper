@@ -1,0 +1,25 @@
+name: QR Fountain syntax check
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hopperlink-qr-fountain/**'
+      - '.github/workflows/qr-fountain-syntax.yml'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate QR Fountain modules
+        run: |
+          node --check hopperlink-qr-fountain/app.js
+          node --check hopperlink-qr-fountain/protocol.js
+          node --check hopperlink-qr-fountain/fountain.js
+          node --check hopperlink-qr-fountain/lighthouse-roi.js
+          node --check hopperlink-qr-fountain/sender-worker.js
+          node --check hopperlink-qr-fountain/decoder-worker.js
