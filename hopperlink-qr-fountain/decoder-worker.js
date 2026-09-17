@@ -1,4 +1,4 @@
-import {parsePacket} from './protocol.js?v=qf03';
+import {parsePacket} from './protocol.js?v=qf04';
 let reader=null;
 async function loadReader(){if(reader)return reader;const mod=await import('./vendor/zxing/es/reader/index.js');mod.prepareZXingModule({overrides:{locateFile:path=>new URL('./vendor/zxing/reader/'+path,self.location.href).href}});reader=mod;return reader;}
 function crop(src,W,H,x0,y0,w,h){x0=Math.max(0,Math.floor(x0));y0=Math.max(0,Math.floor(y0));w=Math.max(1,Math.min(W-x0,Math.floor(w)));h=Math.max(1,Math.min(H-y0,Math.floor(h)));const out=new Uint8ClampedArray(w*h*4);for(let y=0;y<h;y++){const from=((y0+y)*W+x0)*4,to=y*w*4;out.set(src.subarray(from,from+w*4),to);}return new ImageData(out,w,h);}
