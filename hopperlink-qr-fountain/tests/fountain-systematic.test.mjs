@@ -34,3 +34,12 @@ test('systematic + fountain recovers complete stream with deterministic 25% eras
   assert.ok(dec?.progress().complete,dec?.progress());
   assert.deepEqual(dec.assemble(),stream);
 });
+
+import {PROFILES,nominalRate} from '../protocol.js';
+
+test('maximum physical profile exposes expected single-QR budget',()=>{
+  assert.equal(PROFILES.max.blockLen,2860);
+  assert.equal(PROFILES.max.fps,24);
+  assert.equal(PROFILES.max.codes,1);
+  assert.equal(nominalRate(PROFILES.max),68640);
+});
