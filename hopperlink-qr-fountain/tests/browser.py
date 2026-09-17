@@ -53,17 +53,18 @@ with sync_playwright() as pw:
       const stream=Uint8Array.from({length:180000},(_,i)=>(i*29+(i>>4))&255),enc=new FountainEncoder(stream,2860,0xdecafbad);
       const syms=[];
       for(let seq=101;seq<=102;seq++){
-        const packet=enc.frame(seq,seq&1),w=await writer.writeBarcode(packet,{format:'QRCode',scale:1,addQuietZones:true,options:'version=40,ecLevel=L,dataMask=0'});if(w.error)throw Error(w.error);syms.push(w.symbol);
+        const packet=enc.frame(seq,seq&1),w=await writer.writeBarcode(packet,{format:'QRCode',scale:3,addQuietZones:true,options:'version=40,ecLevel=L,dataMask=0'});if(w.error)throw Error(w.error);syms.push(w.symbol);
       }
-      const gap=24,W=syms[0].width+syms[1].width+gap,H=Math.max(syms[0].height,syms[1].height),rgba=new Uint8ClampedArray(W*H*4),u32=new Uint32Array(rgba.buffer);u32.fill(0xffffffff);
-      function paint(s,ox){const edge=s.data[0];for(let y=0;y<s.height;y++)for(let x=0;x<s.width;x++){const v=s.data[y*s.width+x],i=y*W+ox+x;u32[i]=v===edge?0xffffffff:0xff000000;}}
-      paint(syms[0],0);paint(syms[1],syms[0].width+gap);
-      const t=performance.now(),rs=await reader.readBarcodes(new ImageData(rgba,W,H),{formats:['QRCode'],maxNumberOfSymbols:2,tryHarder:false,tryRotate:true}),ms=performance.now()-t,seqs=[];
+      const margin=36,gap=48,W=margin*2+syms[0].width+syms[1].width+gap,H=margin*2+Math.max(syms[0].height,syms[1].height),rgba=new Uint8ClampedArray(W*H*4),u32=new Uint32Array(rgba.buffer);u32.fill(0xffffffff);
+      function paint(s,ox,oy){const edge=s.data[0];for(let y=0;y<s.height;y++)for(let x=0;x<s.width;x++){const v=s.data[y*s.width+x],i=(oy+y)*W+ox+x;u32[i]=v===edge?0xffffffff:0xff000000;}}
+      paint(syms[0],margin,margin);paint(syms[1],margin+syms[0].width+gap,margin);
+      const t=performance.now(),rs=await reader.readBarcodes(new ImageData(rgba,W,H),{formats:['QRCode'],maxNumberOfSymbols:2,tryHarder:true,tryRotate:true}),ms=performance.now()-t,seqs=[];
       for(const r of rs){const p=parsePacket(r.bytes);if(p)seqs.push(p.seq);}
-      seqs.sort((a,b)=>a-b);return{count:rs.length,seqs,ms,W,H};
+      seqs.sort((a,b)=>a-b);return{count:rs.length,seqs,ms,W,H,moduleScale:3};
     }''')
     assert pair['seqs']==[101,102],pair
     out['tests'].append('two simultaneous QR v40 symbols decode in one image with distinct fountain packets')
+    out['two_qr_module_scale']=pair['moduleScale']
     out['decode_two_qr_ms']=round(pair['ms'],2)
     out['decode_two_qr_equivalent_qr_per_s']=round(2000/max(pair['ms'],0.001),1)
 
