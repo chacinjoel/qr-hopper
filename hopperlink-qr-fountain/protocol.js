@@ -1,4 +1,4 @@
-export const BUILD='qr-fountain-0.2.0-max';
+export const BUILD='qr-fountain-0.3.0-dual';
 export const MAGIC=[0x48,0x51,0x46,0x31]; // HQF1
 export const VERSION=1;
 export const HEADER_BYTES=40;
@@ -10,8 +10,10 @@ export const PROFILES={
   turbo:{key:'turbo',label:'Turbo · QR v35 · 24 fps · 2.16 KB',blockLen:2160,fps:24,codes:1,qrVersion:35,ecLevel:'L'},
   max:{key:'max',label:'Máximo físico · QR v40 · 24 fps · 2.86 KB',blockLen:2860,fps:24,codes:1,qrVersion:40,ecLevel:'L'},
   max30:{key:'max30',label:'Máximo 30 · QR v40 · 30 fps · experimental',blockLen:2860,fps:30,codes:1,qrVersion:40,ecLevel:'L'},
+  dual:{key:'dual',label:'Dual · 2 QR v27 · 24 fps · 1.36 KB c/u',blockLen:1360,fps:24,codes:2,qrVersion:27,ecLevel:'L'},
+  dualTurbo:{key:'dualTurbo',label:'Dual Turbo · 2 QR v35 · 24 fps · 2.16 KB c/u',blockLen:2160,fps:24,codes:2,qrVersion:35,ecLevel:'L'},
+  dualMax:{key:'dualMax',label:'Dual Máximo · 2 QR v40 · 24 fps · 2.86 KB c/u · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
   turbo60:{key:'turbo60',label:'Turbo 60 · QR v40 · experimental',blockLen:2860,fps:60,codes:1,qrVersion:40,ecLevel:'L'},
-  turbo2:{key:'turbo2',label:'Turbo ×2 · QR v40 · 2 códigos · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
 };
 
 const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
