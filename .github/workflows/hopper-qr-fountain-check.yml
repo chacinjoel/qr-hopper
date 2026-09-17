@@ -45,7 +45,10 @@ jobs:
           python -m pip install playwright==1.56.0
           python -m playwright install --with-deps chromium
       - name: WASM QR binary roundtrip
-        run: python hopperlink-qr-fountain/tests/browser.py | tee hopperlink-qr-fountain/browser-proof.json
+        shell: bash
+        run: |
+          set -o pipefail
+          python hopperlink-qr-fountain/tests/browser.py | tee hopperlink-qr-fountain/browser-proof.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
