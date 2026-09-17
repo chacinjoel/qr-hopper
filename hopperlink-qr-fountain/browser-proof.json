@@ -1,0 +1,10 @@
+{
+  "hardware": false,
+  "tests": [
+    "app boot and responsive DOM",
+    "QR v40 binary packet: writer WASM -> pixels -> reader WASM -> protocol CRC",
+    "sender worker loads local writer WASM"
+  ],
+  "encode_ms_per_qr": 74.64,
+  "decode_ms_per_qr": 9.39
+}
