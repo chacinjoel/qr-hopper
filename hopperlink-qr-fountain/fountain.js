@@ -1,4 +1,4 @@
-import {packPacket} from './protocol.js?v=qf07';
+import {packPacket} from './protocol.js?v=qf08';
 function xorshift(x){x^=x<<13;x^=x>>>17;x^=x<<5;return x>>>0;}
 function seedFor(session,seq,codeIndex=0){let x=(session^Math.imul((seq+1)>>>0,0x9e3779b1)^Math.imul(codeIndex+1,0x85ebca6b))>>>0;return xorshift(x||1)||1;}
 const degreeCache=new Map();
