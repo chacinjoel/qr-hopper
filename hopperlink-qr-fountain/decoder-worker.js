@@ -1,4 +1,4 @@
-import {parsePacket} from './protocol.js';
+import {parsePacket} from './protocol.js?v=qf02';
 let reader=null;
 async function loadReader(){if(reader)return reader;const mod=await import('./vendor/zxing/es/reader/index.js');mod.prepareZXingModule({overrides:{locateFile:path=>new URL('./vendor/zxing/reader/'+path,self.location.href).href}});reader=mod;return reader;}
 function crop(src,W,H,x0,y0,w,h){x0=Math.max(0,Math.floor(x0));y0=Math.max(0,Math.floor(y0));w=Math.max(1,Math.min(W-x0,Math.floor(w)));h=Math.max(1,Math.min(H-y0,Math.floor(h)));const out=new Uint8ClampedArray(w*h*4);for(let y=0;y<h;y++){const from=((y0+y)*W+x0)*4,to=y*w*4;out.set(src.subarray(from,from+w*4),to);}return new ImageData(out,w,h);}
@@ -10,14 +10,9 @@ self.onmessage=async e=>{const m=e.data;try{
  const mod=await loadReader(),rgba=new Uint8ClampedArray(m.rgba),imageData=new ImageData(rgba,m.width,m.height),seen=new Set(),packets=[];
  let rawSymbols=0,invalidPackets=0,hardScans=0;
  const add=results=>{rawSymbols+=results.length;for(const r of results){const p=packetFromResult(r);if(!p){invalidPackets++;continue;}const key=`${p.header.session}:${p.header.seq}`;if(seen.has(key))continue;seen.add(key);packets.push(p);}};
- // Fast path: full-resolution dense QR. Do not downscale v35/v40 camera frames.
  add(await scan(mod,imageData,{max:2,hard:false}));
- // Physical-camera fallback: spend more time rather than silently returning 0.
  if(!packets.length){hardScans++;add(await scan(mod,imageData,{max:2,hard:true,denoise:true,errors:true}));}
- // A phone screen normally occupies the centre of the camera preview. Removing
- // unrelated borders/UI gives the finder search a much cleaner image.
  if(!packets.length){const W=m.width,H=m.height,side=Math.floor(Math.min(W,H)*.94),x=Math.floor((W-side)/2),y=Math.floor((H-side)/2);hardScans++;add(await scan(mod,crop(rgba,W,H,x,y,side,side),{max:1,hard:true,denoise:true,errors:true}));}
- // Turbo x2 renders one QR in each physical half. Decode halves independently.
  if(packets.length<2){const W=m.width,H=m.height;if(W>=H){const cut=Math.floor(W/2);hardScans++;add(await scan(mod,crop(rgba,W,H,0,0,cut,H),{max:1,hard:true,denoise:true,errors:true}));add(await scan(mod,crop(rgba,W,H,cut,0,W-cut,H),{max:1,hard:true,denoise:true,errors:true}));}else if(packets.length===1){const cut=Math.floor(H/2);hardScans++;add(await scan(mod,crop(rgba,W,H,0,0,W,cut),{max:1,hard:true,denoise:true,errors:true}));add(await scan(mod,crop(rgba,W,H,0,cut,W,H-cut),{max:1,hard:true,denoise:true,errors:true}));}}
  self.postMessage({type:'decoded',id:m.id,packets,rawSymbols,invalidPackets,hardScans},packets.map(p=>p.payload));
 }catch(error){self.postMessage({type:'error',id:m?.id,message:error?.message||String(error)});}};
