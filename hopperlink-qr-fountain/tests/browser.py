@@ -50,20 +50,16 @@ with sync_playwright() as pw:
       const {parsePacket}=await import('./protocol.js');
       const writer=await import('./vendor/zxing/es/writer/index.js');
       const reader=await import('./vendor/zxing/es/reader/index.js');
-      const stream=Uint8Array.from({length:180000},(_,i)=>(i*29+(i>>4))&255),enc=new FountainEncoder(stream,2860,0xdecafbad);
-      const syms=[];
-      for(let seq=101;seq<=102;seq++){
-        const packet=enc.frame(seq,seq&1),w=await writer.writeBarcode(packet,{format:'QRCode',scale:3,addQuietZones:true,options:'version=40,ecLevel=L,dataMask=0'});if(w.error)throw Error(w.error);syms.push(w.symbol);
-      }
-      const margin=36,gap=48,W=margin*2+syms[0].width+syms[1].width+gap,H=margin*2+Math.max(syms[0].height,syms[1].height),rgba=new Uint8ClampedArray(W*H*4),u32=new Uint32Array(rgba.buffer);u32.fill(0xffffffff);
-      function paint(s,ox,oy){const edge=s.data[0];for(let y=0;y<s.height;y++)for(let x=0;x<s.width;x++){const v=s.data[y*s.width+x],i=(oy+y)*W+ox+x;u32[i]=v===edge?0xffffffff:0xff000000;}}
-      paint(syms[0],margin,margin);paint(syms[1],margin+syms[0].width+gap,margin);
+      const stream=Uint8Array.from({length:180000},(_,i)=>(i*29+(i>>4))&255),enc=new FountainEncoder(stream,2860,0xdecafbad),syms=[];
+      for(let seq=101;seq<=102;seq++){const packet=enc.frame(seq,seq&1),w=await writer.writeBarcode(packet,{format:'QRCode',scale:1,addQuietZones:true,options:'version=40,ecLevel=L,dataMask=0'});if(w.error)throw Error(w.error);syms.push(w.symbol);}
+      const moduleScale=4,margin=32,gap=40,qrW=syms[0].width*moduleScale,qrH=syms[0].height*moduleScale,W=margin*2+qrW*2+gap,H=margin*2+qrH,rgba=new Uint8ClampedArray(W*H*4),u32=new Uint32Array(rgba.buffer);u32.fill(0xffffffff);
+      function paint(s,ox,oy){const edge=s.data[0];for(let y=0;y<s.height;y++)for(let x=0;x<s.width;x++){const color=s.data[y*s.width+x]===edge?0xffffffff:0xff000000;for(let yy=0;yy<moduleScale;yy++)for(let xx=0;xx<moduleScale;xx++)u32[(oy+y*moduleScale+yy)*W+ox+x*moduleScale+xx]=color;}}
+      paint(syms[0],margin,margin);paint(syms[1],margin+qrW+gap,margin);
       const t=performance.now(),rs=await reader.readBarcodes(new ImageData(rgba,W,H),{formats:['QRCode'],maxNumberOfSymbols:2,tryHarder:true,tryRotate:true}),ms=performance.now()-t,seqs=[];
-      for(const r of rs){const p=parsePacket(r.bytes);if(p)seqs.push(p.seq);}
-      seqs.sort((a,b)=>a-b);return{count:rs.length,seqs,ms,W,H,moduleScale:3};
+      for(const r of rs){const p=parsePacket(r.bytes);if(p)seqs.push(p.seq);}seqs.sort((a,b)=>a-b);return{count:rs.length,seqs,ms,W,H,moduleScale,logicalWidth:syms[0].width};
     }''')
     assert pair['seqs']==[101,102],pair
-    out['tests'].append('two simultaneous QR v40 symbols decode in one image with distinct fountain packets')
+    out['tests'].append('two simultaneous QR v40 symbols decode in one display-like image with distinct fountain packets')
     out['two_qr_module_scale']=pair['moduleScale']
     out['decode_two_qr_ms']=round(pair['ms'],2)
     out['decode_two_qr_equivalent_qr_per_s']=round(2000/max(pair['ms'],0.001),1)
@@ -73,11 +69,7 @@ with sync_playwright() as pw:
       const timer=setTimeout(()=>{if(!done){done=true;workers.forEach(w=>w.terminate());reject(Error('parallel writer timeout'));}},45000);
       function feed(w){if(next>=TOTAL)return;const seq=next++;startTimes.set(seq,performance.now());w.postMessage({type:'render',seq,codeIndex:seq&1});}
       function maybeStart(){if(ready.size!==N||t0)return;t0=performance.now();for(const w of workers)feed(w);}
-      for(let i=0;i<N;i++){
-        const w=new Worker('./sender-worker.js?v=pool',{type:'module'});workers.push(w);
-        w.onmessage=ev=>{const m=ev.data;if(m.type==='ready'){ready.add(w);maybeStart();return;}if(m.type==='error'){clearTimeout(timer);done=true;workers.forEach(x=>x.terminate());reject(Error(m.message));return;}if(m.type==='frame'){const now=performance.now(),dt=now-startTimes.get(m.seq);durations.push({seq:m.seq,ms:dt});completed.push({seq:m.seq,width:m.width,height:m.height});if(completed.length>=TOTAL){clearTimeout(timer);done=true;const elapsed=now-t0,postWarm=durations.filter(x=>x.seq>=WARM).map(x=>x.ms).sort((a,b)=>a-b);workers.forEach(x=>x.terminate());resolve({elapsed,total:TOTAL,qrps:TOTAL/(elapsed/1000),median:postWarm[Math.floor(postWarm.length/2)],p90:postWarm[Math.floor(postWarm.length*.9)],width:m.width,height:m.height});}else feed(w);}};
-        w.postMessage({type:'init',stream:Uint8Array.from({length:200000},(_,j)=>(j*31+(j>>7))&255).buffer,blockLen:2860,session:0x13572468,qrVersion:40});
-      }
+      for(let i=0;i<N;i++){const w=new Worker('./sender-worker.js?v=pool',{type:'module'});workers.push(w);w.onmessage=ev=>{const m=ev.data;if(m.type==='ready'){ready.add(w);maybeStart();return;}if(m.type==='error'){clearTimeout(timer);done=true;workers.forEach(x=>x.terminate());reject(Error(m.message));return;}if(m.type==='frame'){const now=performance.now(),dt=now-startTimes.get(m.seq);durations.push({seq:m.seq,ms:dt});completed.push({seq:m.seq,width:m.width,height:m.height});if(completed.length>=TOTAL){clearTimeout(timer);done=true;const elapsed=now-t0,postWarm=durations.filter(x=>x.seq>=WARM).map(x=>x.ms).sort((a,b)=>a-b);workers.forEach(x=>x.terminate());resolve({elapsed,total:TOTAL,qrps:TOTAL/(elapsed/1000),median:postWarm[Math.floor(postWarm.length/2)],p90:postWarm[Math.floor(postWarm.length*.9)],width:m.width,height:m.height});}else feed(w);}};w.postMessage({type:'init',stream:Uint8Array.from({length:200000},(_,j)=>(j*31+(j>>7))&255).buffer,blockLen:2860,session:0x13572468,qrVersion:40});}
     })''')
     assert pool['width']>170 and pool['total']==64,pool
     out['tests'].append('four sender workers generate independent local QR v40 frames continuously')
