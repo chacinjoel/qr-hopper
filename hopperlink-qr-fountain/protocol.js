@@ -1,13 +1,15 @@
-export const BUILD='qr-fountain-0.1.4-systematic';
+export const BUILD='qr-fountain-0.2.0-max';
 export const MAGIC=[0x48,0x51,0x46,0x31]; // HQF1
 export const VERSION=1;
 export const HEADER_BYTES=40;
 export const MAX_QR_BYTES=2920;
 export const PROFILES={
   safe:{key:'safe',label:'Compatibilidad extrema · QR v15 · 8 fps · ECC M · 280 B',blockLen:280,fps:8,codes:1,qrVersion:15,ecLevel:'M'},
-  robust:{key:'robust',label:'Robusto físico · QR v27 · 12 fps · 1.36 KB',blockLen:1360,fps:12,codes:1,qrVersion:27,ecLevel:'L'},
-  balanced:{key:'balanced',label:'Balanceado físico · QR v27 · 20 fps · 1.36 KB',blockLen:1360,fps:20,codes:1,qrVersion:27,ecLevel:'L'},
-  turbo:{key:'turbo',label:'Turbo físico · QR v35 · 20 fps · 2.16 KB',blockLen:2160,fps:20,codes:1,qrVersion:35,ecLevel:'L'},
+  robust:{key:'robust',label:'Robusto · QR v27 · 16 fps · 1.36 KB',blockLen:1360,fps:16,codes:1,qrVersion:27,ecLevel:'L'},
+  balanced:{key:'balanced',label:'Balanceado · QR v27 · 24 fps · 1.36 KB',blockLen:1360,fps:24,codes:1,qrVersion:27,ecLevel:'L'},
+  turbo:{key:'turbo',label:'Turbo · QR v35 · 24 fps · 2.16 KB',blockLen:2160,fps:24,codes:1,qrVersion:35,ecLevel:'L'},
+  max:{key:'max',label:'Máximo físico · QR v40 · 24 fps · 2.86 KB',blockLen:2860,fps:24,codes:1,qrVersion:40,ecLevel:'L'},
+  max30:{key:'max30',label:'Máximo 30 · QR v40 · 30 fps · experimental',blockLen:2860,fps:30,codes:1,qrVersion:40,ecLevel:'L'},
   turbo60:{key:'turbo60',label:'Turbo 60 · QR v40 · experimental',blockLen:2860,fps:60,codes:1,qrVersion:40,ecLevel:'L'},
   turbo2:{key:'turbo2',label:'Turbo ×2 · QR v40 · 2 códigos · experimental',blockLen:2860,fps:24,codes:2,qrVersion:40,ecLevel:'L'},
 };
