@@ -60,3 +60,13 @@ test('dual Lighthouse layout keeps two non-overlapping QR regions inside four be
   assert.ok(l.qrRects[0].y+l.qrRects[0].h<l.qrRects[1].y);
   assert.equal(l.beacons.length,4);
 });
+
+
+test('reference profile matches 2953-byte QR frame budget',()=>{
+  assert.equal(PROFILES.reference.qrVersion,40);
+  assert.equal(PROFILES.reference.ecLevel,'L');
+  assert.equal(PROFILES.reference.blockLen+40,2953);
+  assert.equal(PROFILES.reference.fps,24);
+  assert.equal(PROFILES.reference.codes,1);
+  assert.equal(nominalRate(PROFILES.reference),69912);
+});
