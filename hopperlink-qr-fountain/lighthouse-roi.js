@@ -26,10 +26,10 @@ export function detectLighthouse(data,W,H,expected=null){
   return null;
 }
 function homographyFromQuad(p0,p1,p2,p3){const dx1=p1.x-p2.x,dx2=p3.x-p2.x,dx3=p0.x-p1.x+p2.x-p3.x,dy1=p1.y-p2.y,dy2=p3.y-p2.y,dy3=p0.y-p1.y+p2.y-p3.y;let g=0,h=0;const det=dx1*dy2-dx2*dy1;if(Math.abs(dx3)>1e-6||Math.abs(dy3)>1e-6){if(Math.abs(det)<1e-9)return null;g=(dx3*dy2-dx2*dy3)/det;h=(dx1*dy3-dx3*dy1)/det;}const a=p1.x-p0.x+g*p1.x,b=p3.x-p0.x+h*p3.x,c=p0.x,d=p1.y-p0.y+g*p1.y,e=p3.y-p0.y+h*p3.y,f=p0.y;return(u,v)=>{const z=g*u+h*v+1;return{x:(a*u+b*v+c)/z,y:(d*u+e*v+f)/z};};}
-function bilinear(src,W,H,x,y,out,o){const x0=Math.max(0,Math.min(W-1,Math.floor(x))),y0=Math.max(0,Math.min(H-1,Math.floor(y))),x1=Math.min(W-1,x0+1),y1=Math.min(H-1,y0+1),fx=x-x0,fy=y-y0;for(let c=0;c<3;c++){const a=src[(y0*W+x0)*4+c]*(1-fx)+src[(y0*W+x1)*4+c]*fx,b=src[(y1*W+x0)*4+c]*(1-fx)+src[(y1*W+x1)*4+c]*fx;out[o+c]=Math.round(a*(1-fy)+b*fy);}out[o+3]=255;}
+function sampleNearest(src,W,H,x,y,out,o){const xx=Math.max(0,Math.min(W-1,Math.round(x))),yy=Math.max(0,Math.min(H-1,Math.round(y))),i=(yy*W+xx)*4;out[o]=src[i];out[o+1]=src[i+1];out[o+2]=src[i+2];out[o+3]=255;}
 export function rectifyLighthouse(src,W,H,quad,size=900){
   const map=homographyFromQuad(...quad);if(!map)return null;const out=new Uint8ClampedArray(size*size*4),m=LIGHTHOUSE.qrInset,span=1-2*m;
-  for(let y=0;y<size;y++){const v=m+span*((y+.5)/size);for(let x=0;x<size;x++){const u=m+span*((x+.5)/size),p=map(u,v);bilinear(src,W,H,p.x,p.y,out,(y*size+x)*4);}}
+  for(let y=0;y<size;y++){const v=m+span*((y+.5)/size);for(let x=0;x<size;x++){const u=m+span*((x+.5)/size),p=map(u,v);sampleNearest(src,W,H,p.x,p.y,out,(y*size+x)*4);}}
   return{rgba:out,width:size,height:size};
 }
 export function drawBeacon(ctx,cx,cy,size,color){ctx.fillStyle=color;ctx.fillRect(cx-size/2,cy-size/2,size,size);const inner=size*.56;ctx.fillStyle='#000';ctx.fillRect(cx-inner/2,cy-inner/2,inner,inner);const core=size*.16;ctx.fillStyle='#fff';ctx.fillRect(cx-core/2,cy-core/2,core,core);}
