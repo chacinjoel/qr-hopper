@@ -1,4 +1,4 @@
-import {FountainEncoder} from './fountain.js?v=qf05';
+import {FountainEncoder} from './fountain.js?v=qf06';
 let writer=null,encoder=null,qrVersion=40,ecLevel='L';
 async function loadWriter(){if(writer)return writer;const mod=await import('./vendor/zxing/es/writer/index.js');mod.prepareZXingModule({overrides:{locateFile:path=>new URL('./vendor/zxing/writer/'+path,self.location.href).href}});writer=mod;return writer;}
 self.onmessage=async e=>{const m=e.data;try{
