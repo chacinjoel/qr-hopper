@@ -1,4 +1,4 @@
-export const BUILD='qr-fountain-0.1.3-lighthouse';
+export const BUILD='qr-fountain-0.1.4-systematic';
 export const MAGIC=[0x48,0x51,0x46,0x31]; // HQF1
 export const VERSION=1;
 export const HEADER_BYTES=40;
