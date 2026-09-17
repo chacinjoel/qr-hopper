@@ -1,0 +1,66 @@
+name: Hopper QR Fountain Lab validation
+on:
+  push:
+    branches: [hopper-qr-fountain, main]
+    paths:
+      - 'hopperlink-qr-fountain/**'
+      - '.github/workflows/hopper-qr-fountain-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Vendor pinned ZXing WebAssembly
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/zxing-pkg hopperlink-qr-fountain/vendor/zxing
+          mkdir -p /tmp/zxing-pkg hopperlink-qr-fountain/vendor/zxing/{es,reader,writer}
+          cd /tmp/zxing-pkg
+          npm pack zxing-wasm@3.1.4 --silent > /tmp/zxing-tar.txt
+          tar -xzf "$(cat /tmp/zxing-tar.txt)"
+          cd "$GITHUB_WORKSPACE"
+          cp -R /tmp/zxing-pkg/package/dist/es/. hopperlink-qr-fountain/vendor/zxing/es/
+          cp /tmp/zxing-pkg/package/dist/reader/zxing_reader.wasm hopperlink-qr-fountain/vendor/zxing/reader/
+          cp /tmp/zxing-pkg/package/dist/writer/zxing_writer.wasm hopperlink-qr-fountain/vendor/zxing/writer/
+          find /tmp/zxing-pkg/package -maxdepth 1 -type f \( -iname 'LICENSE*' -o -iname 'NOTICE*' \) -exec cp {} hopperlink-qr-fountain/vendor/zxing/ \;
+          (cd hopperlink-qr-fountain/vendor/zxing && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+      - name: Core fountain and protocol tests
+        run: |
+          node --check hopperlink-qr-fountain/app.js
+          node --check hopperlink-qr-fountain/protocol.js
+          node --check hopperlink-qr-fountain/fountain.js
+          node --check hopperlink-qr-fountain/sender-worker.js
+          node --check hopperlink-qr-fountain/decoder-worker.js
+          node --test hopperlink-qr-fountain/tests/core.test.mjs
+      - name: Install browser harness
+        run: |
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: WASM QR binary roundtrip
+        run: python hopperlink-qr-fountain/tests/browser.py | tee hopperlink-qr-fountain/browser-proof.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hopper-qr-fountain-proof
+          path: |
+            hopperlink-qr-fountain/browser-proof.json
+            hopperlink-qr-fountain/vendor/zxing/SHA256SUMS.txt
+          if-no-files-found: warn
+      - name: Commit verified local codec assets on feature branch
+        if: success() && github.ref == 'refs/heads/hopper-qr-fountain'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+chacinjoel@users.noreply.github.com'
+          git add hopperlink-qr-fountain/vendor hopperlink-qr-fountain/browser-proof.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Vendor verified ZXing WASM assets for QR fountain lab'
+            git push origin HEAD:hopper-qr-fountain
+          fi
