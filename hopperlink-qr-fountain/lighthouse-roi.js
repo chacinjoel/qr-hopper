@@ -7,9 +7,9 @@ export const LIGHTHOUSE={
     qrRects:[{x:92,y:92,w:536,h:536}]
   },
   dual:{
-    width:1280,height:720,
-    beacons:[{x:42,y:42},{x:1238,y:42},{x:1238,y:678},{x:42,y:678}],
-    qrRects:[{x:92,y:100,w:520,h:520},{x:668,y:100,w:520,h:520}]
+    width:720,height:1280,
+    beacons:[{x:42,y:42},{x:678,y:42},{x:678,y:1238},{x:42,y:1238}],
+    qrRects:[{x:100,y:92,w:520,h:520},{x:100,y:668,w:520,h:520}]
   }
 };
 export function layoutForCodes(codes=1){return codes>1?LIGHTHOUSE.dual:LIGHTHOUSE.single;}
@@ -29,7 +29,7 @@ function findBeacon(data,W,H,idx,expected,relaxed=false){
   return best;
 }
 export function detectLighthouse(data,W,H,expected=null){
-  for(const relaxed of [false,true]){const pts=[];let ok=true;for(let i=0;i<4;i++){const p=findBeacon(data,W,H,i,expected?.[i],relaxed);if(!p){ok=false;break;}pts.push(p);}if(!ok)continue;const g=geometryScore(pts,W,H);if(g>=.45){const aspect=quadAspect(pts);return{quad:pts,confidence:g,relaxed,aspect,codes:aspect>1.45?2:1};}}
+  for(const relaxed of [false,true]){const pts=[];let ok=true;for(let i=0;i<4;i++){const p=findBeacon(data,W,H,i,expected?.[i],relaxed);if(!p){ok=false;break;}pts.push(p);}if(!ok)continue;const g=geometryScore(pts,W,H);if(g>=.45){const aspect=quadAspect(pts);return{quad:pts,confidence:g,relaxed,aspect,codes:(aspect<.75||aspect>1.45)?2:1};}}
   return null;
 }
 function homographyFromQuad(p0,p1,p2,p3){const dx1=p1.x-p2.x,dx2=p3.x-p2.x,dx3=p0.x-p1.x+p2.x-p3.x,dy1=p1.y-p2.y,dy2=p3.y-p2.y,dy3=p0.y-p1.y+p2.y-p3.y;let g=0,h=0;const det=dx1*dy2-dx2*dy1;if(Math.abs(dx3)>1e-6||Math.abs(dy3)>1e-6){if(Math.abs(det)<1e-9)return null;g=(dx3*dy2-dx2*dy3)/det;h=(dx1*dy3-dx3*dy1)/det;}const a=p1.x-p0.x+g*p1.x,b=p3.x-p0.x+h*p3.x,c=p0.x,d=p1.y-p0.y+g*p1.y,e=p3.y-p0.y+h*p3.y,f=p0.y;return(u,v)=>{const z=g*u+h*v+1;return{x:(a*u+b*v+c)/z,y:(d*u+e*v+f)/z};};}
