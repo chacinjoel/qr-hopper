@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-18T14:57:55+00:00",
+  "generatedAt": "2026-09-20T14:41:07+00:00",
   "counts": {
     "DEXMXUS": 2172,
-    "CBBTCUSD": 3181,
-    "DFF": 3181,
+    "CBBTCUSD": 3183,
+    "DFF": 3182,
     "DTWEXBGS": 2170,
     "VIXCLS": 2222,
     "DCOILWTICO": 2175,
@@ -14,7 +14,7 @@
   },
   "massiveUpdated": true,
   "massiveBars": {
-    "USDMXN": 623,
+    "USDMXN": 622,
     "BTCUSD": 730
   }
 }
