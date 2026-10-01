@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080c19"><meta name="description" content="Prototipo jugable de Nova Pop: compuertas interiores, segmentos, portales y Seeker.">
+<title>Nova Pop · Flow Lab</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23080c19'/%3E%3Cpath d='M16 46V18l32 28V18' fill='none' stroke='%2350f5dc' stroke-width='6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="ambient" aria-hidden="true"></div>
+<header class="site-head">
+ <div class="brand"><div class="brandmark" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div><b>NOVA <span>POP</span></b><small>JACBIT GAMES · DESIGN LAB</small></div></div>
+ <div class="build-label"><span class="live-dot"></span> PROTOTIPO JUGABLE <em>01 / FLOW</em></div>
+ <button id="help" class="icon-button" aria-label="Abrir instrucciones">?</button>
+</header>
+<main class="layout">
+ <aside class="briefing">
+  <div class="eyebrow">EXPERIMENTO 001</div>
+  <h1>El tablero.<br>Otra dirección.</h1>
+  <p class="lead">El suministro entra por el centro. Los portales completan el recorrido.</p>
+  <section class="card route-card">
+   <div class="section-title">ARQUITECTURA DEL NIVEL <span>↓</span></div>
+   <div class="route-step"><i>01</i><div><b>Incoming visible</b><small>Tres próximas piezas por carril.</small></div></div>
+   <div class="route-step"><i>02</i><div><b id="routeGate">Entrada en la fila 5</b><small>Compuertas normales y mixtas.</small></div></div>
+   <div class="route-step"><i>03</i><div><b>Portal 8 → 1</b><small>La misma pieza, otra posición.</small></div></div>
+   <div class="route-step"><i>04</i><div><b id="routeEnd">Final en la fila 4</b><small>Sin bucle ni suministro superior.</small></div></div>
+   <button id="demo" class="button primary"><span>▷</span> Ver el recorrido</button>
+   <p class="micro">La demostración guarda tu partida. Puedes regresar sin perder nada.</p>
+  </section>
+  <section class="card seeker-card"><div class="section-title">APOYO TÁCTICO <span>⌖</span></div><h2>Seeker</h2><p>Un grupo de <strong>4</strong> crea un dron. Tócalo para que busque un impacto útil para tus objetivos.</p><div class="chip">No destruye reliquias</div><div class="chip">Un impacto dirigido</div></section>
+ </aside>
+ <section class="game" aria-label="Nivel de prueba">
+  <div class="game-heading"><div><small>SIMULACIÓN / 6 × 8</small><h2>Circuito orbital</h2></div><span class="tag" id="modeLabel">JUGAR</span></div>
+  <div class="hud"><div class="moves"><span id="moves">26</span><small>TAPS</small></div><div class="objectives" id="objectives" aria-label="Objetivos restantes"></div></div>
+  <div class="board-wrap"><svg id="board" viewBox="0 0 640 860" role="group" aria-label="Tablero interactivo de ocho filas y seis columnas"></svg><div id="result" class="result" hidden></div></div>
+  <div class="status-bar"><span class="status-dot"></span><span id="status" role="status" aria-live="polite">Toca 2 o más tiles conectados del mismo color.</span></div>
+  <div style="padding:9px 12px 0"><button id="demoMobile" class="button primary">▷ Ver flujo</button></div><div class="toolbar"><button id="hint" class="button secondary">⌖ Sugerencia</button><button id="undo" class="button secondary" disabled>↶ Deshacer</button><button id="reset" class="button secondary">↻ Reiniciar</button><button id="sound" class="button secondary" aria-pressed="false" aria-label="Activar sonido">♫ Audio</button></div>
+ </section>
+ <aside class="inspector">
+  <section class="card"><div class="section-title">CONTROL DEL PROTOTIPO</div>
+   <label class="field-label" for="entry">Compuertas de entrada</label><select id="entry"><option value="3">Fila 4 · segmentos 3 + 5</option><option value="4" selected>Fila 5 · segmentos 4 + 4</option><option value="5">Fila 6 · segmentos 5 + 3</option></select>
+   <p class="micro">Cambiar la distribución inicia un nivel nuevo.</p>
+   <label class="switch"><input id="mixed" type="checkbox" checked><span></span>Permitir suministro especial</label>
+   <label class="switch"><input id="routes" type="checkbox" checked><span></span>Mostrar rutas de transferencia</label>
+   <label class="field-label" for="speed">Velocidad de animación</label><div class="speed-control"><input id="speed" type="range" min="0.4" max="2" step="0.2" value="1"><output id="speedValue">1×</output></div>
+  </section>
+  <section class="card lane-card"><div class="section-title">INSPECTOR DE CARRIL <span id="laneCode">02</span></div><div id="laneButtons" class="lane-buttons"></div><div class="gate-profile"><span id="gateBadge" class="tag gold">MIXTA</span><strong id="gateName">Compuerta 02</strong></div><div id="queueDetail" class="queue-detail"></div><p id="laneInfo" class="micro"></p><div class="metrics"><div><b id="emitted">0</b><small>ENTREGAS</small></div><div><b id="transferred">0</b><small>TRÁNSITOS</small></div></div></section>
+  <section class="card"><div class="section-title">TELEMETRÍA DE SEEKER</div><p id="seekerInfo">Al lanzar un dron verás aquí el destino elegido y su motivo.</p><small class="micro">Heurística local: objetivos, resistencias, reliquias, efectos y suministro visible. No predice toda la partida.</small></section>
+  <details class="card rules"><summary>Recetas y reglas del prototipo</summary><div class="recipes"><span>4</span><b>Seeker</b><span>5</span><b>Slash · fila</b><span>6</span><b>Beam · columna</b><span>7–8</span><b>Burst · 3×3</b><span>9+</span><b>Prism · color</b></div><p>Los grupos no cruzan la separación de segmentos. Las reliquias se extraen al llegar al final del segmento superior. Los bloqueos reciben un golpe por efecto o grupo adyacente.</p><p>Los especiales adyacentes compatibles se combinan al tocar uno; el resaltado muestra el resultado. Burst se recorta al borde de su segmento. No hay gravedad rotatoria ni fases Arena en esta prueba.</p><button id="export" class="button secondary">↓ Exportar configuración</button></details>
+ </aside>
+</main>
+<footer>MADE FOR DREAMERS. CODED FOR GAMERS. <span>Prototipo de diseño independiente · No modifica Unity ni partidas reales.</span></footer>
+<dialog id="instructions"><button id="closeHelp" class="icon-button close" aria-label="Cerrar">×</button><div class="eyebrow">NODO / GUÍA DEL LABORATORIO</div><h2>El flujo empieza en medio.</h2><p>Las piezas del incoming entran por las compuertas del segmento inferior, caen hasta la fila 8 y se transfieren a la fila 1. El borde inferior del segmento superior detiene el flujo.</p><h3>Juega con un toque</h3><p>Toca un grupo de 2 o más piezas normales del mismo color. Con 4 creas Seeker; con 5 Slash; con 6 Beam; con 7–8 Burst y con 9 o más Prism. Los especiales se activan con un toque. Puedes deshacer cualquier jugada.</p><h3>Completa los cuatro objetivos</h3><p>Recoge cian y rosa, rompe los cuatro bloqueos y lleva las dos Core Relics al terminal del segmento superior. Las reliquias no se destruyen con impactos.</p><h3>Observa la infraestructura</h3><p><b>Ver el recorrido</b> vacía temporalmente un carril y lo llena usando la misma simulación. El primer tile queda resaltado para seguirlo. Regresa a tu partida con el mismo botón.</p><p>Las compuertas doradas admiten especiales; su incoming anuncia exactamente la pieza que entregarán. El portal mueve la misma pieza, no crea otra.</p><p class="micro">Este HTML prueba una propuesta, no replica todo el motor de Nova Pop. Los objetivos y la dificultad son de demostración; consulta README para el alcance.</p></dialog>
+<noscript>Activa JavaScript para ejecutar este prototipo.</noscript>
+<script src="engine.js"></script><script src="app.js"></script>
+</body></html>
