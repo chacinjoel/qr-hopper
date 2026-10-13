@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-10-12T20:16:17+00:00",
+  "generatedAt": "2026-10-13T18:15:39+00:00",
   "counts": {
     "DEXMXUS": 2187,
-    "CBBTCUSD": 3205,
+    "CBBTCUSD": 3206,
     "DFF": 3203,
     "DTWEXBGS": 2185,
-    "VIXCLS": 2238,
+    "VIXCLS": 2239,
     "DCOILWTICO": 2190,
-    "SP500": 2205,
+    "SP500": 2206,
     "CPIAUCSL": 103,
     "CPALTT01MXM659N": 79,
     "IRSTCI01MXM156N": 104
   },
   "massiveUpdated": true,
   "massiveBars": {
-    "USDMXN": 622,
+    "USDMXN": 623,
     "BTCUSD": 730
   }
 }
