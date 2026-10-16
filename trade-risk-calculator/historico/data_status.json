@@ -1,16 +1,16 @@
 {
-  "generatedAt": "2026-10-15T15:35:06+00:00",
+  "generatedAt": "2026-10-16T15:21:40+00:00",
   "counts": {
     "DEXMXUS": 2192,
-    "CBBTCUSD": 3208,
-    "DFF": 3208,
+    "CBBTCUSD": 3209,
+    "DFF": 3209,
     "DTWEXBGS": 2190,
-    "VIXCLS": 2241,
-    "DCOILWTICO": 2190,
-    "SP500": 2208,
+    "VIXCLS": 2242,
+    "DCOILWTICO": 2196,
+    "SP500": 2209,
     "CPIAUCSL": 104,
     "CPALTT01MXM659N": 79,
-    "IRSTCI01MXM156N": 104
+    "IRSTCI01MXM156N": 105
   },
   "massiveUpdated": true,
   "massiveBars": {
